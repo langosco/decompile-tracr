@@ -1,6 +1,6 @@
 from setuptools import setup
 
-setup(name='inverse-tracr',
+setup(name='lauro_inverse-tracr',
       version='0.0.1',
       install_requires=[],
       )
