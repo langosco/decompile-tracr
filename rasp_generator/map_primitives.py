@@ -16,6 +16,9 @@
 # categorical | categorical
 # numerical   | float, bool
 
+# CONSTRAINTS
+# - numerical values are not allowed to be negative (because of ReLU)
+
 
 from tracr.rasp import rasp
 import numpy as np
@@ -128,7 +131,8 @@ FLOAT_TO_BOOL = [
 
 # float --> categorical
 FLOAT_TO_CAT = [
-    FunctionWithRepr("lambda x: int(x)")  # TODO weaken this to allow floats in categorical SOps?
+    FunctionWithRepr("lambda x: x"),
+    FunctionWithRepr("lambda x: int(x)")
 ]
 
 

@@ -214,27 +214,23 @@ class ProgramSampler:
         self.validate_compilation = validate_compilation
         self.rng = np.random.default_rng(rng)
 
-    def add_sop(self, max_retries=10):
-        """Sample a SOp."""
-        try:
-            sop = sample_sop(self.rng, self.sops)
-            self.sops.append(sop)
-        except EmptyScopeError as err:
-            if max_retries == 0:
-                raise EmptyScopeError("Maximum retries reached. Failed to sample SOp. Received error: "
-                                      f"{err}")
-            else:
-                self.add_sop(max_retries=max_retries-1)
-
     def sample(self, n_sops=10):
         """Sample a program."""
+        errs = []
         for _ in range(n_sops):
-            self.add_sop()
-        self.output = self.sops[-1]
+            try:
+                sop = sample_sop(self.rng, self.sops)
+                self.sops.append(sop)
+            except (EmptyScopeError, SamplingError) as err:
+                errs.append(err)
+
+        self.program = self.sops[-1]
         self.validate()
+        return errs
 
     def validate(self):
-        """Validate the program."""
+        """Validate the program. This is fairly slow, especially when 
+        self.validate_compilation is enabled."""
         for sop in self.sops[2:]:
             validate_custom_types(sop, TEST_INPUT)
             errs = validate(sop, TEST_INPUT)
