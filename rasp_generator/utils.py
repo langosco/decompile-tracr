@@ -5,6 +5,7 @@ import networkx as nx
 
 
 def print_expr(expr: rasp.RASPExpr, test_input=None):
+    """Print an annotated rasp expression in a human-readable format."""
     args = ", ".join([arg.label for arg in expr.children])
 
     if isinstance(expr, rasp.Select):
@@ -24,8 +25,9 @@ def print_expr(expr: rasp.RASPExpr, test_input=None):
     return None
 
 
-def print_program(output: rasp.SOp, test_input=None):
-    graph = rasp_to_graph.extract_rasp_graph(output)
+def print_program(program: rasp.SOp, test_input=None):
+    """Sort the nodes in a program topologically and print them in order."""
+    graph = rasp_to_graph.extract_rasp_graph(program)
     sorted_nodes = list(nx.topological_sort(graph.graph))
 
     for node_id in sorted_nodes:
