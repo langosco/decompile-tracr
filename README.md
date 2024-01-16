@@ -36,5 +36,5 @@ utils.print_program(sampler.output, test_input=[1,2,3,4])
 - [ ] remove SOps that are all (or mostly) None
 - [ ] maybe remove / downweight constant SOps?
 - [ ] add tests
-- [ ] send PR for tracr allowing floats in rasp.Aggregate
-- [ ] allow for floats in categorical SOps (after PR is accepted)
+- [x] send PR for tracr allowing floats in rasp.Aggregate
+- [x] allow for floats in categorical SOps (after PR is accepted)
