@@ -24,4 +24,17 @@ utils.print_program(sampler.output, test_input=[1,2,3,4])
 ```
 
 
-## TODOs
+## Status
+### Remaining problems
+- sometimes categorical Aggregate is hard to sample (reaches max retries)
+- sometimes a sampled program doesn't depend on rasp.tokens
+- sometimes programs are trivial (e.g. output is all Nones)
+- I suspect that sometimes the output is constant. TODO: check multiple inputs
+
+
+### TODOS
+- [ ] remove SOps that are all (or mostly) None
+- [ ] maybe remove / downweight constant SOps?
+- [ ] add tests
+- [ ] send PR for tracr allowing floats in rasp.Aggregate
+- [ ] allow for floats in categorical SOps (after PR is accepted)
