@@ -50,6 +50,8 @@ def get_map_fn(input_type: str) -> (callable, str):
             fns = CAT_TO_FLOAT
         elif output_type == "categorical":
             fns = CAT_TO_CAT
+    else:
+        raise ValueError(f"Got sop annotated with unkown type {input_type}.")
 
     return np.random.choice(fns), output_type
 
@@ -126,7 +128,7 @@ FLOAT_TO_BOOL = [
 
 # float --> categorical
 FLOAT_TO_CAT = [
-    FunctionWithRepr("lambda x: x")
+    FunctionWithRepr("lambda x: int(x)")  # TODO weaken this to allow floats in categorical SOps?
 ]
 
 
@@ -140,7 +142,7 @@ NONLINEAR_SEQMAP_FNS = [
 
 COMPARISONS = [
     rasp.Comparison.EQ, 
-    rasp.Comparison.FALSE,
+#    rasp.Comparison.FALSE,
     rasp.Comparison.TRUE,
     rasp.Comparison.GEQ,
     rasp.Comparison.GT, 

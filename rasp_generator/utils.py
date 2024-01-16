@@ -1,23 +1,7 @@
-import os
 from tracr.rasp import rasp
-from tracr.compiler import compiling, rasp_to_graph
-import numpy as np
+from tracr.compiler import rasp_to_graph
 from tracr.compiler.validating import validate
-from typing import Union, TypeVar
-from lauro_inverse_tracr import map_primitives, sampling
 import networkx as nx
-import inspect
-
-
-def get_args(fn: callable):
-    """Return the arguments of a function. Ignores keyword arguments."""
-    argspec = inspect.getfullargspec(fn)
-    n_kwargs = len(argspec.defaults)
-    args = argspec.args
-    args = args[:-n_kwargs] if n_kwargs > 0 else args
-    if 'self' in args:
-        args = args[1:]
-    return args
 
 
 def print_expr(expr: rasp.RASPExpr, test_input=None):

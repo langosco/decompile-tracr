@@ -19,7 +19,7 @@ from tracr.rasp import rasp
 import numpy as np
 from tracr.compiler.validating import validate
 from tracr.compiler import compiling
-from lauro_inverse_tracr import map_primitives
+from rasp_generator import map_primitives
 
 
 class EmptyScopeError(Exception):
@@ -72,7 +72,7 @@ def sample_map(rng, variable_scope: list):
     """Sample a map. A map applies a function elementwise to a SOp.
     The input SOps can be categorical, float, or bool."""
     sop_in = sample_from_scope(rng, variable_scope)
-    fn, output_type = map_primitives.get_map_fn(sop_in)
+    fn, output_type = map_primitives.get_map_fn(sop_in.annotations["type"])
     sop_out = rasp.Map(fn, sop_in)
     return annotate_type(sop_out, type=output_type)
 
@@ -147,7 +147,7 @@ def sample_categorical_aggregate(rng, variable_scope: list, max_retries=10):
             sop_out = sample_categorical_aggregate(rng, variable_scope, max_retries=max_retries-1)
         else:
             raise SamplingError("Maximum retries reached. Could not sample categorical aggregate with valid output domain."
-                                "This because the sampler couldn't find a selector with width 1, and other sampled selectors"
+                                "This because the sampler couldn't find a selector with width 1, and other sampled selectors "
                                 "don't result in an output domain that is a subset of the input domain.")
 
     return annotate_type(sop_out, type="categorical")
@@ -195,14 +195,15 @@ def validate_custom_types(expr: rasp.SOp, test_input):
 def validate_compilation(expr: rasp.SOp, test_inputs: list):
     model = compiling.compile_rasp_to_model(expr, vocab={1,2,3,4}, max_seq_len=5, compiler_bos="BOS")
     for test_input in test_inputs:
-        rasp_out = np.array(expr(test_input), dtype=float)
+        rasp_out = expr(test_input)
+        rasp_out_sanitized = [0 if x is None else x for x in rasp_out]
         out = model.apply(["BOS"] + test_input).decoded[1:]
 
-        if not np.allclose(out, rasp_out, equal_nan=True):
-            raise ValueError(f"Compiled program {expr.label} does not match RASP output."
-                             f"Compiled output: {out}"
-                             f"RASP output: {rasp_out}"
-                             f"Test input: {test_input}"
+        if not np.allclose(out, rasp_out_sanitized):
+            raise ValueError(f"Compiled program {expr.label} does not match RASP output.\n"
+                             f"Compiled output: {out}\n"
+                             f"RASP output: {rasp_out}\n"
+                             f"Test input: {test_input}\n"
                              f"SOp: {expr}")
 
 
