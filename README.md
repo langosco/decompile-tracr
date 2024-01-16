@@ -14,13 +14,13 @@ sampler = sampling.ProgramSampler(validate_compilation=True)
 sampler.sample()
 
 # run the program
-print(sampler.output([1,2,3,4]))
+print(sampler.program([1,2,3,4]))
 
 # print the program
-utils.print_program(sampler.output)
+utils.print_program(sampler.program)
 
 # print the program, tracking SOp values at every step
-utils.print_program(sampler.output, test_input=[1,2,3,4])
+utils.print_program(sampler.program, test_input=[1,2,3,4])
 ```
 
 
