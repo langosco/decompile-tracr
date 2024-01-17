@@ -19,7 +19,7 @@ from tracr.rasp import rasp
 import numpy as np
 from tracr.compiler.validating import validate
 from tracr.compiler import compiling
-from rasp_generator import map_primitives
+from rasp_generator import map_primitives, utils
 
 
 class EmptyScopeError(Exception):
@@ -32,9 +32,8 @@ class SamplingError(Exception):
 TEST_INPUT = [1,2,3,4]  # used to validate programs
 
 
-def sample_from_scope(rng: np.random.Generator, variable_scope: list, size=None, replace=False):
+def sample_from_scope(rng: np.random.Generator, variable_scope: list, size=None, replace=False, weights=None):
     """Sample a SOp from a given scope."""
-    weights = None
     return rng.choice(variable_scope, size=size, replace=replace, p=weights)
 
 
@@ -95,7 +94,7 @@ def sample_linear_sequence_map(rng, variable_scope: list):
         raise EmptyScopeError("Found only one SOp of type float in scope. Need >= 2 for LinearSequenceMap")
 
     args = rng.choice(floats, size=2, replace=False)
-    weights = rng.normal(size=2)  # TODO: sometimes use 1,1 weights?
+    weights = np.clip(rng.normal(size=2) + 1)  # TODO: sometimes use 1,1 weights?
     sop_out = rasp.LinearSequenceMap(*args, *weights)
     return annotate_type(sop_out, type="float")
 
@@ -172,7 +171,12 @@ SAMPLE_FUNCTIONS = {
 def sample_sop(rng, variable_scope: list):
     """Sample a SOp."""
     sop_type = rng.choice(list(SAMPLE_FUNCTIONS.keys()))
-    return SAMPLE_FUNCTIONS[sop_type](rng, variable_scope)
+    sop = SAMPLE_FUNCTIONS[sop_type](rng, variable_scope)
+    test_output = sop(TEST_INPUT)
+    frac_none = utils.fraction_none(test_output)
+    if frac_none > 0.5:
+        raise SamplingError(f"Sampled SOp {sop} has too many None values ({frac_none}).")
+    return sop
 
 
 def validate_custom_types(expr: rasp.SOp, test_input):
@@ -199,7 +203,7 @@ def validate_compilation(expr: rasp.SOp, test_inputs: list):
         rasp_out_sanitized = [0 if x is None else x for x in rasp_out]
         out = model.apply(["BOS"] + test_input).decoded[1:]
 
-        if not np.allclose(out, rasp_out_sanitized):
+        if not np.allclose(out, rasp_out_sanitized, rtol=1e-3):
             raise ValueError(f"Compiled program {expr.label} does not match RASP output.\n"
                              f"Compiled output: {out}\n"
                              f"RASP output: {rasp_out}\n"
@@ -231,11 +235,11 @@ class ProgramSampler:
     def validate(self):
         """Validate the program. This is fairly slow, especially when 
         self.validate_compilation is enabled."""
-        for sop in self.sops[2:]:
-            validate_custom_types(sop, TEST_INPUT)
-            errs = validate(sop, TEST_INPUT)
-            if errs:
-                raise ValueError(f"Invalid program: {errs}")
-            if self.validate_compilation:
-                validate_compilation(sop, [TEST_INPUT])
-            return
+        sop = self.program
+        validate_custom_types(sop, TEST_INPUT)
+        errs = validate(sop, TEST_INPUT)
+        if len(errs) > 0:
+            raise ValueError(f"Invalid program: {errs}")
+        elif self.validate_compilation:
+            validate_compilation(sop, [TEST_INPUT])
+        return

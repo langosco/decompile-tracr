@@ -10,10 +10,10 @@ def print_expr(expr: rasp.RASPExpr, test_input=None):
 
     if isinstance(expr, rasp.Select):
         args += f", predicate={expr.predicate}"
-    elif isinstance(expr, (rasp.Map, rasp.SequenceMap)):
-        args = f"{expr.f}, " + args
     elif isinstance(expr, rasp.LinearSequenceMap):
         args = args + f", {expr.fst_fac}, {expr.snd_fac}"
+    elif isinstance(expr, (rasp.Map, rasp.SequenceMap)):
+        args = f"{expr.f}, " + args
 
     print_str = f"{expr.label} = {type(expr).__name__}({args})" #            Type: {expr.annotations['type']}")
     if test_input is not None and not isinstance(expr, rasp.Select):
@@ -36,3 +36,8 @@ def print_program(program: rasp.SOp, test_input=None):
 
         expr = graph.graph.nodes[node_id]["EXPR"]
         print_expr(expr, test_input=test_input)
+
+
+def fraction_none(x: list):
+    """Return the fraction of elements in x that are None."""
+    return sum([1 for elem in x if elem is None]) / len(x)
