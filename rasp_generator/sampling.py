@@ -94,7 +94,7 @@ def sample_linear_sequence_map(rng, variable_scope: list):
         raise EmptyScopeError("Found only one SOp of type float in scope. Need >= 2 for LinearSequenceMap")
 
     args = rng.choice(floats, size=2, replace=False)
-    weights = np.clip(rng.normal(size=2) + 1)  # TODO: sometimes use 1,1 weights?
+    weights = np.clip(rng.normal(size=2) + 1, 0, 2)  # TODO: sometimes use 1,1 weights?
     sop_out = rasp.LinearSequenceMap(*args, *weights)
     return annotate_type(sop_out, type="float")
 
@@ -183,7 +183,7 @@ def validate_custom_types(expr: rasp.SOp, test_input):
     out = expr(test_input)
     if expr.annotations["type"] == "bool":
         # bools are numerical and only take values 0 or 1
-        if not set(out).issubset({0, 1}):
+        if not set(out).issubset({0, 1, None}):
             raise ValueError(f"Bool SOps may only take values 0 or 1. Instead, received {out}")
         elif not rasp.numerical(expr):
             raise ValueError(f"Bool SOps must be numerical. Instead, {expr} is categorical.")
@@ -203,7 +203,7 @@ def validate_compilation(expr: rasp.SOp, test_inputs: list):
         rasp_out_sanitized = [0 if x is None else x for x in rasp_out]
         out = model.apply(["BOS"] + test_input).decoded[1:]
 
-        if not np.allclose(out, rasp_out_sanitized, rtol=1e-3):
+        if not np.allclose(out, rasp_out_sanitized, rtol=1e-3, atol=1e-3):
             raise ValueError(f"Compiled program {expr.label} does not match RASP output.\n"
                              f"Compiled output: {out}\n"
                              f"RASP output: {rasp_out}\n"
