@@ -32,9 +32,33 @@ class SamplingError(Exception):
 TEST_INPUT = [1,2,3,4]  # used to validate programs
 
 
-def sample_from_scope(rng: np.random.Generator, variable_scope: list, size=None, replace=False, weights=None):
+def sample_from_scope(
+        rng: np.random.Generator,
+        variable_scope: list,
+        type_constraint=None,
+        constraints=None,
+        size=None,
+        replace=False,
+        weights=None,
+    ):
     """Sample a SOp from a given scope."""
-    return rng.choice(variable_scope, size=size, replace=replace, p=weights)
+    variable_scope = filter_scope(
+        variable_scope, 
+        type=type_constraint,
+        constraints=constraints,
+    )
+
+    lw, ltotal =  len(weights), len(variable_scope)
+    if weights is None:
+        weights = [1] * ltotal
+    if type_constraint in {"categorical", None}:
+        weights[0] = 3
+    weights = np.array(weights) / np.sum(weights)
+    return rng.choice(
+        variable_scope, 
+        size=size, 
+        replace=replace, 
+        p=weights)
 
 
 def annotate_type(sop: rasp.SOp, type: str):
@@ -52,10 +76,11 @@ def annotate_type(sop: rasp.SOp, type: str):
     return sop
 
 
-def filter_scope(variable_scope: list, type: str, constraints: list[callable] = []):
+def filter_scope(variable_scope: list, type: str = None, constraints: list[callable] = []):
     """Return the subset of SOps that are of a given type and satisfy a set of constraints.
     Constraints are callables that take a SOp and return a boolean."""
-    constraints = [lambda sop: sop.annotations["type"] == type] + constraints
+    if type is not None:
+        constraints = [lambda sop: sop.annotations["type"] == type] + constraints
 
     filtered = variable_scope
     for constraint in constraints:
@@ -67,10 +92,11 @@ def filter_scope(variable_scope: list, type: str, constraints: list[callable] = 
     return filtered
 
 
+
 def sample_map(rng, variable_scope: list):
     """Sample a map. A map applies a function elementwise to a SOp.
     The input SOps can be categorical, float, or bool."""
-    sop_in = sample_from_scope(rng, variable_scope)
+    sop_in = sample_from_scope(rng, variable_scope, weights=[3, 1])
     fn, output_type = map_primitives.get_map_fn(sop_in.annotations["type"])
     sop_out = rasp.Map(fn, sop_in)
     return annotate_type(sop_out, type=output_type)
@@ -105,7 +131,15 @@ def sample_selector(rng, variable_scope: list):
     constraints = [lambda sop: None not in sop(TEST_INPUT)]
     # TODO: allow Selectors with bools (numerical & 0-1) as input?
     # TODO: swap to sample_from_scope?
-    sop_in1, sop_in2 = rng.choice(filter_scope(variable_scope, type="categorical", constraints=constraints), size=2, replace=True)
+    sop_in1, sop_in2 = rng.choice(filter_scope(
+        variable_scope, type="categorical", constraints=constraints), size=2, replace=True)
+    sop_in1, sop_in2 = sample_from_scope(
+        rng,
+        filter_scope(variable_scope, 'categorical', constraints=constraints),
+        size=2,
+        replace=True,
+        weights=[3, 1],  # prefer rasp.tokens
+    )
     comparison = rng.choice(map_primitives.COMPARISONS)
     selector = rasp.Select(sop_in1, sop_in2, comparison)
     return selector
