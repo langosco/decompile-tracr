@@ -4,6 +4,46 @@ from tracr.compiler.validating import validate
 import networkx as nx
 
 
+class EmptyScopeError(Exception):
+    pass
+
+
+def annotate_type(sop: rasp.SOp, type: str):
+    """Annotate a SOp with a type."""
+    # important for compiler:
+    if type in ["bool", "float"]:
+        sop = rasp.numerical(sop)
+    elif type in ["categorical"]:
+        sop = rasp.categorical(sop)
+    else:
+        raise ValueError(f"Unknown type {type}.")
+    
+    # ignored by compiler but used by program sampler:
+    sop = rasp.annotate(sop, type=type)
+    return sop
+
+
+def filter_by_type(sops: list[rasp.SOp], type: str = None):
+    """Return the subset of SOps that are of a given type"""
+    filtered = [sop for sop in sops if sop.annotations["type"] == type]
+    if len(filtered) == 0:
+        raise EmptyScopeError(f"No SOps of type {type} in scope.")
+    return filtered
+
+
+def filter_by_constraints(sops: list[rasp.SOp], constraints: list[callable]):
+    """Return the subset of SOps that satisfy a set of constraints.
+    A constraint is a callable that takes a SOp and return a boolean."""
+    filtered = sops
+    for constraint in constraints:
+        filtered = [v for v in filtered if constraint(v)]
+
+    if len(filtered) == 0:
+        raise EmptyScopeError("No SOps in scope satisfy constraints.")
+
+    return filtered
+
+
 def print_expr(expr: rasp.RASPExpr, test_input=None):
     """Print an annotated rasp expression in a human-readable format."""
     args = ", ".join([arg.label for arg in expr.children])

@@ -22,9 +22,6 @@ from tracr.compiler import compiling
 from rasp_generator import map_primitives, utils
 
 
-class EmptyScopeError(Exception):
-    pass
-
 class SamplingError(Exception):
     pass
 
@@ -34,111 +31,82 @@ TEST_INPUT = [1,2,3,4]  # used to validate programs
 
 def sample_from_scope(
         rng: np.random.Generator,
-        variable_scope: list,
+        sops: list[rasp.SOp],
         type_constraint=None,
-        constraints=None,
+        other_constraints: list[callable] = [],
         size=None,
         replace=False,
-        weights=None,
     ):
-    """Sample a SOp from a given scope."""
-    variable_scope = filter_scope(
-        variable_scope, 
-        type=type_constraint,
-        constraints=constraints,
-    )
+    """Sample a SOp from a given list of SOps, according to constraints."""
+    sops = utils.filter_by_type(sops, type=type_constraint)
+    sops = utils.filter_by_constraints(sops, other_constraints)
 
-    lw, ltotal =  len(weights), len(variable_scope)
-    if weights is None:
-        weights = [1] * ltotal
+    if size is not None and len(sops) < size:
+        raise utils.EmptyScopeError(
+            f"Not enough SOps in scope. Found {len(sops)}, need {size}")
+
+    weights = [1] * len(sops)
     if type_constraint in {"categorical", None}:
         weights[0] = 3
     weights = np.array(weights) / np.sum(weights)
+
     return rng.choice(
-        variable_scope, 
+        sops, 
         size=size, 
         replace=replace, 
         p=weights)
 
 
-def annotate_type(sop: rasp.SOp, type: str):
-    """Annotate a SOp with a type."""
-    # important for compiler:
-    if type in ["bool", "float"]:
-        sop = rasp.numerical(sop)
-    elif type in ["categorical"]:
-        sop = rasp.categorical(sop)
-    else:
-        raise ValueError(f"Unknown type {type}.")
-    
-    # ignored by compiler but used by program sampler:
-    sop = rasp.annotate(sop, type=type)
-    return sop
-
-
-def filter_scope(variable_scope: list, type: str = None, constraints: list[callable] = []):
-    """Return the subset of SOps that are of a given type and satisfy a set of constraints.
-    Constraints are callables that take a SOp and return a boolean."""
-    if type is not None:
-        constraints = [lambda sop: sop.annotations["type"] == type] + constraints
-
-    filtered = variable_scope
-    for constraint in constraints:
-        filtered = [v for v in filtered if constraint(v)]
-
-        if len(filtered) == 0:
-            raise EmptyScopeError(f"No SOps of type {type} in scope.")
-
-    return filtered
-
-
-
-def sample_map(rng, variable_scope: list):
+def sample_map(rng, variable_scope: list[rasp.SOp]):
     """Sample a map. A map applies a function elementwise to a SOp.
     The input SOps can be categorical, float, or bool."""
-    sop_in = sample_from_scope(rng, variable_scope, weights=[3, 1])
+    sop_in = sample_from_scope(rng, variable_scope)
     fn, output_type = map_primitives.get_map_fn(sop_in.annotations["type"])
     sop_out = rasp.Map(fn, sop_in)
-    return annotate_type(sop_out, type=output_type)
+    return utils.annotate_type(sop_out, type=output_type)
 
 
-def sample_sequence_map(rng, variable_scope: list):
+def sample_sequence_map(rng, variable_scope: list[rasp.SOp]):
     """Sample a sequence map. A SM applies a function elementwise to
     two categorical SOps. The output is always categorical."""
-    args = rng.choice(  # TODO swap to sample_from_scope?
-        filter_scope(variable_scope, type="categorical"), size=2, replace=False)
+    args = sample_from_scope(
+        rng, 
+        variable_scope, 
+        type_constraint="categorical", 
+        size=2, 
+        replace=False
+    )
     fn = rng.choice(map_primitives.NONLINEAR_SEQMAP_FNS)
     sop_out = rasp.SequenceMap(fn, *args)
-    return annotate_type(sop_out, type="categorical")
+    return utils.annotate_type(sop_out, type="categorical")
 
 
 def sample_linear_sequence_map(rng, variable_scope: list):
     """Sample a linear sequence map. A LNS linearly combines two
     numerical SOps. The output is always numerical."""
-    floats = filter_scope(variable_scope, type="float")
-    if len(floats) < 2:
-        raise EmptyScopeError("Found only one SOp of type float in scope. Need >= 2 for LinearSequenceMap")
-
-    args = rng.choice(floats, size=2, replace=False)
+    args = sample_from_scope(
+        rng, 
+        variable_scope, 
+        type_constraint="float", 
+        size=2, 
+        replace=False
+    )
     weights = np.clip(rng.normal(size=2) + 1, 0, 2)  # TODO: sometimes use 1,1 weights?
     sop_out = rasp.LinearSequenceMap(*args, *weights)
-    return annotate_type(sop_out, type="float")
+    return utils.annotate_type(sop_out, type="float")
 
 
 def sample_selector(rng, variable_scope: list):
     """Sample a rasp.Select. A select takes two categorical SOps and
     returns a selector (matrix) of booleans."""
-    constraints = [lambda sop: None not in sop(TEST_INPUT)]
     # TODO: allow Selectors with bools (numerical & 0-1) as input?
-    # TODO: swap to sample_from_scope?
-    sop_in1, sop_in2 = rng.choice(filter_scope(
-        variable_scope, type="categorical", constraints=constraints), size=2, replace=True)
     sop_in1, sop_in2 = sample_from_scope(
         rng,
-        filter_scope(variable_scope, 'categorical', constraints=constraints),
+        variable_scope,
+        type_constraint="categorical",
+        other_constraints=[lambda sop: None not in sop(TEST_INPUT)],
         size=2,
         replace=True,
-        weights=[3, 1],  # prefer rasp.tokens
     )
     comparison = rng.choice(map_primitives.COMPARISONS)
     selector = rasp.Select(sop_in1, sop_in2, comparison)
@@ -153,12 +121,15 @@ def sample_numerical_aggregate(rng, variable_scope: list):
     This constraint is necessary for all aggregates with numerical SOps.
     """
     selector = sample_selector(rng, variable_scope)
-    # TODO: swap to sample_from_scope?
-    sop_in = rng.choice(filter_scope(variable_scope, type="bool",
-                                           constraints=[lambda sop: None not in sop(TEST_INPUT)]))
+    sop_in = sample_from_scope(
+        rng,
+        variable_scope,
+        type_constraint="bool",
+        other_constraints=[lambda sop: None not in sop(TEST_INPUT)]
+    )
     sop_out = rasp.Aggregate(selector, sop_in, default=0)
     # TODO: sometimes output can be bool here?
-    return annotate_type(sop_out, type="float")  # has to be numerical (tracr constraint)
+    return utils.annotate_type(sop_out, type="float")  # has to be numerical (tracr constraint)
 
 
 def sample_categorical_aggregate(rng, variable_scope: list, max_retries=10):
@@ -169,8 +140,12 @@ def sample_categorical_aggregate(rng, variable_scope: list, max_retries=10):
     selector is used but the output domain of the aggregate is still equal to the input domain.
     """
     selector = sample_selector(rng, variable_scope)
-    sop_in = rng.choice(filter_scope(variable_scope, type="categorical",
-                                           constraints=[lambda sop: None not in sop(TEST_INPUT)]))
+    sop_in = sample_from_scope(
+        rng,
+        variable_scope,
+        type_constraint="categorical",
+        other_constraints=[lambda sop: None not in sop(TEST_INPUT)]
+    )
     sop_out = rasp.Aggregate(selector, sop_in, default=None)
 
     # validate:
@@ -183,13 +158,13 @@ def sample_categorical_aggregate(rng, variable_scope: list, max_retries=10):
                                 "This because the sampler couldn't find a selector with width 1, and other sampled selectors "
                                 "don't result in an output domain that is a subset of the input domain.")
 
-    return annotate_type(sop_out, type="categorical")
+    return utils.annotate_type(sop_out, type="categorical")
 
 
 def sample_selector_width(rng, variable_scope: list):
     selector = sample_selector(rng, variable_scope)
     sop_out = rasp.SelectorWidth(selector)
-    return annotate_type(sop_out, type="categorical")
+    return utils.annotate_type(sop_out, type="categorical")
 
 
 SAMPLE_FUNCTIONS = {
@@ -248,7 +223,7 @@ def validate_compilation(expr: rasp.SOp, test_inputs: list):
 class ProgramSampler:
     def __init__(self, validate_compilation=False, rng=None):
         self.sops = [rasp.tokens, rasp.indices]
-        self.sops = [annotate_type(sop, type="categorical") for sop in self.sops]
+        self.sops = [utils.annotate_type(sop, type="categorical") for sop in self.sops]
         self.validate_compilation = validate_compilation
         self.rng = np.random.default_rng(rng)
 
@@ -259,7 +234,7 @@ class ProgramSampler:
             try:
                 sop = sample_sop(self.rng, self.sops)
                 self.sops.append(sop)
-            except (EmptyScopeError, SamplingError) as err:
+            except (utils.EmptyScopeError, SamplingError) as err:
                 errs.append(err)
 
         self.program = self.sops[-1]
