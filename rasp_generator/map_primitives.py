@@ -22,6 +22,7 @@
 
 from tracr.rasp import rasp
 import numpy as np
+from rasp_generator.utils import FunctionWithRepr
 
 
 TYPES = [
@@ -31,53 +32,12 @@ TYPES = [
 ]
 
 
-def get_map_fn(input_type: str) -> (callable, str):
-    """Given the type of the input SOp, return a function that is
-    valid for that type and its output type."""
-    if input_type == "bool":
-        output_type = np.random.choice(["bool", "categorical"])
-        fns = BOOL_TO_BOOL if output_type == "bool" else BOOL_TO_CAT
-    elif input_type == "float":
-        output_type = np.random.choice(TYPES)
-        if output_type == "bool":
-            fns = FLOAT_TO_BOOL
-        elif output_type == "float":
-            fns = FLOAT_TO_FLOAT
-        elif output_type == "categorical":
-            fns = FLOAT_TO_CAT
-    elif input_type == "categorical":
-        output_type = np.random.choice(TYPES)
-        if output_type == "bool":
-            fns = CAT_TO_BOOL
-        elif output_type == "float":
-            fns = CAT_TO_FLOAT
-        elif output_type == "categorical":
-            fns = CAT_TO_CAT
-    else:
-        raise ValueError(f"Got sop annotated with unkown type {input_type}.")
-
-    return np.random.choice(fns), output_type
-
-
 # Tracr only supports categorical inputs.
 # These are integers, but they'll be treated as categorical.
 VOCAB_SIZE = 5
 VOCAB = list(range(VOCAB_SIZE))
 
 
-class FunctionWithRepr:
-    """Minimal wrapper around a function that allows us
-    to represent it as a string."""
-    def __init__(self, fn_str: str):
-        """
-        fn_str: function in form of eval-able string, e.g. 'lambda x: x+1'."""
-        self.fn_str = fn_str
-
-    def __repr__(self):
-        return self.fn_str
-    
-    def __call__(self, *args, **kwargs):
-        return eval(self.fn_str)(*args, **kwargs)
 
 
 # categorical --> categorical
@@ -111,10 +71,8 @@ BOOL_TO_BOOL = [
     FunctionWithRepr("lambda x: not x"),
 ]
 
-# bool --> float
-pass
-
-
+# bool --> float and bool --> categorical
+BOOL_TO_FLOAT = BOOL_TO_BOOL
 BOOL_TO_CAT = BOOL_TO_BOOL
 
 
@@ -154,3 +112,26 @@ COMPARISONS = [
     rasp.Comparison.LT, 
     rasp.Comparison.NEQ,
 ]
+
+
+FUNCTIONS_BY_SIGNATURE = {
+    "bool --> bool": BOOL_TO_BOOL,
+    "bool --> float": BOOL_TO_FLOAT,
+    "bool --> categorical": BOOL_TO_CAT,
+    "float --> bool": FLOAT_TO_BOOL,
+    "float --> float": FLOAT_TO_FLOAT,
+    "float --> categorical": FLOAT_TO_CAT,
+    "categorical --> bool": CAT_TO_BOOL,
+    "categorical --> float": CAT_TO_FLOAT,
+    "categorical --> categorical": CAT_TO_CAT,
+}
+
+
+def get_map_fn(rng, input_type: str) -> (callable, str):
+    """
+    Randomly determine an output domain (ie type), then sample a function
+    from the set of functions that map from input_type --> output_type.
+    """
+    output_type = rng.choice(TYPES)
+    fn_scope = FUNCTIONS_BY_SIGNATURE[f"{input_type} --> {output_type}"]
+    return rng.choice(fn_scope), output_type
