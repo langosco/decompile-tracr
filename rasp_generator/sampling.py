@@ -20,7 +20,12 @@ import numpy as np
 from tracr.compiler.validating import validate
 from tracr.compiler import compiling
 from rasp_generator import map_primitives, utils
-from tracr.compiler.basis_inference import InvalidValueSetError
+
+try:
+    from tracr.compiler.basis_inference import InvalidValueSetError
+    NO_INVALID_VALUE_SET_ERROR = False
+except ImportError:
+    NO_INVALID_VALUE_SET_ERROR = True
 
 class SamplingError(Exception):
     pass
@@ -216,10 +221,13 @@ def validate_custom_types(expr: rasp.SOp, test_input):
 
 
 def validate_compilation(expr: rasp.SOp, test_input: list):
-    try:
+    if not NO_INVALID_VALUE_SET_ERROR:
+        try:
+            model = compiling.compile_rasp_to_model(expr, vocab={0,1,2,3,4}, max_seq_len=5, compiler_bos="BOS")
+        except InvalidValueSetError as err:
+            raise ValueError(f"Invalid program: {err}")
+    else:
         model = compiling.compile_rasp_to_model(expr, vocab={0,1,2,3,4}, max_seq_len=5, compiler_bos="BOS")
-    except InvalidValueSetError as err:
-        raise ValueError(f"Invalid program: {err}")
 
     rasp_out = expr(test_input)
     rasp_out_sanitized = [0 if x is None else x for x in rasp_out]
