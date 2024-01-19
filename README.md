@@ -11,7 +11,7 @@ pip install -e .
 from rasp_generator import sampling, utils
 
 sampler = sampling.ProgramSampler(validate_compilation=True)
-sampler.sample()
+errs = sampler.sample()
 
 # run the program
 print(sampler.program([1,2,3,4]))
@@ -43,7 +43,7 @@ utils.print_program(sampler.program, test_input=[1,2,3,4])
 - [ ] set up profiling for sampler
 - [x] upweight rasp.tokens to avoid sampling programs that don't depend on rasp.tokens
 - [x] figure out design for setting weights for sampling
-- [ ] sanity check rasp.Map simplifications (and maybe fix repr)
+- [x] sanity check rasp.Map simplifications (and maybe fix repr)
 - [ ] it's kind of unprincipled to just pick the last sampled SOp as the program
 
 
