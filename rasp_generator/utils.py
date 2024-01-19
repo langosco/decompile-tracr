@@ -1,3 +1,4 @@
+from typing import Optional
 from tracr.rasp import rasp
 from tracr.compiler import rasp_to_graph
 from tracr.compiler.validating import validate
@@ -6,6 +7,25 @@ import networkx as nx
 
 class EmptyScopeError(Exception):
     pass
+
+
+class FunctionWithRepr:
+    """Minimal wrapper around a function that allows to 
+    represent it as a string."""
+    def __init__(self, fn_str: str):
+        """
+        fn_str: function in form of eval-able string, e.g. 'lambda x: x+1'."""
+        self.fn_str = fn_str
+
+    def __repr__(self):
+        return self.fn_str
+    
+    def __call__(self, *args, **kwargs):
+        return eval(self.fn_str)(*args, **kwargs)
+    
+    def compose(self, other: "FunctionWithRepr"):
+        """Compose two functions."""
+        return FunctionWithRepr(f"(lambda x: {self.fn_str})(({other.fn_str})(x))")
 
 
 def annotate_type(sop: rasp.SOp, type: str):
@@ -33,7 +53,10 @@ def filter_by_type(sops: list[rasp.SOp], type: str = None):
     return filtered
 
 
-def filter_by_constraints(sops: list[rasp.SOp], constraints: list[callable]):
+def filter_by_constraints(
+        sops: list[rasp.SOp], 
+        constraints: list[callable],
+        constraints_name: Optional[str] = None):
     """Return the subset of SOps that satisfy a set of constraints.
     A constraint is a callable that takes a SOp and return a boolean."""
     filtered = sops
@@ -41,17 +64,20 @@ def filter_by_constraints(sops: list[rasp.SOp], constraints: list[callable]):
         filtered = [v for v in filtered if constraint(v)]
 
     if len(filtered) == 0:
-        raise EmptyScopeError("Filter failed. No SOps in scope satisfy constraints.")
+        err_msg = "Filter failed. No SOps in scope satisfy constraints."
+        if constraints_name is not None:
+            err_msg += f" Constraints: {constraints_name}."
+        raise EmptyScopeError(err_msg)
 
     return filtered
 
 
-def is_none_in_values(sop: rasp.SOp, test_inputs: list[list]):
-    """Return True if the SOp evaluates to None on any of the test inputs."""
+def no_none_in_values(sop: rasp.SOp, test_inputs: list[list]):
+    """Return True if the SOp never contains None on any of the test inputs."""
     values = set()
     for x in test_inputs:
         values = values.union(sop(x))
-    return None in values
+    return not None in values
 
 
 def print_expr(expr: rasp.RASPExpr, test_input=None):
