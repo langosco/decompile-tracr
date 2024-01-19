@@ -25,8 +25,9 @@ def annotate_type(sop: rasp.SOp, type: str):
 
 def filter_by_type(sops: list[rasp.SOp], type: str = None):
     """Return the subset of SOps that are of a given type"""
+    filtered = sops
     if type is not None:
-        filtered = [sop for sop in sops if sop.annotations["type"] == type]
+        filtered = [sop for sop in filtered if sop.annotations["type"] == type]
     if len(filtered) == 0:
         raise EmptyScopeError(f"No SOps of type {type} in scope.")
     return filtered
