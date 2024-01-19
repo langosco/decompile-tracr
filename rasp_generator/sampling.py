@@ -20,13 +20,21 @@ import numpy as np
 from tracr.compiler.validating import validate
 from tracr.compiler import compiling
 from rasp_generator import map_primitives, utils
-
+from tracr.compiler.basis_inference import InvalidValueSetError
 
 class SamplingError(Exception):
     pass
 
 
-TEST_INPUT = [1,2,3,4]  # used to validate programs
+TEST_INPUTS = [
+    [1,2,3,4],
+    [0,1,2,3,4],
+    [1,1,1,1],
+    [0,0,0,0],
+    [1,0,1,0],
+    [2,4,2,1],
+    [4,4,4,3],
+]
 
 
 def sample_from_scope(
@@ -96,7 +104,7 @@ def sample_linear_sequence_map(rng, variable_scope: list):
     return utils.annotate_type(sop_out, type="float")
 
 
-def sample_selector(rng, variable_scope: list):
+def sample_select(rng, variable_scope: list):
     """Sample a rasp.Select. A select takes two categorical SOps and
     returns a selector (matrix) of booleans."""
     # TODO: allow Selectors with bools (numerical & 0-1) as input?
@@ -104,7 +112,7 @@ def sample_selector(rng, variable_scope: list):
         rng,
         variable_scope,
         type_constraint="categorical",
-        other_constraints=[lambda sop: None not in sop(TEST_INPUT)],
+        other_constraints=[lambda sop: utils.is_none_in_values(sop, TEST_INPUTS)],
         size=2,
         replace=True,
     )
@@ -120,12 +128,12 @@ def sample_numerical_aggregate(rng, variable_scope: list):
     that is numerical and only takes values 0 or 1.
     This constraint is necessary for all aggregates with numerical SOps.
     """
-    selector = sample_selector(rng, variable_scope)
+    selector = sample_select(rng, variable_scope)
     sop_in = sample_from_scope(
         rng,
         variable_scope,
         type_constraint="bool",
-        other_constraints=[lambda sop: None not in sop(TEST_INPUT)]
+        other_constraints=[lambda sop: utils.is_none_in_values(sop, TEST_INPUTS)]
     )
     sop_out = rasp.Aggregate(selector, sop_in, default=0)
     # TODO: sometimes output can be bool here?
@@ -139,30 +147,34 @@ def sample_categorical_aggregate(rng, variable_scope: list, max_retries=10):
     This usually means that the selector has width 1, but it could also mean that a width > 1
     selector is used but the output domain of the aggregate is still equal to the input domain.
     """
-    selector = sample_selector(rng, variable_scope)
+    selector = sample_select(rng, variable_scope)
     sop_in = sample_from_scope(
         rng,
         variable_scope,
         type_constraint="categorical",
-        other_constraints=[lambda sop: None not in sop(TEST_INPUT)]
+        other_constraints=[lambda sop: utils.is_none_in_values(sop, TEST_INPUTS)]
     )
     sop_out = rasp.Aggregate(selector, sop_in, default=None)
 
     # validate:
-    width = max(rasp.SelectorWidth(selector)(TEST_INPUT))
-    if width > 1 and set(sop_in(TEST_INPUT)) != set(sop_out(TEST_INPUT)):
+    if not all(
+        set(sop_out(x)).issubset(set(sop_in(x))) for x in TEST_INPUTS
+    ):
         if max_retries > 0:
             sop_out = sample_categorical_aggregate(rng, variable_scope, max_retries=max_retries-1)
         else:
-            raise SamplingError("Maximum retries reached. Could not sample categorical aggregate with valid output domain."
-                                "This because the sampler couldn't find a selector with width 1, and other sampled selectors "
-                                "don't result in an output domain that is a subset of the input domain.")
+            raise SamplingError(
+                "Could not sample categorical Aggregate with valid output domain "
+                "(Maximum retries reached). "
+                "This because the sampler couldn't find a selector with width 1, and other sampled selectors "
+                "don't result in an output domain that is a subset of the input domain."
+            )
 
     return utils.annotate_type(sop_out, type="categorical")
 
 
 def sample_selector_width(rng, variable_scope: list):
-    selector = sample_selector(rng, variable_scope)
+    selector = sample_select(rng, variable_scope)
     sop_out = rasp.SelectorWidth(selector)
     return utils.annotate_type(sop_out, type="categorical")
 
@@ -181,10 +193,8 @@ def sample_sop(rng, variable_scope: list):
     """Sample a SOp."""
     sop_type = rng.choice(list(SAMPLE_FUNCTIONS.keys()))
     sop = SAMPLE_FUNCTIONS[sop_type](rng, variable_scope)
-    test_output = sop(TEST_INPUT)
-    frac_none = utils.fraction_none(test_output)
-    if frac_none > 0.5:
-        raise SamplingError(f"Sampled SOp {sop} has too many None values ({frac_none}).")
+    if any(utils.fraction_none(sop(x)) > 0.5 for x in TEST_INPUTS):
+        raise SamplingError(f"Sampled SOp {sop} has too many None values.")
     return sop
 
 
@@ -205,19 +215,22 @@ def validate_custom_types(expr: rasp.SOp, test_input):
             raise ValueError(f"{expr} is annotated as type=categorical, but is actually numerical.")
 
 
-def validate_compilation(expr: rasp.SOp, test_inputs: list):
-    model = compiling.compile_rasp_to_model(expr, vocab={1,2,3,4}, max_seq_len=5, compiler_bos="BOS")
-    for test_input in test_inputs:
-        rasp_out = expr(test_input)
-        rasp_out_sanitized = [0 if x is None else x for x in rasp_out]
-        out = model.apply(["BOS"] + test_input).decoded[1:]
+def validate_compilation(expr: rasp.SOp, test_input: list):
+    try:
+        model = compiling.compile_rasp_to_model(expr, vocab={0,1,2,3,4}, max_seq_len=5, compiler_bos="BOS")
+    except InvalidValueSetError as err:
+        raise ValueError(f"Invalid program: {err}")
 
-        if not np.allclose(out, rasp_out_sanitized, rtol=1e-3, atol=1e-3):
-            raise ValueError(f"Compiled program {expr.label} does not match RASP output.\n"
-                             f"Compiled output: {out}\n"
-                             f"RASP output: {rasp_out}\n"
-                             f"Test input: {test_input}\n"
-                             f"SOp: {expr}")
+    rasp_out = expr(test_input)
+    rasp_out_sanitized = [0 if x is None else x for x in rasp_out]
+    out = model.apply(["BOS"] + test_input).decoded[1:]
+
+    if not np.allclose(out, rasp_out_sanitized, rtol=1e-3, atol=1e-3):
+        raise ValueError(f"Compiled program {expr.label} does not match RASP output.\n"
+                            f"Compiled output: {out}\n"
+                            f"RASP output: {rasp_out}\n"
+                            f"Test input: {test_input}\n"
+                            f"SOp: {expr}")
 
 
 class ProgramSampler:
@@ -227,7 +240,7 @@ class ProgramSampler:
         self.validate_compilation = validate_compilation
         self.rng = np.random.default_rng(rng)
 
-    def sample(self, n_sops=10):
+    def sample(self, n_sops=15):
         """Sample a program."""
         errs = []
         for _ in range(n_sops):
@@ -237,6 +250,11 @@ class ProgramSampler:
             except (utils.EmptyScopeError, SamplingError) as err:
                 errs.append(err)
 
+        if len(self.sops) == 2:
+            errs = "\n".join([str(err) for err in errs])
+            raise SamplingError(f"Failed to sample program. Received errors:\n"
+                                f"{errs}")
+
         self.program = self.sops[-1]
         self.validate()
         return errs
@@ -245,10 +263,11 @@ class ProgramSampler:
         """Validate the program. This is fairly slow, especially when 
         self.validate_compilation is enabled."""
         sop = self.program
-        validate_custom_types(sop, TEST_INPUT)
-        errs = validate(sop, TEST_INPUT)
-        if len(errs) > 0:
-            raise ValueError(f"Invalid program: {errs}")
-        elif self.validate_compilation:
-            validate_compilation(sop, [TEST_INPUT])
+        for x in TEST_INPUTS:
+            validate_custom_types(sop, x)
+            errs = validate(sop, x)
+            if len(errs) > 0:
+                raise ValueError(f"Invalid program: {errs}")
+            elif self.validate_compilation:
+                validate_compilation(sop, x)
         return

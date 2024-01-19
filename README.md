@@ -34,14 +34,15 @@ utils.print_program(sampler.program, test_input=[1,2,3,4])
 
 ### TODOS
 - [x] remove SOps that are all (or mostly) None
-- [ ] use multiple test inputs; maybe remove / downweight constant SOps if frequent
+- [x] use multiple test inputs; 
+- [ ] decide whether to remove / downweight constant SOps if frequent
 - [ ] add tests
 - [x] send PR for tracr allowing floats in rasp.Aggregate
 - [x] allow for floats in categorical SOps (after PR is accepted)
 - [ ] collect statistics on generated SOps
 - [ ] set up profiling for sampler
 - [x] upweight rasp.tokens to avoid sampling programs that don't depend on rasp.tokens
-- [ ] figure out design for setting weights for sampling
+- [x] figure out design for setting weights for sampling
 - [ ] sanity check rasp.Map simplifications (and maybe fix repr)
 - [ ] it's kind of unprincipled to just pick the last sampled SOp as the program
 

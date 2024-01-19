@@ -29,7 +29,7 @@ def filter_by_type(sops: list[rasp.SOp], type: str = None):
     if type is not None:
         filtered = [sop for sop in filtered if sop.annotations["type"] == type]
     if len(filtered) == 0:
-        raise EmptyScopeError(f"No SOps of type {type} in scope.")
+        raise EmptyScopeError(f"Filter failed. No SOps of type {type} in scope.")
     return filtered
 
 
@@ -41,9 +41,17 @@ def filter_by_constraints(sops: list[rasp.SOp], constraints: list[callable]):
         filtered = [v for v in filtered if constraint(v)]
 
     if len(filtered) == 0:
-        raise EmptyScopeError("No SOps in scope satisfy constraints.")
+        raise EmptyScopeError("Filter failed. No SOps in scope satisfy constraints.")
 
     return filtered
+
+
+def is_none_in_values(sop: rasp.SOp, test_inputs: list[list]):
+    """Return True if the SOp evaluates to None on any of the test inputs."""
+    values = set()
+    for x in test_inputs:
+        values = values.union(sop(x))
+    return None in values
 
 
 def print_expr(expr: rasp.RASPExpr, test_input=None):
