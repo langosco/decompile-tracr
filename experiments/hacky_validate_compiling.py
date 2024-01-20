@@ -70,15 +70,15 @@ print()
 for r in results:
     if 'program' not in r:
         continue
-    for x in test_inputs:
-        rasp_out = r['program'](x)
+    for test_input in test_inputs:
+        rasp_out = r['program'](test_input)
         rasp_out_sanitized = [0 if x is None else x for x in rasp_out]
-        model_out = r['model'].apply(["BOS"] + x).decoded[1:]
+        model_out = r['model'].apply(["BOS"] + test_input).decoded[1:]
         if not np.allclose(model_out, rasp_out_sanitized, rtol=1e-3, atol=1e-3):
             err = ValueError(f"Compiled program {r['program'].label} does not match RASP output.\n"
                                 f"Compiled output: {model_out}\n"
                                 f"RASP output: {rasp_out}\n"
-                                f"Test input: {x}\n")
+                                f"Test input: {test_input}\n")
             errs['validation'].append(err)
             r['validation_error'] = err
             break
