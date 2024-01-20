@@ -1,9 +1,12 @@
 from collections import defaultdict
 from tracr.rasp import rasp
 from tracr.compiler import compiling
-from rasp_generator import sampling
+from rasp_generator import sampling, utils
 import numpy as np
+import tracemalloc
 
+
+tracemalloc.start()
 
 rng = np.random.default_rng()
 
@@ -26,7 +29,7 @@ test_inputs += [[0], [0,0,0,0,0], [4,4,4,4], [0,1,2,3]]
 
 
 
-n_samples = 10
+n_samples = 500
 errs = defaultdict(list)
 results = []
 
@@ -50,7 +53,7 @@ print("Now compiling and validating...")
 print()
 
 
-for r in results:
+for i, r in enumerate(results):
     if 'program' not in r:
         continue
 
@@ -78,6 +81,22 @@ for r in results:
     except Exception as err:
             errs['validation'].append(err)
             r['validation_error'] = err
+    
+
+    if i % 10 == 0:
+        print()
+        print("Step", i)
+        mem_snap = tracemalloc.take_snapshot()
+        stats = mem_snap.statistics('lineno')
+        for stat in stats[:5]:
+            print(stat)
+
+        print()
+        utils.display_top(mem_snap)
+        print()
+    
+
+
 
 
 total_compiled = len([r for r in results if 'compiled' in r])
