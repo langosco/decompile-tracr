@@ -21,7 +21,6 @@
 
 
 from tracr.rasp import rasp
-import numpy as np
 from rasp_generator.utils import FunctionWithRepr
 
 

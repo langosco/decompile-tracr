@@ -107,6 +107,7 @@ def sample_linear_sequence_map(rng, variable_scope: list):
         replace=False
     )
     weights = np.clip(rng.normal(size=2) + 1, 0, 2)  # TODO: sometimes use 1,1 weights?
+    weights = [float(w) for w in weights]
     sop_out = rasp.LinearSequenceMap(*args, *weights)
     return utils.annotate_type(sop_out, type="float")
 
@@ -244,11 +245,11 @@ def validate_compilation(expr: rasp.SOp, test_input: list):
 
     rasp_out = expr(test_input)
     rasp_out_sanitized = [0 if x is None else x for x in rasp_out]
-    out = model.apply(["BOS"] + test_input).decoded[1:]
+    model_out = model.apply(["BOS"] + test_input).decoded[1:]
 
-    if not np.allclose(out, rasp_out_sanitized, rtol=1e-3, atol=1e-3):
+    if not np.allclose(model_out, rasp_out_sanitized, rtol=1e-3, atol=1e-3):
         raise ValueError(f"Compiled program {expr.label} does not match RASP output.\n"
-                            f"Compiled output: {out}\n"
+                            f"Compiled output: {model_out}\n"
                             f"RASP output: {rasp_out}\n"
                             f"Test input: {test_input}\n"
                             f"SOp: {expr}")
@@ -258,7 +259,7 @@ class ProgramSampler:
     def __init__(
             self, 
             validate_compilation=False,
-            disable_categorical_aggregate=True,
+            disable_categorical_aggregate=False,
             rng=None,
         ):
         self.sops = [rasp.tokens, rasp.indices]
@@ -273,6 +274,7 @@ class ProgramSampler:
         for _ in range(n_sops):
             avoid = set("categorical_aggregate" if self.disable_categorical_aggregate else "")
             sop, err, sop_class = try_to_sample_sop(self.rng, self.sops, avoid)
+
             if sop is not None:
                 self.sops.append(sop)
             else:
