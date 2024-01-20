@@ -26,7 +26,7 @@ test_inputs += [[0], [0,0,0,0,0], [4,4,4,4], [0,1,2,3]]
 
 
 
-n_samples = 100
+n_samples = 10
 errs = defaultdict(list)
 results = []
 
@@ -53,40 +53,42 @@ print()
 for r in results:
     if 'program' not in r:
         continue
+
+    # compile
     try:
-        r['model'] = compile_rasp_to_model(r['program'])
+        model = compile_rasp_to_model(r['program'])
+        r['compiled'] = True
     except Exception as err:
         errs['compilation'].append(err)
         r['compilation_error'] = err
+        continue
+
+    # validate
+    try:
+        for test_input in test_inputs:
+            rasp_out = r['program'](test_input)
+            rasp_out_sanitized = [0 if x is None else x for x in rasp_out]
+            assert isinstance(test_input, list)
+            model_out = model.apply(["BOS"] + test_input).decoded[1:]
+            if not np.allclose(model_out, rasp_out_sanitized, rtol=1e-3, atol=1e-3):
+                raise ValueError(f"Compiled program {r['program'].label} does not match RASP output.\n"
+                                    f"Compiled output: {model_out}\n"
+                                    f"RASP output: {rasp_out}\n"
+                                    f"Test input: {test_input}.")
+    except Exception as err:
+            errs['validation'].append(err)
+            r['validation_error'] = err
 
 
+total_compiled = len([r for r in results if 'compiled' in r])
 print("Done compiling.")
-print("Total programs compiled:",
-      len([r for r in results if 'model' in r]))
+print("Total programs compiled:", total_compiled)
 print("Total compilation errors:", len(errs['compilation']))
 print("Now validating...")
 print()
 
 
-for r in results:
-    if 'program' not in r:
-        continue
-    for test_input in test_inputs:
-        rasp_out = r['program'](test_input)
-        rasp_out_sanitized = [0 if x is None else x for x in rasp_out]
-        assert isinstance(test_input, list)
-        model_out = r['model'].apply(["BOS"] + test_input).decoded[1:]
-        if not np.allclose(model_out, rasp_out_sanitized, rtol=1e-3, atol=1e-3):
-            err = ValueError(f"Compiled program {r['program'].label} does not match RASP output.\n"
-                                f"Compiled output: {model_out}\n"
-                                f"RASP output: {rasp_out}\n"
-                                f"Test input: {test_input}\n")
-            errs['validation'].append(err)
-            r['validation_error'] = err
-            break
-
-
 print("Total programs compiled validly (relative to test inputs):", 
-      len([r for r in results if 'model' in r]) - len(errs['validation']))
+      total_compiled - len(errs['validation']))
 print("Validation errors:", len(errs['validation']))
 print()
