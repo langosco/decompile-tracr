@@ -41,31 +41,34 @@ for _ in range(n_samples):
         errs['sampling'].append(err)
     
 
-print(f"Done sampling. Total programs sampled (minus sampling failures): {len(results)}")
+print(f"Done sampling. Total programs sampled (minus sampling failures): "
+      f"{len(results)}")
 print("Total sampling retries:", len(errs['retries']))
 print("Total sampling failures:", len(errs['sampling']))
 print("Now compiling and validating...")
+print()
 
 
 for r in results:
-    if 'model' not in r:
+    if 'program' not in r:
         continue
     try:
-        model = compile_rasp_to_model(r['program'])
-        r['model'] = model
+        r['model'] = compile_rasp_to_model(r['program'])
     except Exception as err:
         errs['compilation'].append(err)
         r['compilation_error'] = err
 
 
 print("Done compiling.")
-print("Total programs compiled:", len(results) - len(errs['compilation']))
+print("Total programs compiled:",
+      len([r for r in results if 'model' in r]))
 print("Total compilation errors:", len(errs['compilation']))
 print("Now validating...")
+print()
 
 
 for r in results:
-    if 'model' not in r:
+    if 'program' not in r:
         continue
     for x in test_inputs:
         rasp_out = r['program'](x)
@@ -81,5 +84,7 @@ for r in results:
             break
 
 
-print("Total programs compiled validly (relative to test inputs):", len(results) - len(errs['validation']))
+print("Total programs compiled validly (relative to test inputs):", 
+      len([r for r in results if 'model' in r]) - len(errs['validation']))
 print("Validation errors:", len(errs['validation']))
+print()
