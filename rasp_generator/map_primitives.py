@@ -2,10 +2,10 @@
 # apply a function elementwise to one or two SOps (sequence inputs).
 # For example, rasp.Map(lambda x: x+1, rasp.tokens) will add 1 to each
 # element of the input sequence.
-# When we sample an operation, we need to determine what function to apply.
-# This depends on the type of the input SOp. We currently distinguish 
-# three "types": categorical, float, and bool.
-# For example, a function that maps categorical --> bool might be
+# When we sample a Map, SequenceMap, or LinearSequenceMap, we need to 
+# determine what function to apply. This depends on the type of the 
+# input SOp. We currently distinguish three "types": categorical, float, and bool.
+# For example, a function that maps categorical x categorical --> bool might be
 # lambda x, y: x == y.
 
 # Tracr natively uses two types: categorical and numerical. The correspondence
@@ -14,7 +14,8 @@
 # Tracr       | Ours
 # --------------------
 # categorical | categorical
-# numerical   | float, bool
+# numerical   | float, bool  (a bool is a numerical that only takes values 0 or 1)
+
 
 # CONSTRAINTS
 # - numerical values are not allowed to be negative (because of ReLU)
@@ -99,6 +100,14 @@ NONLINEAR_SEQMAP_FNS = [
 #    FunctionWithRepr("lambda x, y: x/y"),  # need to avoid y = 0
 #    FunctionWithRepr("lambda x, y: x**1/y"),  # need to avoid y = 0
 ]
+
+
+ALL_FNS = (
+    BOOL_TO_BOOL + BOOL_TO_FLOAT + BOOL_TO_CAT +
+    FLOAT_TO_BOOL + FLOAT_TO_FLOAT + FLOAT_TO_CAT +
+    CAT_TO_BOOL + CAT_TO_FLOAT + CAT_TO_CAT +
+    NONLINEAR_SEQMAP_FNS
+)
 
 
 COMPARISONS = [
