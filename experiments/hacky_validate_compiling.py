@@ -18,11 +18,12 @@ def compile_rasp_to_model(sop: rasp.SOp, vocab={0,1,2,3,4}, max_seq_len=5, compi
 
 def sample_test_input(rng, vocab={0,1,2,3,4}, max_seq_len=5):
     seq_len = rng.choice(range(1, max_seq_len+1))
-    return rng.choice(list(vocab), size=seq_len)
+    return rng.choice(list(vocab), size=seq_len).tolist()
 
 
 test_inputs = [sample_test_input(rng) for _ in range(100)]
 test_inputs += [[0], [0,0,0,0,0], [4,4,4,4], [0,1,2,3]]
+
 
 
 n_samples = 100
@@ -73,6 +74,7 @@ for r in results:
     for test_input in test_inputs:
         rasp_out = r['program'](test_input)
         rasp_out_sanitized = [0 if x is None else x for x in rasp_out]
+        assert isinstance(test_input, list)
         model_out = r['model'].apply(["BOS"] + test_input).decoded[1:]
         if not np.allclose(model_out, rasp_out_sanitized, rtol=1e-3, atol=1e-3):
             err = ValueError(f"Compiled program {r['program'].label} does not match RASP output.\n"
