@@ -32,15 +32,10 @@ class SamplingError(Exception):
     pass
 
 
-TEST_INPUTS = [
-    [1,2,3,4],
-    [0,1,2,3,4],
-    [1,1,1,1],
-    [0,0,0,0],
-    [1,0,1,0],
-    [2,4,2,1],
-    [4,4,4,3],
-]
+rng = np.random.default_rng(0)
+TEST_INPUTS = [utils.sample_test_input(rng) for _ in range(50)]
+TEST_INPUTS += [[0], [0,0,0,0,0], [1,2,3,4]]
+del rng
 
 
 def sample_from_scope(

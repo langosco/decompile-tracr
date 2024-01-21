@@ -96,7 +96,10 @@ def print_expr(expr: rasp.RASPExpr, test_input=None):
         print_str += f"    # output: {expr(test_input)}"
 #        print_str = f"{expr(test_input)}" + " ~ " + print_str
     elif not isinstance(expr, rasp.Select):
-        print_str += f"    # type: {expr.annotations['type']}"
+        try:
+            print_str += f"    # type: {expr.annotations['type']}"
+        except KeyError:
+            print_str += f"    # type: {expr.annotations['encoding']}"
     print(print_str)
     return None
 
@@ -119,11 +122,16 @@ def fraction_none(x: list):
     return sum([1 for elem in x if elem is None]) / len(x)
 
 
+def sample_test_input(rng, vocab={0,1,2,3,4}, max_seq_len=5):
+    seq_len = rng.choice(range(1, max_seq_len+1))
+    return rng.choice(list(vocab), size=seq_len).tolist()
+
+
 import linecache
 import os
 import tracemalloc
 
-def display_top(snapshot, key_type='lineno', limit=3):
+def display_top(snapshot, key_type='lineno', limit=5):
     snapshot = snapshot.filter_traces((
         tracemalloc.Filter(False, "<frozen importlib._bootstrap>"),
         tracemalloc.Filter(False, "<unknown>"),

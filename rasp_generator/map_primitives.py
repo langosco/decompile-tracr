@@ -38,8 +38,6 @@ VOCAB_SIZE = 5
 VOCAB = list(range(VOCAB_SIZE))
 
 
-
-
 # categorical --> categorical
 # (note that range == domain. might change this later)
 CAT_TO_CAT = [FunctionWithRepr(f"lambda x: x + {n % VOCAB_SIZE}") for n in VOCAB]
@@ -47,12 +45,12 @@ CAT_TO_CAT = [FunctionWithRepr(f"lambda x: x + {n % VOCAB_SIZE}") for n in VOCAB
 # categorical --> float
 CAT_TO_FLOAT = [  # note that negative floats are not allowed (bc of ReLUs)
     FunctionWithRepr("lambda x: x"),
-    FunctionWithRepr("lambda x: x+0.5"),
-    FunctionWithRepr("lambda x: x+1"),
-    FunctionWithRepr("lambda x: x*2"),
-    FunctionWithRepr("lambda x: x/2"),
-    FunctionWithRepr("lambda x: x**2"),
-    FunctionWithRepr("lambda x: x**0.5"),
+    FunctionWithRepr("lambda x: x + 0.5"),
+    FunctionWithRepr("lambda x: x + 1"),
+    FunctionWithRepr("lambda x: x * 2"),
+    FunctionWithRepr("lambda x: x / 2"),
+    FunctionWithRepr("lambda x: x ** 2"),
+    FunctionWithRepr("lambda x: x ** 0.5"),
 ]
 
 # categorical --> bool
@@ -96,7 +94,7 @@ FLOAT_TO_CAT = [
 
 # rasp.SequenceMap only supports categorical --> categorical
 NONLINEAR_SEQMAP_FNS = [
-    FunctionWithRepr("lambda x, y: x*y"),
+    FunctionWithRepr("lambda x, y: x * y"),
 #    FunctionWithRepr("lambda x, y: x/y"),  # need to avoid y = 0
 #    FunctionWithRepr("lambda x, y: x**1/y"),  # need to avoid y = 0
 ]
