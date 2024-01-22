@@ -6,7 +6,8 @@ ops = [
     "SequenceMap",
     "LinearSequenceMap",
     "Select",
-    "Aggregate"
+    "Aggregate",
+    "SelectorWidth",
 ]
 
 encodings = [
