@@ -22,20 +22,14 @@ from tracr.compiler.validating import validate
 from tracr.compiler import compiling
 from rasp_generator import map_primitives, utils
 
-try:
-    from tracr.compiler.basis_inference import InvalidValueSetError
-    NO_INVALID_VALUE_SET_ERROR = False
-except ImportError:
-    NO_INVALID_VALUE_SET_ERROR = True
 
 class SamplingError(Exception):
     pass
 
 
-rng = np.random.default_rng(0)
-TEST_INPUTS = [utils.sample_test_input(rng) for _ in range(50)]
+TEST_INPUTS = [utils.sample_test_input(np.random.default_rng(0)) 
+               for _ in range(50)]
 TEST_INPUTS += [[0], [0,0,0,0,0], [1,2,3,4]]
-del rng
 
 
 def sample_from_scope(
@@ -101,8 +95,9 @@ def sample_linear_sequence_map(rng, variable_scope: list):
         size=2, 
         replace=False
     )
-    weights = np.clip(rng.normal(size=2) + 1, 0, 2)  # TODO: sometimes use 1,1 weights?
-    weights = [float(w) for w in weights]
+    weights = rng.choice(
+        map_primitives.LINEAR_SEQUENCE_MAP_WEIGHTS, size=2, replace=True)
+    weights = [int(w) for w in weights]
     sop_out = rasp.LinearSequenceMap(*args, *weights)
     return utils.annotate_type(sop_out, type="float")
 
@@ -230,13 +225,12 @@ def validate_custom_types(expr: rasp.SOp, test_input):
 
 
 def validate_compilation(expr: rasp.SOp, test_input: list):
-    if not NO_INVALID_VALUE_SET_ERROR:
-        try:
-            model = compiling.compile_rasp_to_model(expr, vocab={0,1,2,3,4}, max_seq_len=5, compiler_bos="BOS")
-        except InvalidValueSetError as err:
-            raise ValueError(f"Invalid program: {err}")
-    else:
-        model = compiling.compile_rasp_to_model(expr, vocab={0,1,2,3,4}, max_seq_len=5, compiler_bos="BOS")
+    model = compiling.compile_rasp_to_model(
+        expr,
+        vocab={0,1,2,3,4},
+        max_seq_len=5,
+        compiler_bos="BOS"
+    )
 
     rasp_out = expr(test_input)
     rasp_out_sanitized = [0 if x is None else x for x in rasp_out]
