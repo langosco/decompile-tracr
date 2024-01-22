@@ -16,11 +16,11 @@ encodings = [
 ]
 
 sop_variables = [
-    f"SOp_{i}" for i in range(20)
+    f"SOp_{i}" for i in range(40)
 ]
 
 selector_variables = [
-    f"Selector_{i}" for i in range(10)
+    f"Selector_{i}" for i in range(20)
 ]
 
 maps = [
@@ -30,6 +30,8 @@ maps = [
 comparisons = [
     comparison.name for comparison in map_primitives.COMPARISONS
 ]
+
+linear_sequence_map_weights = map_primitives.LINEAR_SEQUENCE_MAP_WEIGHTS
 
 inputs = [
     "tokens",
@@ -42,6 +44,7 @@ vocab = \
     sop_variables + \
     selector_variables + \
     maps + \
+    linear_sequence_map_weights + \
     comparisons + \
     inputs + \
     ["SEP"]
