@@ -23,6 +23,45 @@ utils.print_program(sampler.program)
 utils.print_program(sampler.program, test_input=[1,2,3,4])
 ```
 
+## Compiling and Tokenizing
+(Still untested so expect some errors)
+```python
+from rasp_generator import sampling, utils
+from tokenizer import compile_and_tokenize
+
+sampler = sampling.ProgramSampler(validate_compilation=True)
+sampler.sample()
+model, tokens = compile_and_tokenize.compile_and_tokenize(sampler.program)
+```
+The tokens are returned as a dictionary indexed by layer.
+
+Under the hood, a RASP program is tokenized by first compiling it, then representing it as a dictionary with one RASP sub-program per layer of the compiled transformer.
+
+A program is represented as a sequence of vocabulary elements (see `tokenizer/vocab.py`), for example
+```python
+sop_1 = rasp.Map("lambda x: x + 1", rasp.tokens)
+sel_2 = rasp.Select(sop_1, rasp.tokens, rasp.Comparison.EQ)
+sop_3 = rasp.Aggregate(sel_2, sop_1)
+```
+becomes the dictionary
+```
+{0: [],
+ 1: ['SOp_1', 'categorical', 'Map', 'lambda x: x + 1', 'tokens', 'SEP'],
+ 2: ['Selector_0',
+  'Select',
+  'EQ',
+  'SOp_1',
+  'tokens',
+  'SEP',
+  'SOp_0',
+  'categorical',
+  'Aggregate',
+  'Selector_0',
+  'SOp_1',
+  'SEP'],
+ 3: []}
+```
+
 
 ## Status
 ### Remaining problems
@@ -33,13 +72,15 @@ utils.print_program(sampler.program, test_input=[1,2,3,4])
 
 
 ### TODOS
+- [ ] add tests for compiling
+- [ ] make compiling faster (eg by avoiding long programs)
 - [x] remove SOps that are all (or mostly) None
 - [x] use multiple test inputs; 
 - [ ] decide whether to remove / downweight constant SOps if frequent
 - [ ] add tests
 - [x] send PR for tracr allowing floats in rasp.Aggregate
 - [x] allow for floats in categorical SOps (after PR is accepted)
-- [ ] collect statistics on generated SOps
+- [x] collect statistics on generated SOps
 - [ ] set up profiling for sampler
 - [x] upweight rasp.tokens to avoid sampling programs that don't depend on rasp.tokens
 - [x] figure out design for setting weights for sampling
