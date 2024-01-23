@@ -86,6 +86,8 @@ becomes the dictionary
 - [x] figure out design for setting weights for sampling
 - [x] sanity check rasp.Map simplifications (and maybe fix repr)
 - [ ] it's kind of unprincipled to just pick the last sampled SOp as the program
+- [x] generate 'draft' dataset of pairs (weights, tokenized program)
+- [ ] for short programs, consider enumerating all possible programs exhaustively
 
 
 ### Biasing the sampler
