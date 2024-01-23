@@ -17,20 +17,26 @@ def get_layer_name_from_number(layer_number: int) -> str:
         return f"layer_{new_layer_number}/mlp"
 
 
-def rasp_to_layerwise_representation(
+def get_nodes_by_layer(
         program_graph: nx.DiGraph,
         sources: list[nodes.Node]
     ) -> dict[list[str]]:
-    """Convert a RASP program to a representation that maps every layer
+    """Convert a RASP program to a dict that maps every layer
     to corresponding RASP operations performed by that layer."""
+    # this is a dict nodes -> layer number:
     nodes_to_layers = craft_graph_to_model._allocate_modules_to_layers(program_graph, sources)
-    nodes_to_layers = {k: get_layer_name_from_number(v) 
-                       for k, v in nodes_to_layers.items()}
+
 
     # we want a dictionary the other way around, i.e. 
-    # mapping from layer to RASP operations
-    layers_to_nodes = defaultdict(list)
+    # layer_name -> list of nodes:
+    n_layers = max(nodes_to_layers.values()) + 1
+    if n_layers % 2 != 0:
+        n_layers += 1  # must be even
+
+    layers_to_nodes = {get_layer_name_from_number(i): []
+                       for i in range(n_layers)}
     for node_id, layer in nodes_to_layers.items():
+        layername = get_layer_name_from_number(layer)
         if node_id.startswith("aggregate") or node_id.startswith("selector_width"):
             # Include selector as well.
             # Note this will double count if a selector appears as
@@ -39,8 +45,8 @@ def rasp_to_layerwise_representation(
             # selector can appear in multiple layers.
             selector_id = list(program_graph.predecessors(node_id))[0]
             assert selector_id.startswith("select_")
-            layers_to_nodes[layer].append(selector_id)
-        layers_to_nodes[layer].append(node_id)
+            layers_to_nodes[layername].append(selector_id)
+        layers_to_nodes[layername].append(node_id)
 
     return layers_to_nodes
 
@@ -103,12 +109,12 @@ def get_args(graph: nx.DiGraph, node_id: int) -> list[str]:
 
 def rasp_graph_to_layerwise_representation(
         graph: nx.DiGraph,
-        sources
+        sources,
     ) -> dict[list[str]]:
     """Return a representation of the program as a list of ops (per 
     layer) in order to tokenize it."""
 
-    layers_to_nodes = rasp_to_layerwise_representation(graph, sources)
+    layers_to_nodes = get_nodes_by_layer(graph, sources)
     graph = add_variable_names_to_graph(graph)
 
     layerwise_program = {}
