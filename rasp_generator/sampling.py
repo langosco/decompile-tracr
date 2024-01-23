@@ -247,22 +247,23 @@ def validate_compilation(expr: rasp.SOp, test_input: list):
 class ProgramSampler:
     def __init__(
             self, 
-            validate_compilation=False,
-            disable_categorical_aggregate=False,
-            rng=None,
+            validate_compilation: bool = False,
+            rng: Optional[np.random.RandomState] = None,
         ):
-        self.sops = [rasp.tokens, rasp.indices]
-        self.sops = [utils.annotate_type(sop, type="categorical") for sop in self.sops]
+        self.sops = [
+            utils.annotate_type(rasp.tokens, "categorical"),
+            utils.annotate_type(rasp.indices, "categorical"),
+        ]
         self.validate_compilation = validate_compilation
         self.rng = np.random.default_rng(rng)
-        self.disable_categorical_aggregate = disable_categorical_aggregate
 
     def sample(self, n_sops=15):
         """Sample a program."""
         errs = []
         for _ in range(n_sops):
-            avoid = set("categorical_aggregate" if self.disable_categorical_aggregate else "")
-            sop, err, sop_class = try_to_sample_sop(self.rng, self.sops, avoid)
+            avoid = set()
+            sop, err, sop_class = try_to_sample_sop(
+                self.rng, self.sops, avoid)
 
             if sop is not None:
                 self.sops.append(sop)
