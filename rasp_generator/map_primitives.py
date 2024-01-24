@@ -50,7 +50,6 @@ CAT_TO_FLOAT = [  # note that negative floats are not allowed (bc of ReLUs)
     FunctionWithRepr("lambda x: x * 2"),
     FunctionWithRepr("lambda x: x / 2"),
     FunctionWithRepr("lambda x: x ** 2"),
-    FunctionWithRepr("lambda x: x ** 0.5"),
 ]
 
 # categorical --> bool
