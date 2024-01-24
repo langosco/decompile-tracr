@@ -39,6 +39,7 @@ inputs = [
 ]
 
 vocab = \
+    ["PAD", "SEP"] + \
     ops + \
     encodings + \
     sop_variables + \
@@ -46,5 +47,7 @@ vocab = \
     maps + \
     linear_sequence_map_weights + \
     comparisons + \
-    inputs + \
-    ["SEP"]
+    inputs
+
+
+size = len(vocab)

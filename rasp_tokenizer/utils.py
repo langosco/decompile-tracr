@@ -1,3 +1,5 @@
+import flax
+from jaxtyping import ArrayLike
 from collections import defaultdict
 import networkx as nx
 import jax.flatten_util
@@ -155,3 +157,12 @@ def get_params(params: dict, layer_name: str) -> jax.Array:
         raise ValueError(f'Unknown layer name {layer_name}.')
     
     return jax.flatten_util.ravel_pytree(layer_params)[0]
+
+
+@flax.struct.dataclass
+class RaspFlatDatapoint:
+    """Holds a single datapoint consisting of a tokenized
+    program and a flat array of weights."""
+    program: ArrayLike[int]
+    weights: ArrayLike[float]
+
