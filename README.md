@@ -90,6 +90,12 @@ becomes the dictionary
 - [ ] for short programs, consider enumerating all possible programs exhaustively
 
 
+Tests for sampled programs
+- [ ] compiled model valid on test inputs
+- [ ] outputs are not constant in input
+- [ ] outputs are within a reasonable range, eg [-1e6, 1e6]
+- [ ] good distribution between SOp types and classes (see section 'Biasing the sampler')
+
 ### Biasing the sampler
 How should we set weights for the sampler? Some possible criteria that maybe should
 influence the sampling likelihood of a SOp:
