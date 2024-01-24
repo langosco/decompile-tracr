@@ -14,22 +14,22 @@ from tracr.rasp import rasp
 from tracr.compiler.assemble import AssembledTransformerModel
 
 from rasp_generator import sampling
-from rasp_generator.utils import sample_test_input
+from rasp_generator.utils import sample_test_input, print_program
+from rasp_tokenizer.utils import RaspFlatDatapoint
 from rasp_tokenizer import tokenizer
 from rasp_tokenizer.compiling import COMPILER_BOS
 
 
 rng = np.random.default_rng(0)
-
-
 test_inputs = [sample_test_input(rng) for _ in range(100)]
+test_inputs += [[0], [0,0,0,0,0], [4,4,4,4], [0,1,2,3]]
 
 
-@flax.struct.dataclass
-class RaspFlatDatapoint:
-    """Ready for training"""
-    program: ArrayLike
-    weights: ArrayLike
+# per layer maximums:
+MAX_PROGRAM_LENGTH = 30
+MAX_WEIGHTS_LENGTH = 5000
+
+NUM_DATAPOINTS = 100
 
 
 def is_compiled_model_invalid(
@@ -51,24 +51,46 @@ def is_compiled_model_invalid(
             return False, None
 
 
-def sample():
+def try_compile(program: rasp.SOp):
+    try:
+        model, tokens, params = tokenizer.compile_and_tokenize(program)
+        return model, tokens, params
+    except (InvalidValueSetError, NoTokensError) as err:
+        print(f"Failed to compile program: {err}.")
+        return None, None, None
+
+
+def sample_and_compile():
     sampler = sampling.ProgramSampler(rng=rng)
     sampler.sample()
-    model, tokens, params = tokenizer.compile_and_tokenize(sampler.program)
+    try:
+        model, tokens, params = try_compile(sampler.program)
+    except Exception:  # catch everything else to print program
+        print("\nUnkown exception during compilation.")
+        print("Program:")
+        print_program(sampler.program)
+        print()
+        raise
     return sampler.program, model, tokens, params
 
 
+
 def to_flat_datapoints(tokens, params) -> list[RaspFlatDatapoint]:
-    return [RaspFlatDatapoint(program=tok, weights=np.array(params[layer]))
-            for layer, tok in tokens.items()]
+    by_layer = [
+        RaspFlatDatapoint(program=tok, weights=np.array(params[layer])) 
+        for layer, tok in tokens.items()
+        ]
+    by_layer = [x for x in by_layer if len(x.program) > 0]
+    by_layer = [x for x in by_layer if len(x.program) < MAX_PROGRAM_LENGTH]
+    by_layer = [x for x in by_layer if len(x.weights) < MAX_WEIGHTS_LENGTH]
+    return by_layer
 
 
 results = []
-for i in tqdm(range(1000)):
-    try:
-        program, model, tokens, params = sample()
-    except (InvalidValueSetError, NoTokensError) as err:
-        print(f"Failed to sample program: {err}.")
+for i in tqdm(range(NUM_DATAPOINTS)):
+    program, model, tokens, params = sample_and_compile()
+    if model is None:
+        continue
 
     is_invalid, reason = is_compiled_model_invalid(program, model)
     if is_invalid:
