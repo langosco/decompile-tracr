@@ -304,8 +304,6 @@ class ProgramSampler:
         candidates = self.sops[-10:]
         lengths = np.array(
             [utils.program_length(sop) for sop in candidates])
-        print("nr sops:", len(self.sops[2:]))
-        print("Max sop program len:", max(lengths))
 
         # return longest program
         self.program = candidates[np.argmax(lengths)]
