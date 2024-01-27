@@ -1,3 +1,4 @@
+import fcntl
 import flax
 from jaxtyping import ArrayLike
 from collections import defaultdict
@@ -166,10 +167,21 @@ def get_params(params: dict, layer_name: str) -> jax.Array:
     return jax.flatten_util.ravel_pytree(layer_params)[0]
 
 
-@flax.struct.dataclass
-class RaspFlatDatapoint:
-    """Holds a single datapoint consisting of a tokenized
-    program and a flat array of weights."""
-    program: ArrayLike
-    weights: ArrayLike
+def sequential_count_via_lockfile(countfile="/tmp/counter.txt"):
+    """Increment a counter in a file. 
+    Use a lockfile to ensure atomicity. If the file doesn't exist, 
+    create it and start the counter at 1."""
+    with open(countfile, "a+") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
 
+        f.seek(0)
+        counter_str = f.read().strip()
+        counter = 1 if not counter_str else int(counter_str) + 1
+
+        f.seek(0)
+        f.truncate()  # Clear the file content
+        f.write(str(counter))
+
+        fcntl.flock(f, fcntl.LOCK_UN)
+
+    return counter

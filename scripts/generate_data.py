@@ -19,12 +19,18 @@ from rasp_generator.utils import sample_test_input, print_program
 from rasp_tokenizer import tokenizer
 from rasp_tokenizer.compiling import COMPILER_BOS
 from rasp_tokenizer.logger_config import setup_logger
+from rasp_tokenizer import on_cluster
+from rasp_tokenizer import paths
+from rasp_tokenizer.utils import sequential_count_via_lockfile
 
 
 logger = setup_logger(__name__)
 rng = np.random.default_rng(0)
 test_inputs = [sample_test_input(rng) for _ in range(100)]
 test_inputs += [[0], [0,0,0,0,0], [4,4,4,4], [0,1,2,3]]
+
+SAVEPATH = paths.data_dir / "train"
+os.makedirs(SAVEPATH, exist_ok=True)
 
 
 # per layer maximums:
@@ -86,6 +92,7 @@ def sample_and_compile():
         logger.warning("Program:")
         print_program(sampler.program)
         print()
+        save_to_file(dataset)
         raise
     return sampler.program, model, tokens, params
 
@@ -132,7 +139,8 @@ def sample_loop(dataset, all_rasp):
             logger.warning(f"Validation error at program {i}: {reason}")
             continue
 
-        prog, rasp_str = to_flat_datapoints(tokens, params, program_id=i)
+        program_id = sequential_count_via_lockfile(SAVEPATH / "count.txt")
+        prog, rasp_str = to_flat_datapoints(tokens, params, program_id=program_id)
         if rasp_str in all_rasp:
             # dedupe programs
             # note this doesn't deduplicate on the layer level
@@ -153,7 +161,12 @@ except KeyboardInterrupt:
     logger.info("Interrupted, saving dataset.")
 
 
-savepath = "data/train/small_data.pkl"
-logger.info(f"Saving generated programs to {savepath}.")
-with open(savepath, "xb") as f:
-    pickle.dump(dataset, f)
+def save_to_file(dataset):
+    idx = sequential_count_via_lockfile(SAVEPATH / "count.txt")
+    savepath = SAVEPATH / f"data_{idx}.pkl"
+    logger.info(f"Saving generated programs to {savepath}.")
+    with open(savepath, "xb") as f:
+        pickle.dump(dataset, f)
+
+
+save_to_file(dataset)

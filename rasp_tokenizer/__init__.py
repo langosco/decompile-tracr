@@ -17,7 +17,7 @@ class Paths:
 
     def set_default_paths(self):
         if on_cluster:
-            data_dir = os.path.join(hpc_storage_dir, "lauro/rasp-generated/")
+            data_dir = os.path.join(hpc_storage_dir, "lauro/rasp-data/")
         else:
             data_dir = os.path.join(module_path, "scripts/data/")
 
