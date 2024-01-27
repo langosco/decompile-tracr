@@ -32,6 +32,12 @@ TEST_INPUTS = [utils.sample_test_input(np.random.default_rng(0))
 TEST_INPUTS += [[0], [0,0,0,0,0], [1,2,3,4]]
 
 
+def get_recency_bias_weights(n: int, alpha: float = 0.3):
+    """Unnormalized."""
+    weights = np.arange(n) + 1
+    return weights**alpha
+
+
 def sample_from_scope(
         rng: np.random.Generator,
         sops: list[rasp.SOp],
@@ -40,6 +46,7 @@ def sample_from_scope(
         constraints_name: Optional[str] = None,
         size=None,
         replace=False,
+        prefer_recent=False,
     ):
     """Sample a SOp from a given list of SOps, according to constraints."""
     sops = utils.filter_by_type(sops, type=type_constraint)
@@ -49,7 +56,11 @@ def sample_from_scope(
         raise utils.EmptyScopeError(
             f"Filter failed. Not enough SOps in scope; found {len(sops)}, need {size}")
 
-    weights = [1] * len(sops)
+    if prefer_recent:
+        weights = get_recency_bias_weights(len(sops), 0.5)
+    else:
+        weights = [1] * len(sops)
+
     if type_constraint in {"categorical", None}:
         weights[0] = 3
     weights = np.array(weights) / np.sum(weights)
@@ -78,7 +89,7 @@ def sample_sequence_map(rng, variable_scope: list[rasp.SOp]):
         variable_scope, 
         type_constraint="categorical", 
         size=2, 
-        replace=False
+        replace=False,
     )
     fn = rng.choice(map_primitives.NONLINEAR_SEQMAP_FNS)
     sop_out = rasp.SequenceMap(fn, *args)
@@ -93,7 +104,7 @@ def sample_linear_sequence_map(rng, variable_scope: list):
         variable_scope, 
         type_constraint="float", 
         size=2, 
-        replace=False
+        replace=False,
     )
     weights = rng.choice(
         map_primitives.LINEAR_SEQUENCE_MAP_WEIGHTS, size=2, replace=True)
@@ -258,8 +269,10 @@ class ProgramSampler:
         self.validate_compilation = validate_compilation
         self.rng = np.random.default_rng(rng)
 
-    def sample(self, n_sops=15):
-        """Sample a program."""
+    def sample_sops(self, n_sops=15):
+        """Sample a list of SOps.
+        Returns a list of errors that occurred during sampling.
+        """
         errs = []
         for _ in range(n_sops):
             avoid = set()
@@ -282,9 +295,29 @@ class ProgramSampler:
             raise SamplingError(f"Failed to sample program. Received errors:\n"
                                 f"{errs}")
 
-        self.program = self.sops[-1]
-        self.validate()
         return errs
+    
+
+    def sample(self, target_length=15):
+        """Sample a program."""
+        self.sample_sops(n_sops=target_length*2)
+        candidates = self.sops[-10:]
+        lengths = np.array(
+            [utils.program_length(sop) for sop in candidates])
+        print("nr sops:", len(self.sops[2:]))
+        print("Max sop program len:", max(lengths))
+
+        # return longest program
+        self.program = candidates[np.argmax(lengths)]
+
+        if lengths.max() < 4:
+            raise SamplingError(
+                f"Sampled program too short: length {lengths.max()}."
+            )
+
+#        self.validate()
+        return self.program
+
 
     def validate(self):
         """Validate the program. This is fairly slow when 

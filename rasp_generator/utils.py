@@ -171,3 +171,9 @@ def display_top(snapshot, key_type='lineno', limit=5):
 #
 # snapshot = tracemalloc.take_snapshot()
 # display_top(snapshot)
+
+
+def program_length(program: rasp.SOp):
+    """Return the number of nodes in a program."""
+    graph = rasp_to_graph.extract_rasp_graph(program)
+    return len(graph.graph.nodes)
