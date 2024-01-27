@@ -207,6 +207,7 @@ def try_to_sample_sop(rng, variable_scope: list, avoid_types: set[str] = []):
     return sop, err, sop_class
 
 
+# TODO: move this fn to a different module, maybe validate.py?
 def validate_custom_types(expr: rasp.SOp, test_input):
     out = expr(test_input)
     if expr.annotations["type"] == "bool":

@@ -94,8 +94,11 @@ FLOAT_TO_CAT = [
 # rasp.SequenceMap only supports categorical --> categorical
 NONLINEAR_SEQMAP_FNS = [
     FunctionWithRepr("lambda x, y: x * y"),
+    FunctionWithRepr(f"lambda x, y: x * (y + 1) % {VOCAB_SIZE}"),
+    FunctionWithRepr(f"lambda x, y: x * (y + x) % {VOCAB_SIZE}"),
+    FunctionWithRepr(f"lambda x, y: x + y % {VOCAB_SIZE}"),
 #    FunctionWithRepr("lambda x, y: x/y"),  # need to avoid y = 0
-#    FunctionWithRepr("lambda x, y: x**1/y"),  # need to avoid y = 0
+#    FunctionWithRepr("lambda x, y: x**1/y"),  # need to avoid y = 0 and complex numbers
 ]
 
 
