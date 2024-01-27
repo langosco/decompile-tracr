@@ -48,8 +48,8 @@ CAT_TO_FLOAT = [  # note that negative floats are not allowed (bc of ReLUs)
     FunctionWithRepr("lambda x: x + 0.5"),
     FunctionWithRepr("lambda x: x + 1"),
     FunctionWithRepr("lambda x: x * 2"),
-    FunctionWithRepr("lambda x: x / 2"),
-    FunctionWithRepr("lambda x: x ** 2"),
+#    FunctionWithRepr("lambda x: x / 2"),
+#    FunctionWithRepr("lambda x: x ** 2"),
 ]
 
 # categorical --> bool
@@ -77,11 +77,12 @@ BOOL_TO_CAT = BOOL_TO_BOOL
 FLOAT_TO_FLOAT = CAT_TO_FLOAT
 
 # float --> bool
-# (really here I should sample threshold)
+# TODO: consider using more thresholds
 threshold = 0
 FLOAT_TO_BOOL = [
     FunctionWithRepr(f"lambda x: x > {threshold}"),
     FunctionWithRepr(f"lambda x: x < {threshold}"),
+    FunctionWithRepr(f"lambda x: x == 0"),
 ]
 
 # float --> categorical
