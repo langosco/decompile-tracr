@@ -6,15 +6,15 @@ import jax
 
 from rasp_tokenizer.compiling import compile_rasp_to_model_and_return_graph
 from rasp_tokenizer import utils
-from rasp_tokenizer.vocab import vocab as tokenizer_vocab
+import rasp_tokenizer.vocab as voc
 
 
 def encode(flat_program: list[str]):
-    return [tokenizer_vocab.index(x) for x in flat_program]
+    return [voc.vocab.index(x) for x in flat_program]
 
 
 def decode(tokenized_program: list[int]):
-    return [tokenizer_vocab[x] for x in tokenized_program]
+    return [voc.vocab[x] for x in tokenized_program]
 
 
 def compile_and_tokenize(
@@ -50,3 +50,60 @@ def compile_and_tokenize(
     }
 
     return model, tokens_by_layer, params_by_layer
+
+
+#        flat_layer = ["START"]
+#        for node_id in node_ids:
+#            flat_layer.append(get_variable_name(graph, node_id))
+#            flat_layer.append(get_encoding(graph, node_id))
+#            flat_layer.append(get_classname(graph, node_id))
+#            flat_layer.extend(get_args(graph, node_id))
+#        flat_layer.append("END")
+
+
+
+def get_next_op(str_tokens: list[str]):
+    raise NotImplementedError
+
+    if len(str_tokens) == 0:
+        raise ValueError("Empty program.")
+    elif str_tokens[0] in ("START", "END"):
+        str_tokens = str_tokens[1:]
+        return None
+    
+    str_tokens.reverse()
+
+    var_name = str_tokens.pop()
+    maybe_encoding = str_tokens.pop()
+    if maybe_encoding in ("categorical", "numerical"):
+        encoding = maybe_encoding
+        classname = str_tokens.pop()
+        assert classname in voc.ops
+    else:
+        encoding = None
+        classname = maybe_encoding
+        assert classname == "Select"
+    
+    args = ...
+
+    return encodings[encoding](
+        ops[classname](*args)
+    )
+
+
+
+
+def tokens_to_rasp(tokens: list[int]):
+    str_tokens = decode(tokens)[1:-1]
+    while len(str_tokens) > 0:
+        op = get_next_op(str_tokens)
+    return op
+
+
+
+
+def detokenize(tokens_by_layer: dict[str, list[int]]):
+    ops_by_layer = {
+        layername: decode(tokens) for layername, tokens in tokens_by_layer.items()
+    }
+

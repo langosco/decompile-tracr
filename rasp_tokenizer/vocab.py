@@ -16,11 +16,11 @@ encodings = [
 ]
 
 sop_variables = [
-    f"SOp_{i}" for i in range(40)
+    f"SOp_{i}" for i in range(50)
 ]
 
 selector_variables = [
-    f"Selector_{i}" for i in range(20)
+    f"Selector_{i}" for i in range(40)
 ]
 
 maps = [

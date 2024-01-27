@@ -64,7 +64,7 @@ def add_variable_names_to_graph(graph: nx.DiGraph) -> nx.DiGraph:
         if label in ['tokens', 'indices']:
             continue
 
-        if label.startswith('select'):
+        if label[:-1] == 'select_':
             graph.nodes[label]["token"] = next(sel_names)
         else:
             graph.nodes[label]["token"] = next(sop_names)
@@ -94,13 +94,19 @@ def get_variable_name(graph: nx.DiGraph, node_id: int) -> str:
 
 def get_args(graph: nx.DiGraph, node_id: int) -> list[str]:
     expr = graph.nodes[node_id]["EXPR"]
-    pred_ids = list(graph.predecessors(node_id))
-    variable_args = [get_variable_name(graph, i) for i in pred_ids]
+    assert expr.label == node_id
+
+    predecessor_ids = list(graph.predecessors(node_id))
+    variable_args = [get_variable_name(graph, i) for i in predecessor_ids]
 
     if isinstance(expr, rasp.Select):
+        variable_args = [get_variable_name(graph, i) for i in 
+                         (expr.keys.label, expr.queries.label)]
         other_args = [expr.predicate.name]
+        assert len(variable_args) == 2, f"Expected 2 args, got {len(variable_args)} for {expr.label}"
     elif isinstance(expr, rasp.LinearSequenceMap):
         other_args = [expr.fst_fac, expr.snd_fac]
+        assert len(variable_args) == 2
     elif isinstance(expr, (rasp.Map, rasp.SequenceMap)):
         other_args = [repr(expr.f)]
     else:
@@ -122,13 +128,14 @@ def rasp_graph_to_layerwise_representation(
     layerwise_program = {}
 
     for layer, node_ids in layers_to_nodes.items():
-        flat_layer = ["START"]
+        flat_layer = []
         for node_id in node_ids:
+            flat_layer.append("START")
             flat_layer.append(get_variable_name(graph, node_id))
             flat_layer.append(get_encoding(graph, node_id))
             flat_layer.append(get_classname(graph, node_id))
             flat_layer.extend(get_args(graph, node_id))
-        flat_layer.append("END")
+            flat_layer.append("END")
         flat_layer = [x for x in flat_layer if x is not None]
         layerwise_program[layer] = flat_layer
     

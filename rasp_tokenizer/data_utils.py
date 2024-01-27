@@ -16,7 +16,7 @@ logger = setup_logger(__name__)
 
 
 def load_data():
-    train_path = paths.data_dir / "train" / "data.pkl"
+    train_path = paths.data_dir / "train" / "small_data.pkl"
     test_path = paths.data_dir / "test" / "50.pkl"
 
     logger.info(f"Loading train/val data from {train_path}.")
