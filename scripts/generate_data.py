@@ -18,18 +18,20 @@ from rasp_generator import sampling
 from rasp_generator.utils import sample_test_input, print_program
 from rasp_tokenizer import tokenizer
 from rasp_tokenizer.compiling import COMPILER_BOS
+from rasp_tokenizer.logger_config import setup_logger
 
 
+logger = setup_logger(__name__)
 rng = np.random.default_rng(0)
 test_inputs = [sample_test_input(rng) for _ in range(100)]
 test_inputs += [[0], [0,0,0,0,0], [4,4,4,4], [0,1,2,3]]
 
 
 # per layer maximums:
-MAX_PROGRAM_LENGTH = 32
+MAX_RASP_LENGTH = 128
 MAX_WEIGHTS_LENGTH = 8192
 
-NUM_DATAPOINTS = 500
+NUM_DATAPOINTS = 50
 MAX_COMPILE_TIME = 5  # seconds
 
 
@@ -70,18 +72,18 @@ def try_compile(program: rasp.SOp):
         signal.alarm(0)
         return model, tokens, params
     except (InvalidValueSetError, NoTokensError, CompilationTimeout) as err:
-        print(f"Failed to compile program: {err}.")
+        logger.warning(f"Failed to compile program: {err}.")
         return None, None, None
 
 
 def sample_and_compile():
     sampler = sampling.ProgramSampler(rng=rng)
-    sampler.sample()
+    sampler.sample(target_length=15)
     try:
         model, tokens, params = try_compile(sampler.program)
     except Exception:  # catch everything else to print program
-        print("\nUnkown exception during compilation.")
-        print("Program:")
+        logger.warning("\nUnkown exception during compilation.")
+        logger.warning("Program:")
         print_program(sampler.program)
         print()
         raise
@@ -97,7 +99,7 @@ def to_flat_datapoints(
         dict(
             rasp=tuple(tok),
             weights=tuple(params[layer].tolist()),
-            id=program_id,
+            program_id=program_id,
         ) for layer, tok in tokens.items()
     ]
     # design decisions:
@@ -111,7 +113,7 @@ def to_flat_datapoints(
 def filter(by_layer: list[dict]):
     """Filter out bad programs."""
     if (
-        any(len(x['rasp']) > MAX_PROGRAM_LENGTH for x in by_layer) or
+        any(len(x['rasp']) > MAX_RASP_LENGTH for x in by_layer) or
         any(len(x['weights']) > MAX_WEIGHTS_LENGTH for x in by_layer)
     ):
         return True
@@ -119,31 +121,39 @@ def filter(by_layer: list[dict]):
         return False
 
 
+def sample_loop(dataset, all_rasp):
+    for i in tqdm(range(NUM_DATAPOINTS)):
+        program, model, tokens, params = sample_and_compile()
+        if model is None:
+            continue
+
+        is_invalid, reason = is_compiled_model_invalid(program, model)
+        if is_invalid:
+            logger.warning(f"Validation error at program {i}: {reason}")
+            continue
+
+        prog, rasp_str = to_flat_datapoints(tokens, params, program_id=i)
+        if rasp_str in all_rasp:
+            # dedupe programs
+            # note this doesn't deduplicate on the layer level
+            continue
+        elif filter(prog):
+            continue
+        else:
+            all_rasp.add(rasp_str)
+            dataset += prog
+
+
 all_rasp = set()
 dataset = []
-for i in tqdm(range(NUM_DATAPOINTS)):
-    program, model, tokens, params = sample_and_compile()
-    if model is None:
-        continue
 
-    is_invalid, reason = is_compiled_model_invalid(program, model)
-    if is_invalid:
-        print(f"Validation error at program {i}: {reason}")
-        continue
-
-    prog, rasp_str = to_flat_datapoints(tokens, params, program_id=i)
-    if rasp_str in all_rasp:
-        # dedupe programs
-        # note this doesn't deduplicate on the layer level
-        continue
-    elif filter(prog):
-        continue
-    else:
-        all_rasp.add(rasp_str)
-        dataset += prog
+try:
+    sample_loop(dataset, all_rasp)
+except KeyboardInterrupt:
+    logger.info("Interrupted, saving dataset.")
 
 
-savepath = "data/test/data.pkl"
-print(f"Saving generated programs to {savepath}.")
+savepath = "data/train/small_data.pkl"
+logger.info(f"Saving generated programs to {savepath}.")
 with open(savepath, "xb") as f:
     pickle.dump(dataset, f)
