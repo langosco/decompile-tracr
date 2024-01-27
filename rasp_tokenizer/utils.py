@@ -122,13 +122,13 @@ def rasp_graph_to_layerwise_representation(
     layerwise_program = {}
 
     for layer, node_ids in layers_to_nodes.items():
-        flat_layer = []
+        flat_layer = ["START"]
         for node_id in node_ids:
             flat_layer.append(get_variable_name(graph, node_id))
             flat_layer.append(get_encoding(graph, node_id))
             flat_layer.append(get_classname(graph, node_id))
             flat_layer.extend(get_args(graph, node_id))
-            flat_layer.append("SEP")
+        flat_layer.append("END")
         flat_layer = [x for x in flat_layer if x is not None]
         layerwise_program[layer] = flat_layer
     
@@ -163,6 +163,6 @@ def get_params(params: dict, layer_name: str) -> jax.Array:
 class RaspFlatDatapoint:
     """Holds a single datapoint consisting of a tokenized
     program and a flat array of weights."""
-    program: ArrayLike[int]
-    weights: ArrayLike[float]
+    program: ArrayLike
+    weights: ArrayLike
 

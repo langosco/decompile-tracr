@@ -38,16 +38,19 @@ inputs = [
     "indices",
 ]
 
-vocab = \
-    ["PAD", "SEP"] + \
-    ops + \
-    encodings + \
-    sop_variables + \
-    selector_variables + \
-    maps + \
-    linear_sequence_map_weights + \
-    comparisons + \
+
+vocab = (
+    ["PAD", "START", "END"] +
+    ops +
+    encodings +
+    sop_variables +
+    selector_variables +
+    maps +
+    linear_sequence_map_weights +
+    comparisons +
     inputs
+)
 
 
 size = len(vocab)
+pad_id = vocab.index("PAD")
