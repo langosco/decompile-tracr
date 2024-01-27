@@ -7,6 +7,7 @@ from jaxtyping import ArrayLike
 import flax
 import pickle
 from tqdm import tqdm
+import signal
 
 from tracr.compiler.craft_model_to_transformer import NoTokensError
 from tracr.compiler.basis_inference import InvalidValueSetError
@@ -15,7 +16,6 @@ from tracr.compiler.assemble import AssembledTransformerModel
 
 from rasp_generator import sampling
 from rasp_generator.utils import sample_test_input, print_program
-from rasp_tokenizer.utils import RaspFlatDatapoint
 from rasp_tokenizer import tokenizer
 from rasp_tokenizer.compiling import COMPILER_BOS
 
@@ -26,10 +26,22 @@ test_inputs += [[0], [0,0,0,0,0], [4,4,4,4], [0,1,2,3]]
 
 
 # per layer maximums:
-MAX_PROGRAM_LENGTH = 30
-MAX_WEIGHTS_LENGTH = 5000
+MAX_PROGRAM_LENGTH = 32
+MAX_WEIGHTS_LENGTH = 8192
 
-NUM_DATAPOINTS = 100
+NUM_DATAPOINTS = 500
+MAX_COMPILE_TIME = 5  # seconds
+
+
+class CompilationTimeout(Exception):
+    pass
+
+
+def timeout_handler(signum, frame):
+    raise CompilationTimeout(
+        f"Program took longer than {MAX_COMPILE_TIME} seconds to compile.")
+
+signal.signal(signal.SIGALRM, timeout_handler)
 
 
 def is_compiled_model_invalid(
@@ -53,9 +65,11 @@ def is_compiled_model_invalid(
 
 def try_compile(program: rasp.SOp):
     try:
+        signal.alarm(MAX_COMPILE_TIME)
         model, tokens, params = tokenizer.compile_and_tokenize(program)
+        signal.alarm(0)
         return model, tokens, params
-    except (InvalidValueSetError, NoTokensError) as err:
+    except (InvalidValueSetError, NoTokensError, CompilationTimeout) as err:
         print(f"Failed to compile program: {err}.")
         return None, None, None
 
@@ -74,19 +88,39 @@ def sample_and_compile():
     return sampler.program, model, tokens, params
 
 
-
-def to_flat_datapoints(tokens, params) -> list[RaspFlatDatapoint]:
+def to_flat_datapoints(
+        tokens: dict[str, list[int]],
+        params: dict[str, ArrayLike],
+        program_id: int,
+    ) -> (list[dict], tuple):
     by_layer = [
-        RaspFlatDatapoint(program=tok, weights=np.array(params[layer])) 
-        for layer, tok in tokens.items()
-        ]
-    by_layer = [x for x in by_layer if len(x.program) > 0]
-    by_layer = [x for x in by_layer if len(x.program) < MAX_PROGRAM_LENGTH]
-    by_layer = [x for x in by_layer if len(x.weights) < MAX_WEIGHTS_LENGTH]
-    return by_layer
+        dict(
+            rasp=tuple(tok),
+            weights=tuple(params[layer].tolist()),
+            id=program_id,
+        ) for layer, tok in tokens.items()
+    ]
+    # design decisions:
+    # - should we store datapoints per layer or per program?
+    # - is it bad if we lose program info? (it's bad for test data, but not necessarily for training data)
+    # - should we deduplicate based on program or based on layer?
+    # - should we deduplicated based on rasp code or rasp + weights? (if by layer)
+    return by_layer, tuple(x['rasp'] for x in by_layer)
 
 
-results = []
+def filter(by_layer: list[dict]):
+    """Filter out bad programs."""
+    if (
+        any(len(x['rasp']) > MAX_PROGRAM_LENGTH for x in by_layer) or
+        any(len(x['weights']) > MAX_WEIGHTS_LENGTH for x in by_layer)
+    ):
+        return True
+    else:
+        return False
+
+
+all_rasp = set()
+dataset = []
 for i in tqdm(range(NUM_DATAPOINTS)):
     program, model, tokens, params = sample_and_compile()
     if model is None:
@@ -97,10 +131,19 @@ for i in tqdm(range(NUM_DATAPOINTS)):
         print(f"Validation error at program {i}: {reason}")
         continue
 
-    results.extend(to_flat_datapoints(tokens, params))
+    prog, rasp_str = to_flat_datapoints(tokens, params, program_id=i)
+    if rasp_str in all_rasp:
+        # dedupe programs
+        # note this doesn't deduplicate on the layer level
+        continue
+    elif filter(prog):
+        continue
+    else:
+        all_rasp.add(rasp_str)
+        dataset += prog
 
 
-savepath = "data/dummy_data.pkl"
+savepath = "data/test/data.pkl"
 print(f"Saving generated programs to {savepath}.")
 with open(savepath, "xb") as f:
-    pickle.dump(results, f)
+    pickle.dump(dataset, f)
