@@ -298,9 +298,9 @@ class ProgramSampler:
         return errs
     
 
-    def sample(self, target_length=15):
+    def sample(self, n_sops=15):
         """Sample a program."""
-        self.sample_sops(n_sops=target_length*2)
+        self.sample_sops(n_sops=n_sops)
         candidates = self.sops[-10:]
         lengths = np.array(
             [utils.program_length(sop) for sop in candidates])
