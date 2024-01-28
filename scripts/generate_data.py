@@ -48,7 +48,7 @@ MAX_COMPILE_TIME = 5  # seconds
 
 
 def save_to_file(dataset):
-    idx = sequential_count_via_lockfile(paths.data_dir / "count.txt")
+    idx = sequential_count_via_lockfile(paths.data_dir / args.savedir / "count.txt")
     savepath = paths.data_dir / args.savedir / f"data_{idx}.pkl"
     logger.info(f"Saving generated programs to {savepath}.")
     with open(savepath, "xb") as f:
