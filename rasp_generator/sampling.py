@@ -307,12 +307,13 @@ class ProgramSampler:
 
         # return longest program
         self.program = candidates[np.argmax(lengths)]
+        length = lengths.max()
 
-        if lengths.max() < 4:
+        if length < 4:
             raise SamplingError(
-                f"Sampled program too short: length {lengths.max()}."
+                f"Sampled program too short: length {length}."
             )
-
+        self.program = rasp.annotate(self.program, length=length)
 #        self.validate()
         return self.program
 

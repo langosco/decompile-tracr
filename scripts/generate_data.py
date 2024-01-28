@@ -170,9 +170,11 @@ def sample_loop(dataset, all_rasp):
         else:
             all_rasp.add(rasp_str)
             dataset += prog
+            lengths.append(program.annotations['length'])
 
 
 all_rasp = set()
+lengths = []
 dataset = []
 
 try:
@@ -180,5 +182,10 @@ try:
 except KeyboardInterrupt:
     logger.info("Interrupted, saving dataset.")
 
+
+logger.info(f"Generated {len(lengths)} programs resulting in {len(dataset)} datapoints.")
+logger.info(f"Min and max program length: {np.min(lengths)}, {np.max(lengths)}")
+logger.info(f"Average program length: {np.mean(lengths)}")
+logger.info(f"Median program length: {np.median(lengths)}")
 
 save_to_file(dataset)
