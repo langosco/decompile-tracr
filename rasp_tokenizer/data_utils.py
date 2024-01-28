@@ -21,23 +21,49 @@ def load_batch(filename: str) -> list[dict]:
         return pickle.load(f)
 
 
+class ProgramIDAssignment:
+    def __init__(self):
+        self.assignment = {}
+        self.current_id = 0
+
+    def get_new_id(self, old_id: int):
+        if old_id not in self.assignment:
+            self.assignment[old_id] = self.current_id
+            self.current_id += 1
+
+        return self.assignment[old_id]
+
+
+def load_batches(path: str) -> list[dict]:
+    """
+    Load all batches in a directory and merge
+    into a single list. Programs get new ids. 
+    This is to make sure that program_id remains
+    unique after merging batches.
+    """
+    data = []
+    assignment = ProgramIDAssignment()
+    for entry in os.scandir(path):
+        if entry.name.endswith(".pkl"):
+            batch = load_batch(entry.path)
+        
+        for x in batch:
+            x['program_id'] = assignment.get_new_id(x['program_id'])
+
+        data.extend(batch)
+
+    return data
+
 
 def load_data():
     train_path = paths.data_dir / "train"
     test_path = paths.data_dir / "test"
 
-    train = []
     logger.info(f"Loading train/val data from {train_path}.")
-    for entry in os.scandir(train_path):
-        if entry.name.endswith(".pkl"):
-            train.extend(load_batch(entry.path))
+    train = load_batches(train_path)
 
-    
-    test = []
     logger.info(f"Loading test data from {test_path}.")
-    for entry in os.scandir(test_path):
-        if entry.name.endswith(".pkl"):
-            test.extend(load_batch(entry.path))
+    test = load_batches(test_path)
 
     return train, test
 
