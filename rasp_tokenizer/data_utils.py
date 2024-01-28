@@ -16,55 +16,52 @@ from rasp_tokenizer.logger_config import setup_logger
 logger = setup_logger(__name__)
 
 
-def load_batch(filename: str) -> list[dict]:
+def load_batch(filename: str) -> list[list[dict]]:
     with open(filename, "rb") as f:
         return pickle.load(f)
 
 
-class ProgramIDAssignment:
-    def __init__(self):
-        self.assignment = {}
-        self.current_id = 0
-
-    def get_new_id(self, old_id: int):
-        if old_id not in self.assignment:
-            self.assignment[old_id] = self.current_id
-            self.current_id += 1
-
-        return self.assignment[old_id]
-
-
-def load_batches(path: str) -> list[dict]:
+def load_batches(loaddir = None) -> list[list[dict]]:
     """
-    Load all batches in a directory and merge
-    into a single list. Programs get new ids. 
-    This is to make sure that program_id remains
-    unique after merging batches.
+    Load all batches and merge into a single list. 
+    Assume: programs are not deduplicated across
+    batches.
     """
+    path = paths.data_dir / "batches"
+    if loaddir is not None:
+        path = path / loaddir
     data = []
-    assignment = ProgramIDAssignment()
     for entry in os.scandir(path):
         if entry.name.endswith(".pkl"):
-            batch = load_batch(entry.path)
-        
-        for x in batch:
-            x['program_id'] = assignment.get_new_id(x['program_id'])
-
-        data.extend(batch)
-
+            data.extend(load_batch(entry.path))
     return data
 
 
+def save_deduped(data: list[dict], savedir = "train"):
+    """Save data after deduplication and processing.
+    Note here data is assumed to be a list of dicts,
+    dropping the program structure."""
+    path = paths.data_dir / "deduped" 
+    if savedir is not None:
+        path = path / savedir
+    os.makedirs(path, exist_ok=True)
+    path = path / "data.pkl"
+    logger.info(f"Saving generated programs to {path}.")
+    with open(path, "xb") as f:
+        pickle.dump(data, f)
+
+
+def load_deduped(name="train"):
+    path = paths.data_dir / "deduped" / name / "data.pkl"
+    logger.info(f"Loading data from {path}.")
+    with open(path, "rb") as f:
+        return pickle.load(f)
+
+
 def load_data():
-    train_path = paths.data_dir / "train"
-    test_path = paths.data_dir / "test"
-
-    logger.info(f"Loading train/val data from {train_path}.")
-    train = load_batches(train_path)
-
-    logger.info(f"Loading test data from {test_path}.")
-    test = load_batches(test_path)
-
+    """Load train and test data ready for processing."""
+    train = load_deduped("train")
+    test = load_deduped("test")
     return train, test
 
 

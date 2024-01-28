@@ -1,4 +1,8 @@
 # Quick test script to generate a small dataset for metamodel training.
+# Output is a list of lists of dicts.
+# Each list of dicts is a program.
+# Each dict is a layer, with keys 'rasp' and 'weights'.
+# Output gets saved to paths.data_dir / "batches" / "data_{idx}.pkl"
 # TODO: clean up and make more readable
 
 import os
@@ -29,13 +33,17 @@ from rasp_tokenizer.utils import sequential_count_via_lockfile
 
 
 parser = argparse.ArgumentParser(description='Training run')
-parser.add_argument('--savedir', type=str, default="train", help='train or test.')
+parser.add_argument('--savedir', type=str, default=None)
 parser.add_argument('--n_sops', type=int, default=15, help='how many sops to sample per program.')
 args = parser.parse_args()
 
 
+SAVEDIR = paths.data_dir / "batches"
+if args.savedir is not None:
+    SAVEDIR = SAVEDIR / args.savedir
 
-os.makedirs(paths.data_dir / args.savedir, exist_ok=True)
+
+os.makedirs(SAVEDIR, exist_ok=True)
 logger = setup_logger(__name__)
 rng = np.random.default_rng(0)
 test_inputs = [sample_test_input(rng) for _ in range(100)]
@@ -48,8 +56,8 @@ MAX_COMPILE_TIME = 5  # seconds
 
 
 def save_to_file(dataset):
-    idx = sequential_count_via_lockfile(paths.data_dir / args.savedir / "count.txt")
-    savepath = paths.data_dir / args.savedir / f"data_{idx}.pkl"
+    idx = sequential_count_via_lockfile(SAVEDIR / "count.txt")
+    savepath = SAVEDIR / f"data_{idx}.pkl"
     logger.info(f"Saving generated programs to {savepath}.")
     with open(savepath, "xb") as f:
         pickle.dump(dataset, f)
@@ -111,7 +119,7 @@ def sample_and_compile():
         logger.warning("Program:")
         print_program(sampler.program)
         print()
-        save_to_file(dataset)
+        save_to_file(program_dataset)
         raise
     return sampler.program, model, tokens, params
 
@@ -169,23 +177,26 @@ def sample_loop(dataset, all_rasp):
             continue
         else:
             all_rasp.add(rasp_str)
-            dataset += prog
+            dataset.append(prog)
             lengths.append(program.annotations['length'])
 
 
 all_rasp = set()
 lengths = []
-dataset = []
+program_dataset = []
 
 try:
-    sample_loop(dataset, all_rasp)
+    sample_loop(program_dataset, all_rasp)
 except KeyboardInterrupt:
     logger.info("Interrupted, saving dataset.")
 
 
-logger.info(f"Generated {len(lengths)} programs resulting in {len(dataset)} datapoints.")
+n_layers_per = [len(x) for x in program_dataset]
+
+logger.info(f"Generated {len(lengths)} programs.")
 logger.info(f"Min and max program length: {np.min(lengths)}, {np.max(lengths)}")
 logger.info(f"Average program length: {np.mean(lengths)}")
-logger.info(f"Median program length: {np.median(lengths)}")
+logger.info(f"Average number of layers per program: {np.mean(n_layers_per)}")
+logger.info(f"Min and max number of layers per program: {np.min(n_layers_per)}, {np.max(n_layers_per)}")
 
-save_to_file(dataset)
+save_to_file(program_dataset)
