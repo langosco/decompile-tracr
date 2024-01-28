@@ -1,4 +1,5 @@
-# Quick test script to generate a 'dummy' dataset for metamodel training.
+# Quick test script to generate a small dataset for metamodel training.
+# TODO: clean up and make more readable
 
 import os
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
@@ -75,11 +76,12 @@ def try_compile(program: rasp.SOp):
     try:
         signal.alarm(MAX_COMPILE_TIME)
         model, tokens, params = tokenizer.compile_and_tokenize(program)
-        signal.alarm(0)
         return model, tokens, params
     except (InvalidValueSetError, NoTokensError, CompilationTimeout) as err:
         logger.warning(f"Failed to compile program: {err}.")
         return None, None, None
+    finally:
+        signal.alarm(0)
 
 
 def sample_and_compile():
