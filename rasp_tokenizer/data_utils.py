@@ -1,3 +1,4 @@
+import os
 import pickle
 from collections import defaultdict
 
@@ -15,19 +16,30 @@ from rasp_tokenizer.logger_config import setup_logger
 logger = setup_logger(__name__)
 
 
+def load_batch(filename: str) -> list[dict]:
+    with open(filename, "rb") as f:
+        return pickle.load(f)
+
+
+
 def load_data():
-    train_path = paths.data_dir / "train" / "small_data.pkl"
-    test_path = paths.data_dir / "test" / "50.pkl"
+    train_path = paths.data_dir / "train"
+    test_path = paths.data_dir / "test"
 
+    train = []
     logger.info(f"Loading train/val data from {train_path}.")
-    with open(train_path, "rb") as f:
-        train_data = pickle.load(f)
-    
-    logger.info(f"Loading test data from {test_path}.")
-    with open(test_path, "rb") as f:
-        test_data = pickle.load(f)
+    for entry in os.scandir(train_path):
+        if entry.name.endswith(".pkl"):
+            train.extend(load_batch(entry.path))
 
-    return train_data, test_data
+    
+    test = []
+    logger.info(f"Loading test data from {test_path}.")
+    for entry in os.scandir(test_path):
+        if entry.name.endswith(".pkl"):
+            test.extend(load_batch(entry.path))
+
+    return train, test
 
 
 def pad_to(x: np.ndarray, max_len: int, pad_value: int = 0):
@@ -64,7 +76,7 @@ def process_single_datapoint(
     return {
         "rasp": pad_to(x['rasp'], max_rasp_len, pad_value=vocab.pad_id),
         "weights": weights,
-        "id": x['id'],
+        "program_id": x['program_id'],
     }
 
 
@@ -87,11 +99,13 @@ def process_data(
             out[k].append(v)
 
     out = {k: np.stack(v) for k, v in out.items()}
+    out = {k: v.astype(np.int32) if k in ("rasp", "program_id") else v 
+           for k, v in out.items()}
     logger.info(f"Filtered out {n - len(out['rasp'])} datapoints "
                 f"({round(100 * (n - len(out['rasp'])) / n, 2)}%). "
                 f"Total remaining: {len(out['rasp'])}.")
     # clip weights
-    out["weights"] = np.clip(out["weights"], -1, 1)
+#    out["weights"] = np.clip(out["weights"], -10, 10)
     chex.assert_shape(out["rasp"], (None, max_rasp_len))
     chex.assert_shape(out["weights"], (None, max_weights_len//d_model, d_model))
     assert len(out["rasp"]) == len(out["weights"])

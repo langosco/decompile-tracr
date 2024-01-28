@@ -31,12 +31,20 @@ rng = np.random.default_rng(0)
 test_inputs = [sample_test_input(rng) for _ in range(100)]
 test_inputs += [[0], [0,0,0,0,0], [4,4,4,4], [0,1,2,3]]
 
-SAVEPATH = paths.data_dir / "train"
+SAVEPATH = paths.data_dir / "test"
 os.makedirs(SAVEPATH, exist_ok=True)
 
 
 NUM_DATAPOINTS = 50
 MAX_COMPILE_TIME = 5  # seconds
+
+
+def save_to_file(dataset):
+    idx = sequential_count_via_lockfile(SAVEPATH / "count.txt")
+    savepath = SAVEPATH / f"data_{idx}.pkl"
+    logger.info(f"Saving generated programs to {savepath}.")
+    with open(savepath, "xb") as f:
+        pickle.dump(dataset, f)
 
 
 class CompilationTimeout(Exception):
@@ -87,7 +95,7 @@ def sample_and_compile():
     try:
         model, tokens, params = try_compile(sampler.program)
     except Exception:  # catch everything else to print program
-        logger.warning("\nUnkown exception during compilation.")
+        logger.warning("Unkown exception during compilation.")
         logger.warning("Program:")
         print_program(sampler.program)
         print()
@@ -158,14 +166,6 @@ try:
     sample_loop(dataset, all_rasp)
 except KeyboardInterrupt:
     logger.info("Interrupted, saving dataset.")
-
-
-def save_to_file(dataset):
-    idx = sequential_count_via_lockfile(SAVEPATH / "count.txt")
-    savepath = SAVEPATH / f"data_{idx}.pkl"
-    logger.info(f"Saving generated programs to {savepath}.")
-    with open(savepath, "xb") as f:
-        pickle.dump(dataset, f)
 
 
 save_to_file(dataset)

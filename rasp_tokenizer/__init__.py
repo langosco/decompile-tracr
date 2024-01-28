@@ -26,7 +26,7 @@ class Paths:
         if on_cluster:
             data_dir = os.path.join(hpc_storage_dir, "lauro/rasp-data/")
         else:
-            data_dir = os.path.join(module_path, "scripts/data/")
+            data_dir = os.path.join(module_path, "scripts/hpc_data/")
 
         self.module_path = Path(module_path)
         self.data_dir = Path(data_dir)
