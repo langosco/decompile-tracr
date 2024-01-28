@@ -99,7 +99,11 @@ def try_compile(program: rasp.SOp):
 
 def sample_and_compile():
     sampler = sampling.ProgramSampler(rng=rng)
-    sampler.sample(n_sops=15)
+    try:
+        sampler.sample(n_sops=15)
+    except sampling.SamplingError:
+        logger.warning("Sampling error.")
+        return None, None, None, None
     try:
         model, tokens, params = try_compile(sampler.program)
     except Exception:  # catch everything else to print program
