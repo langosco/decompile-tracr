@@ -101,8 +101,8 @@ def sample_and_compile():
     sampler = sampling.ProgramSampler(rng=rng)
     try:
         sampler.sample(n_sops=15)
-    except sampling.SamplingError:
-        logger.warning("Sampling error.")
+    except sampling.SamplingError as e:
+        logger.warning(f"Received sampling error: {e}.")
         return None, None, None, None
     try:
         model, tokens, params = try_compile(sampler.program)
@@ -165,7 +165,7 @@ def sample_loop(dataset, all_rasp):
             logger.warning(f"Duplicate program {i} filtered.")
             continue
         elif filter(prog):
-            logger.warning(f"Filtered out program {i}.")
+            logger.warning(f"Filtered out program {i} (too large).")
             continue
         else:
             all_rasp.add(rasp_str)
