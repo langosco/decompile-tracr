@@ -171,17 +171,21 @@ def sequential_count_via_lockfile(countfile="/tmp/counter.txt"):
     """Increment a counter in a file. 
     Use a lockfile to ensure atomicity. If the file doesn't exist, 
     create it and start the counter at 1."""
-    with open(countfile, "a+") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
+    try:
+        with open(countfile, "a+") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
 
-        f.seek(0)
-        counter_str = f.read().strip()
-        counter = 1 if not counter_str else int(counter_str) + 1
+            f.seek(0)
+            counter_str = f.read().strip()
+            counter = 1 if not counter_str else int(counter_str) + 1
 
-        f.seek(0)
-        f.truncate()  # Clear the file content
-        f.write(str(counter))
+            f.seek(0)
+            f.truncate()  # Clear the file content
+            f.write(str(counter))
+            f.flush()
 
-        fcntl.flock(f, fcntl.LOCK_UN)
+            fcntl.flock(f, fcntl.LOCK_UN)
 
-    return counter
+        return counter
+    except ValueError as e:
+        raise ValueError(f"Invalid counter value: {counter_str}. {e}")

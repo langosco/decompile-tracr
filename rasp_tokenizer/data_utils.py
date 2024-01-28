@@ -80,6 +80,12 @@ def process_single_datapoint(
     }
 
 
+def to_int(array: np.ndarray):
+    int_arr = array.astype(np.int32)
+    assert np.allclose(array, int_arr), f"Array is not integer: {array}"
+    return int_arr
+
+
 def process_data(
         data: list[list[dict]],
         d_model: int,
@@ -99,13 +105,13 @@ def process_data(
             out[k].append(v)
 
     out = {k: np.stack(v) for k, v in out.items()}
-    out = {k: v.astype(np.int32) if k in ("rasp", "program_id") else v 
+    out = {k: to_int(v) if k in ("rasp", "program_id") else v 
            for k, v in out.items()}
     logger.info(f"Filtered out {n - len(out['rasp'])} datapoints "
                 f"({round(100 * (n - len(out['rasp'])) / n, 2)}%). "
                 f"Total remaining: {len(out['rasp'])}.")
     # clip weights
-#    out["weights"] = np.clip(out["weights"], -10, 10)
+    out["weights"] = np.clip(out["weights"], -100, 100)
     chex.assert_shape(out["rasp"], (None, max_rasp_len))
     chex.assert_shape(out["weights"], (None, max_weights_len//d_model, d_model))
     assert len(out["rasp"]) == len(out["weights"])
