@@ -9,6 +9,7 @@ import flax
 import pickle
 from tqdm import tqdm
 import signal
+import argparse
 
 from tracr.compiler.craft_model_to_transformer import NoTokensError
 from tracr.compiler.basis_inference import InvalidValueSetError
@@ -26,13 +27,20 @@ from rasp_tokenizer import MAX_RASP_LENGTH, MAX_WEIGHTS_LENGTH
 from rasp_tokenizer.utils import sequential_count_via_lockfile
 
 
+
+parser = argparse.ArgumentParser(description='Training run')
+parser.add_argument('--savedir', type=str, default="train", help='train or test.')
+args = parser.parse_args()
+
+
+
 logger = setup_logger(__name__)
 rng = np.random.default_rng(0)
 test_inputs = [sample_test_input(rng) for _ in range(100)]
 test_inputs += [[0], [0,0,0,0,0], [4,4,4,4], [0,1,2,3]]
 
-SAVEPATH = paths.data_dir / "test"
-os.makedirs(SAVEPATH, exist_ok=True)
+os.makedirs(paths.data_dir / "test", exist_ok=True)
+os.makedirs(paths.data_dir / "train", exist_ok=True)
 
 
 NUM_DATAPOINTS = 50
@@ -40,8 +48,8 @@ MAX_COMPILE_TIME = 5  # seconds
 
 
 def save_to_file(dataset):
-    idx = sequential_count_via_lockfile(SAVEPATH / "count.txt")
-    savepath = SAVEPATH / f"data_{idx}.pkl"
+    idx = sequential_count_via_lockfile(paths.data_dir / "count.txt")
+    savepath = paths.data_dir / args.savedir / f"data_{idx}.pkl"
     logger.info(f"Saving generated programs to {savepath}.")
     with open(savepath, "xb") as f:
         pickle.dump(dataset, f)
@@ -146,7 +154,7 @@ def sample_loop(dataset, all_rasp):
             logger.warning(f"Validation error at program {i}: {reason}")
             continue
 
-        program_id = sequential_count_via_lockfile(SAVEPATH / "count.txt")
+        program_id = sequential_count_via_lockfile(paths.data_dir / "count.txt")
         prog, rasp_str = to_flat_datapoints(tokens, params, program_id=program_id)
         if rasp_str in all_rasp:
             # dedupe programs
