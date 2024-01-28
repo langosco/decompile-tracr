@@ -15,7 +15,7 @@ def make_reverse(sop: rasp.SOp) -> rasp.SOp:
     opp_idx = rasp.SequenceMap(
        FunctionWithRepr("lambda x, y: x - y"), length, rasp.indices)
     opp_idx = rasp.Map(
-       FunctionWithRepr("lambda x: x - 1"), opp_idx)
+       FunctionWithRepr("lambda x: x - 1"), opp_idx, simplify=False)
     reverse_selector = rasp.Select(
         rasp.indices, opp_idx, rasp.Comparison.EQ)
     return rasp.Aggregate(reverse_selector, sop)
@@ -37,11 +37,11 @@ def _pair_balance(sop: rasp.SOp, open_token: str,
     """Return fraction of previous open tokens minus the fraction of close tokens.
     """
     bools_open = rasp.numerical(
-       rasp.Map(FunctionWithRepr(f"lambda x: x == {open_token}"), sop))
+       rasp.Map(FunctionWithRepr(f"lambda x: x == {open_token}"), sop, simplify=False))
     opens = _frac_prevs(bools_open)
 
     bools_close = rasp.numerical(
-       rasp.Map(FunctionWithRepr(f"lambda x: x == {close_token}"), sop))
+       rasp.Map(FunctionWithRepr(f"lambda x: x == {close_token}"), sop, simplify=False))
     closes = rasp.numerical(_frac_prevs(bools_close))
 
     pair_balance = rasp.numerical(rasp.LinearSequenceMap(opens, closes, 1, -1))
@@ -62,21 +62,25 @@ def make_shuffle_dyck(pairs: list = [(0,1), (2,3)]) -> rasp.SOp:
     for pair in pairs:
         assert len(pair) == 2
         open_token, close_token = pair
-        balance = _pair_balance(
-            rasp.tokens, open_token=open_token,
-            close_token=close_token)
+        balance = _pair_balance(  # numerical
+            rasp.tokens, 
+            open_token=open_token,
+            close_token=close_token
+        )
         balances.append(balance)
 
     # Check if balances where negative anywhere -> parentheses not balanced
     any_negative = rasp.Map(
         FunctionWithRepr("lambda x: x < 0"),
         balances[0],
+        simplify=False,
     )
 
     for balance in balances[1:]:
         bal_neg = rasp.Map(
             FunctionWithRepr("lambda x: x < 0"),
-            balance,
+            balance,  
+            simplify=False,
         )
 
         any_negative = rasp.SequenceMap(
@@ -87,7 +91,11 @@ def make_shuffle_dyck(pairs: list = [(0,1), (2,3)]) -> rasp.SOp:
 
     # Convert to numerical SOp
     any_negative = rasp.numerical(
-        rasp.Map(FunctionWithRepr("lambda x: x"), any_negative)
+        rasp.Map(
+            FunctionWithRepr("lambda x: x"), 
+            any_negative,
+            simplify=False,
+        )
     )
 
     select_all = rasp.Select(rasp.indices, rasp.indices,
@@ -99,12 +107,14 @@ def make_shuffle_dyck(pairs: list = [(0,1), (2,3)]) -> rasp.SOp:
     all_zero = rasp.Map(
         FunctionWithRepr("lambda x: x == 0"),
         balances[0],
+        simplify=False,
     )
 
     for balance in balances[1:]:
         balance_is_zero = rasp.Map(
             FunctionWithRepr("lambda x: x == 0"),
             balance,
+            simplify=False,
         )
 
         all_zero = rasp.SequenceMap(
@@ -113,13 +123,19 @@ def make_shuffle_dyck(pairs: list = [(0,1), (2,3)]) -> rasp.SOp:
             balance_is_zero,
         )
 
-    select_last = rasp.Select(rasp.indices, length - 1,
+    length_minus_one = rasp.Map(
+        FunctionWithRepr("lambda x: x - 1"),
+        length,
+        simplify=False,
+    )
+    select_last = rasp.Select(rasp.indices, length_minus_one,
                             rasp.Comparison.EQ)
     last_zero = rasp.Aggregate(select_last, all_zero)
 
     not_has_neg = rasp.Map(
         FunctionWithRepr("lambda x: not x"),
         has_neg,
+        simplify=False,
     )
     
     return rasp.SequenceMap(
@@ -127,3 +143,11 @@ def make_shuffle_dyck(pairs: list = [(0,1), (2,3)]) -> rasp.SOp:
         last_zero, 
         not_has_neg,
     )
+
+
+examples = {
+    1: length,
+    2: make_reverse(rasp.tokens),
+    3: make_pair_balance(),
+    4: make_shuffle_dyck([(0, 1)]),
+}

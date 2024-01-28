@@ -41,6 +41,10 @@ VOCAB = list(range(VOCAB_SIZE))
 # categorical --> categorical
 # (note that range == domain. might change this later)
 CAT_TO_CAT = [FunctionWithRepr(f"lambda x: x + {n % VOCAB_SIZE}") for n in VOCAB]
+CAT_TO_CAT += [
+    FunctionWithRepr(f"lambda x: x + 1"),
+    FunctionWithRepr(f"lambda x: x - 1"),
+]
 
 # categorical --> float
 CAT_TO_FLOAT = [  # note that negative floats are not allowed (bc of ReLUs)
@@ -98,6 +102,9 @@ NONLINEAR_SEQMAP_FNS = [
     FunctionWithRepr(f"lambda x, y: x * (y + 1) % {VOCAB_SIZE}"),
     FunctionWithRepr(f"lambda x, y: x * (y + x) % {VOCAB_SIZE}"),
     FunctionWithRepr(f"lambda x, y: x + y % {VOCAB_SIZE}"),
+    FunctionWithRepr(f"lambda x, y: x - y"),
+    FunctionWithRepr(f"lambda x, y: x or y"),
+    FunctionWithRepr(f"lambda x, y: x and y"),
 #    FunctionWithRepr("lambda x, y: x/y"),  # need to avoid y = 0
 #    FunctionWithRepr("lambda x, y: x**1/y"),  # need to avoid y = 0 and complex numbers
 ]
