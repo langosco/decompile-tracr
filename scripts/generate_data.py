@@ -35,21 +35,19 @@ from rasp_tokenizer.utils import sequential_count_via_lockfile
 
 
 parser = argparse.ArgumentParser(description='Training run')
-parser.add_argument('--savedir', type=str, default=None)
+parser.add_argument('--savedir', type=str, default="train")
 parser.add_argument('--n_sops', type=int, default=15, 
                     help='how many sops to sample per program.')
 parser.add_argument('--min_length', type=int, default=4, 
                     help='min nr of sops per program')
-parser.add_argument('--max_length', type=int, default=15, 
+parser.add_argument('--max_length', type=int, default=None, 
                     help='max nr of sops per program')
 parser.add_argument('--ndata', type=int, default=50)
 parser.add_argument('--seed', type=int, default=None)
 args = parser.parse_args()
 
 
-SAVEDIR = paths.data_dir / "batches"
-if args.savedir is not None:
-    SAVEDIR = SAVEDIR / args.savedir
+SAVEDIR = paths.data_dir / "batches" / args.savedir
 
 
 os.makedirs(SAVEDIR, exist_ok=True)
