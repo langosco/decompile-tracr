@@ -35,7 +35,7 @@ from rasp_tokenizer.utils import sequential_count_via_lockfile
 
 
 parser = argparse.ArgumentParser(description='Training run')
-parser.add_argument('--savedir', type=str, default="train")
+parser.add_argument('--name', type=str, default="train")
 parser.add_argument('--n_sops', type=int, default=15, 
                     help='how many sops to sample per program.')
 parser.add_argument('--min_length', type=int, default=4, 
@@ -47,7 +47,7 @@ parser.add_argument('--seed', type=int, default=None)
 args = parser.parse_args()
 
 
-SAVEDIR = paths.data_dir / "batches" / args.savedir
+SAVEDIR = paths.data_dir / "batches"
 
 
 os.makedirs(SAVEDIR, exist_ok=True)
@@ -196,6 +196,7 @@ def sample_loop(dataset, all_rasp):
                 "weights_and_tokens": by_layer,  # list of dicts
                 "model": model,  # AssembledTransformerModel
                 "rasp": program,  # rasp.SOp
+                "name": args.name,  # train vs test
             }
             dataset.append(datapoint)
             lengths.append(program.annotations['length'])

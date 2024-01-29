@@ -66,7 +66,7 @@ def dedupe(data: list[dict]) -> list[dict]:
     return deduped
 
 
-def save_deduped(data: list[dict], savedir = "train"):
+def save_deduped(data: list[dict], savedir: str = None):
     """Save data after deduplication."""
     path = paths.data_dir / "deduped" 
     if savedir is not None:
@@ -88,11 +88,37 @@ def load_deduped(name="train", keep_model_and_program=False):
     return data
 
 
-def load_data_for_training():
-    """Load train and test data ready for processing."""
-    train = load_deduped("train")
-    test = load_deduped("test")
-    return train, test
+def load_and_process_data(
+        rng=None, 
+        ndata=10_000,
+        shuffle=False, 
+        name="train",
+        d_model=64,
+        max_rasp_len=32,
+        max_weights_len=8192,
+    ):
+    """Utility for loading data and processing it for model input."""
+    data = load_deduped(name)
+
+    if shuffle:
+        rng = np.random.default_rng(rng)
+        rng.shuffle(data)
+
+    if ndata is not None and len(data) < ndata:
+        logger.warning(f"Requested {ndata} datapoints for {name}, but only "
+                       f"{len(data)} available.")
+    elif ndata is not None:
+        data = data[:ndata]
+
+    data = process_data(
+        data=data, 
+        d_model=d_model, 
+        max_rasp_len=max_rasp_len,
+        max_weights_len=max_weights_len,
+        name=name,
+    )
+
+    return data
 
 
 def pad_to(x: np.ndarray, max_len: int, pad_value: int = 0):
@@ -144,6 +170,7 @@ def process_data(
         d_model: int,
         max_rasp_len: int = 32,
         max_weights_len: int = 8192,
+        name=None,
     ):
     n = len(data)
     out = defaultdict(list)
@@ -162,7 +189,7 @@ def process_data(
            for k, v in out.items()}
     logger.info(f"Filtered out {n - len(out['rasp_tok'])} datapoints "
                 f"({round(100 * (n - len(out['rasp_tok'])) / n, 2)}%). "
-                f"Total remaining: {len(out['rasp_tok'])}.")
+                f"Total remaining: {len(out['rasp_tok'])}. ({name})")
     # clip weights
     out["weights"] = np.clip(out["weights"], -100, 100)
     chex.assert_shape(out["rasp_tok"], (None, max_rasp_len))
@@ -176,7 +203,7 @@ def split_dict_data(data: dict, val_ratio: float = 0.1):
     """
     train, val = {}, {}
     for k, v in data.items():
-        split_index = int(len(data) * (1 - val_ratio))
+        split_index = int(len(v) * (1 - val_ratio))
         train[k], val[k] = v[:split_index], v[split_index:]
     return train, val
 
