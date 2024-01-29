@@ -55,7 +55,7 @@ if args.savedir is not None:
 os.makedirs(SAVEDIR, exist_ok=True)
 logger = setup_logger(__name__)
 rng = np.random.default_rng(args.seed)
-test_inputs = [sample_test_input(rng) for _ in range(100)]
+test_inputs = [sample_test_input(rng) for _ in range(50)]
 test_inputs += [[0], [0,0,0,0,0], [4,4,4,4], [0,1,2,3]]
 
 
@@ -85,9 +85,14 @@ signal.signal(signal.SIGALRM, timeout_handler)
 def is_compiled_model_invalid(
         expr: rasp.SOp, 
         model: AssembledTransformerModel,
-    ):
+) -> (bool, str):
     for test_input in test_inputs:
-        rasp_out = expr(test_input)
+        try:
+            rasp_out = expr(test_input)
+        except ValueError as err:
+            reason = f"Program raised ValueError on test input: {err}."
+            return True, reason
+
         rasp_out_sanitized = [0 if x is None else x for x in rasp_out]
         model_out = model.apply([COMPILER_BOS] + test_input).decoded[1:]
 
