@@ -346,6 +346,6 @@ class ProgramSampler:
             errs = validate(sop, x)
             if len(errs) > 0:
                 raise ValueError(f"Invalid program: {errs}")
-            elif validate_compilation:
+            elif val_compile:
                 validate_compilation(sop, x)
         return
