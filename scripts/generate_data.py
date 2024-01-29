@@ -1,7 +1,11 @@
 # Quick test script to generate a small dataset for metamodel training.
-# Output is a list of lists of dicts.
-# Each list of dicts is a program.
-# Each dict is a layer, with keys 'rasp' and 'weights'.
+# Output is a list of dicts. Each dict corresponds to a program.
+# Each dict contains keys
+# - 'weights_and_tokens': a list of dicts, one per layer. 
+#       Used for training the metamodel.
+# - 'model': a tracr AssembledTransformerModel, inclduing the weights
+# - 'rasp': the original program
+# 
 # Output gets saved to paths.data_dir / "batches" / "data_{idx}.pkl"
 # TODO: clean up and make more readable
 
@@ -9,8 +13,7 @@ import os
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 import numpy as np
 from jaxtyping import ArrayLike
-import flax
-import pickle
+import dill as pickle
 from tqdm import tqdm
 import signal
 import argparse
@@ -136,13 +139,11 @@ def sample_and_compile():
 def to_flat_datapoints(
         tokens: dict[str, list[int]],
         params: dict[str, ArrayLike],
-        program_id: int,
     ) -> (list[dict], tuple):
     by_layer = [
         dict(
-            rasp=tuple(tok),
+            rasp_tok=tuple(tok),
             weights=tuple(params[layer].tolist()),
-            program_id=program_id,
         ) for layer, tok in tokens.items()
     ]
     # design decisions:
@@ -150,13 +151,13 @@ def to_flat_datapoints(
     # - is it bad if we lose program info? (it's bad for test data, but not necessarily for training data)
     # - should we deduplicate based on program or based on layer?
     # - should we deduplicated based on rasp code or rasp + weights? (if by layer)
-    return by_layer, tuple(x['rasp'] for x in by_layer)
+    return by_layer, tuple(x['rasp_tok'] for x in by_layer)
 
 
 def filter(by_layer: list[dict]):
     """Filter out bad programs."""
     if (
-        any(len(x['rasp']) > MAX_RASP_LENGTH for x in by_layer) or
+        any(len(x['rasp_tok']) > MAX_RASP_LENGTH for x in by_layer) or
         any(len(x['weights']) > MAX_WEIGHTS_LENGTH for x in by_layer)
     ):
         return True
@@ -175,18 +176,25 @@ def sample_loop(dataset, all_rasp):
             logger.warning(f"Validation error at program {i}: {reason}")
             continue
 
-        prog, rasp_str = to_flat_datapoints(tokens, params, program_id=i)
+        by_layer, rasp_str = to_flat_datapoints(tokens, params)
         if rasp_str in all_rasp:
-            # dedupe programs
-            # note this doesn't deduplicate on the layer level
+            # This doesn't deduplicate on the layer level, 
+            # just on the program level.
+            # It also doesn't dedupe between batches, which is why 
+            # scripts/dedupe.py is necessary.
             logger.warning(f"Duplicate program {i} filtered.")
             continue
-        elif filter(prog):
+        elif filter(by_layer):
             logger.warning(f"Filtered out program {i} (too large).")
             continue
         else:
             all_rasp.add(rasp_str)
-            dataset.append(prog)
+            datapoint = {
+                "weights_and_tokens": by_layer,  # list of dicts
+                "model": model,  # AssembledTransformerModel
+                "rasp": program,  # rasp.SOp
+            }
+            dataset.append(datapoint)
             lengths.append(program.annotations['length'])
 
 
