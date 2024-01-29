@@ -8,30 +8,35 @@ pip install -e .
 ## Generating Programs
 
 ```python
+import numpy as np
 from rasp_generator import sampling, utils
 
-sampler = sampling.ProgramSampler(validate_compilation=True)
-errs = sampler.sample()
+rng = np.random.default_rng(0)
+
+sampler = sampling.ProgramSampler(rng=rng)
+program, errs = sampler.sample(min_length=3, max_length=7)
 
 # run the program
-print(sampler.program([1,2,3,4]))
+print(program([1,2,3,4]))
 
 # print the program
-utils.print_program(sampler.program)
+utils.print_program(program)
 
 # print the program, tracking SOp values at every step
-utils.print_program(sampler.program, test_input=[1,2,3,4])
+utils.print_program(program, test_input=[1,2,3,4])
+
+# validate correctness
+sampler.validate(program, validate_compilation=True)
 ```
 
 ## Compiling and Tokenizing
-(Still untested so expect some errors)
 ```python
 from rasp_generator import sampling, utils
 from tokenizer import compile_and_tokenize
 
-sampler = sampling.ProgramSampler(validate_compilation=True)
-sampler.sample()
-model, tokens = compile_and_tokenize.compile_and_tokenize(sampler.program)
+sampler = sampling.ProgramSampler()
+program, _ = sampler.sample()
+model, tokens = compile_and_tokenize.compile_and_tokenize(program)
 ```
 The tokens are returned as a dictionary indexed by layer.
 
@@ -67,7 +72,6 @@ becomes the dictionary
 ### Remaining problems
 - sometimes categorical Aggregate is hard to sample (reaches max retries)
 - sometimes a sampled program doesn't depend on rasp.tokens
-- sometimes programs are trivial (e.g. output is all Nones)
 - I suspect that sometimes the output is constant.
 
 
@@ -85,7 +89,7 @@ becomes the dictionary
 - [x] upweight rasp.tokens to avoid sampling programs that don't depend on rasp.tokens
 - [x] figure out design for setting weights for sampling
 - [x] sanity check rasp.Map simplifications (and maybe fix repr)
-- [ ] it's kind of unprincipled to just pick the last sampled SOp as the program
+- [x] it's kind of unprincipled to just pick the last sampled SOp as the program
 - [x] generate 'draft' dataset of pairs (weights, tokenized program)
 - [ ] for short programs, consider enumerating all possible programs exhaustively
 - [ ] Ensure compatibility with 'base' tracr library
