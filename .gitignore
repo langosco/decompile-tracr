@@ -2,3 +2,4 @@
 **/hpc_data
 *egg-info
 rasp_generator/rasp.py
+**/*slurm*
