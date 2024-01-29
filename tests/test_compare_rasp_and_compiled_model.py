@@ -12,6 +12,7 @@ from tqdm import tqdm
 import numpy as np
 import numpy as np
 import random
+import rasp_generator
 file_path = "../data/deduped/test_progs/data.pkl"
 # import os
 
@@ -47,11 +48,19 @@ for i, datapoint in tqdm(enumerate(data), total=len(data)):
         bound_input = model.input_encoder.vocab_size - 2 #account for compiler pad token and BOS token
         
         
-        input = list(np.random.randint(0, bound_input, size_input)) 
-        
-        print(input, vocab_size, size_input)
+        input = np.random.randint(0, bound_input, size_input).tolist()
         output_model = np.array(model.apply(["compiler_bos"] + input).decoded[1:])
         output_rasp = np.array(rasp(input))
+        # except:
+        #     print("=====================================")
+        #     print(input)
+        #     print("=====================================")
+        #     rasp_generator.utils.print_program(rasp)
+        #     raise ValueError(f"RASP failed for model '{i}' and input '{input}':\n"
+        #                         f"Output RASP: {output_rasp}\n"
+        #                         f"Output Model: {output_model}")
+        #     print("=====================================")
+        
         
         error = False
         if np.issubdtype(output_rasp.dtype, np.bool_) and np.issubdtype(output_model.dtype, np.bool_):
@@ -63,6 +72,7 @@ for i, datapoint in tqdm(enumerate(data), total=len(data)):
                 error = True
         
         if error:
+            rasp_generator.utils.print_program(rasp)
             raise ValueError(f"Outputs are not close for model '{i}' and input '{input}':\n"
                                 f"Output RASP: {output_rasp}\n"
                                 f"Output Model: {output_model}")
