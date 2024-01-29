@@ -4,9 +4,8 @@ from collections import defaultdict
 
 import numpy as np
 import chex
-
-from meta_transformer import preprocessing
-import meta_transformer.utils
+import jax
+import jax.numpy as jnp
 
 from rasp_tokenizer import vocab
 from rasp_tokenizer import paths
@@ -14,6 +13,13 @@ from rasp_tokenizer.logger_config import setup_logger
 
 
 logger = setup_logger(__name__)
+
+
+def pad_and_chunk(arr: chex.Array, chunk_size: int) -> jax.Array:
+    pad_size = -len(arr) % chunk_size
+    padded = jnp.pad(arr, (0, pad_size))
+    chunks = padded.reshape(-1, chunk_size)
+    return chunks
 
 
 def load_batch(filename: str) -> list[list[dict]]:
@@ -119,7 +125,7 @@ def process_single_datapoint(
         return None
     
     weights = pad_to(x['weights'], max_weights_len)
-    weights = preprocessing.pad_and_chunk(weights, d_model)  # (n_chunks, d_model)
+    weights = pad_and_chunk(weights, d_model)  # (n_chunks, d_model)
     return {
         "rasp_tok": pad_to(x['rasp_tok'], max_rasp_len, pad_value=vocab.pad_id),
         "weights": weights,
@@ -170,8 +176,8 @@ def split_dict_data(data: dict, val_ratio: float = 0.1):
     """
     train, val = {}, {}
     for k, v in data.items():
-        train[k], val[k] = meta_transformer.utils.split_data(
-            v, val_ratio)
+        split_index = int(len(data) * (1 - val_ratio))
+        train[k], val[k] = v[:split_index], v[split_index:]
     return train, val
 
 
