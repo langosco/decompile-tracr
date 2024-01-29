@@ -334,6 +334,7 @@ class ProgramSampler:
                 f"Sampled program too short: length {length}."
             )
         program = rasp.annotate(program, length=length)
+        self.program = program
         return program, errs
 
 
