@@ -11,7 +11,6 @@ module_path = os.path.abspath(os.path.join(
     os.path.dirname(__file__), '..'))
 
 
-
 # Set up global constants
 # per layer maximums size of RASP program and weights:
 # MAX_RASP_LENGTH = 128
