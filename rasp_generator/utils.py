@@ -105,7 +105,8 @@ def print_expr(expr: rasp.RASPExpr, test_input=None):
 
 
 def print_program(program: rasp.SOp, test_input=None):
-    """Sort the nodes in a program topologically and print them in order."""
+    """Sort the nodes in a program topologically and 
+    print them in order."""
     graph = rasp_to_graph.extract_rasp_graph(program)
     sorted_nodes = list(nx.topological_sort(graph.graph))
 
@@ -127,53 +128,11 @@ def sample_test_input(rng, vocab={0,1,2,3,4}, max_seq_len=5):
     return rng.choice(list(vocab), size=seq_len).tolist()
 
 
-import linecache
-import os
-import tracemalloc
-
-def display_top(snapshot, key_type='lineno', limit=5):
-    snapshot = snapshot.filter_traces((
-        tracemalloc.Filter(False, "<frozen importlib._bootstrap>"),
-        tracemalloc.Filter(False, "<unknown>"),
-    ))
-    top_stats = snapshot.statistics(key_type)
-
-    print("Top %s lines" % limit)
-    for index, stat in enumerate(top_stats[:limit], 1):
-        frame = stat.traceback[0]
-        # replace "/path/to/module/file.py" with "module/file.py"
-        filename = os.sep.join(frame.filename.split(os.sep)[-2:])
-        print("#%s: %s:%s: %.1f KiB"
-              % (index, filename, frame.lineno, stat.size / 1024))
-        line = linecache.getline(frame.filename, frame.lineno).strip()
-        if line:
-            print('    %s' % line)
-
-    other = top_stats[limit:]
-    if other:
-        size = sum(stat.size for stat in other)
-        print("%s other: %.1f KiB" % (len(other), size / 1024))
-    total = sum(stat.size for stat in top_stats)
-    print("Total allocated size: %.1f KiB" % (total / 1024))
-
-
-# # USAGE
-# tracemalloc.start()
-#
-# counts = Counter()
-# fname = '/usr/share/dict/american-english'
-# with open(fname) as words:
-#     words = list(words)
-#     for word in words:
-#         prefix = word[:3]
-#         counts[prefix] += 1
-# print('Top prefixes:', counts.most_common(3))
-#
-# snapshot = tracemalloc.take_snapshot()
-# display_top(snapshot)
-
-
-def program_length(program: rasp.SOp):
-    """Return the number of nodes in a program."""
-    graph = rasp_to_graph.extract_rasp_graph(program)
-    return len(graph.graph.nodes)
+def count_sops(program: rasp.SOp):
+    """Return the number of SOps in a program (don't count Selects).
+    Note that this is not the same as the *depth* of a node in the graph,
+    which is always smaller.
+    """
+    nodes = rasp_to_graph.extract_rasp_graph(program).graph.nodes
+    sops = [not isinstance(nodes[x]['EXPR'], rasp.Select) for x in nodes]
+    return sum(sops)

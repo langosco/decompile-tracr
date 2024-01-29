@@ -21,6 +21,7 @@ import numpy as np
 from tracr.compiler.validating import validate
 from tracr.compiler import compiling
 from rasp_generator import map_primitives, utils
+from typing import Sequence
 
 
 class SamplingError(Exception):
@@ -259,20 +260,21 @@ def validate_compilation(expr: rasp.SOp, test_input: list):
 class ProgramSampler:
     def __init__(
             self, 
-            validate_compilation: bool = False,
             rng: Optional[np.random.RandomState] = None,
         ):
+        self.rng = np.random.default_rng(rng)
+    
+    def reset(self):
         self.sops = [
             utils.annotate_type(rasp.tokens, "categorical"),
             utils.annotate_type(rasp.indices, "categorical"),
         ]
-        self.validate_compilation = validate_compilation
-        self.rng = np.random.default_rng(rng)
 
     def sample_sops(self, n_sops=15):
         """Sample a list of SOps.
         Returns a list of errors that occurred during sampling.
         """
+        self.reset()
         errs = []
         for _ in range(n_sops):
             avoid = set()
@@ -298,35 +300,51 @@ class ProgramSampler:
         return errs
     
 
-    def sample(self, n_sops=15):
-        """Sample a program."""
-        self.sample_sops(n_sops=n_sops)
-        candidates = self.sops[-10:]
+    def sample(self, n_sops=15, min_length=None, max_length=None):
+        """Sample a program. Always choose longest valid program.
+        Args:
+            n_sops: number of SOps to sample
+            min_length: minimum length of the program in SOps
+            max_length: maximum length of the program in SOps
+        """
+        errs = self.sample_sops(n_sops=n_sops)
+        first_candidate = 3 if min_length is None else min_length
+        candidates = np.array(self.sops[first_candidate:])
         lengths = np.array(
-            [utils.program_length(sop) for sop in candidates])
+            [utils.count_sops(sop) for sop in candidates])
 
-        # return longest program
-        self.program = candidates[np.argmax(lengths)]
-        length = lengths.max()
+        valid = np.ones(len(candidates), dtype=bool)
+        if min_length is not None:
+            valid = lengths >= min_length
+        if max_length is not None:
+            valid = (lengths <= max_length) & valid
+        
+        candidates = candidates[valid]
 
+        if len(candidates) == 0:
+            raise SamplingError(
+                f"Could not find program of length between "
+                f"{min_length} and {max_length}.")
+        
+        program = candidates[lengths[valid].argmax()]
+
+        length = utils.count_sops(program)
         if length < 4:
             raise SamplingError(
                 f"Sampled program too short: length {length}."
             )
-        self.program = rasp.annotate(self.program, length=length)
-#        self.validate()
-        return self.program
+        program = rasp.annotate(program, length=length)
+        return program, errs
 
 
-    def validate(self):
+    def validate(self, sop: rasp.SOp, validate_compilation=False):
         """Validate the program. This is fairly slow when 
-        self.validate_compilation is enabled."""
-        sop = self.program
+        validate_compilation is enabled."""
         for x in TEST_INPUTS:
             validate_custom_types(sop, x)
             errs = validate(sop, x)
             if len(errs) > 0:
                 raise ValueError(f"Invalid program: {errs}")
-            elif self.validate_compilation:
+            elif validate_compilation:
                 validate_compilation(sop, x)
         return
