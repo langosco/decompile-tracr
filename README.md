@@ -1,11 +1,18 @@
 # Program Generator for RASP
 ## Installation
-Clone this repo, then
+
+Clone this repo, install [tracr](https://github.com/google-deepmind/tracr)
+and dependancies, then pip install:
+
 ```
 pip install -e .
 ```
 
-## Generating Programs
+To install GPU support for Jax, first update [CUDA toolkit](https://developer.nvidia.com/cuda-downloads),
+then install Jax with CUDA support:
+```
+pip install -U "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+```
 
 ```python
 import numpy as np
@@ -26,7 +33,7 @@ utils.print_program(program)
 utils.print_program(program, test_input=[1,2,3,4])
 
 # validate correctness
-sampler.validate(program, validate_compilation=True)
+sampler.validate(program, val_compile=True)
 ```
 
 ## Compiling and Tokenizing
