@@ -14,6 +14,8 @@ then install Jax with CUDA support:
 pip install -U "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 ```
 
+## Generating Programs
+
 ```python
 import numpy as np
 from rasp_generator import sampling, utils
