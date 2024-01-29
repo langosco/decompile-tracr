@@ -31,10 +31,16 @@ from rasp_tokenizer import MAX_RASP_LENGTH, MAX_WEIGHTS_LENGTH
 from rasp_tokenizer.utils import sequential_count_via_lockfile
 
 
-
 parser = argparse.ArgumentParser(description='Training run')
 parser.add_argument('--savedir', type=str, default=None)
-parser.add_argument('--n_sops', type=int, default=15, help='how many sops to sample per program.')
+parser.add_argument('--n_sops', type=int, default=15, 
+                    help='how many sops to sample per program.')
+parser.add_argument('--min_length', type=int, default=4, 
+                    help='min nr of sops per program')
+parser.add_argument('--max_length', type=int, default=15, 
+                    help='max nr of sops per program')
+parser.add_argument('--ndata', type=int, default=50)
+parser.add_argument('--seed', type=int, default=None)
 args = parser.parse_args()
 
 
@@ -45,13 +51,12 @@ if args.savedir is not None:
 
 os.makedirs(SAVEDIR, exist_ok=True)
 logger = setup_logger(__name__)
-rng = np.random.default_rng(0)
+rng = np.random.default_rng(args.seed)
 test_inputs = [sample_test_input(rng) for _ in range(100)]
 test_inputs += [[0], [0,0,0,0,0], [4,4,4,4], [0,1,2,3]]
 
 
-
-NUM_DATAPOINTS = 50
+NUM_DATAPOINTS = args.ndata
 MAX_COMPILE_TIME = 5  # seconds
 
 
@@ -108,20 +113,24 @@ def try_compile(program: rasp.SOp):
 def sample_and_compile():
     sampler = sampling.ProgramSampler(rng=rng)
     try:
-        sampler.sample(n_sops=15)
+        program, _ = sampler.sample(
+            n_sops=args.n_sops, 
+            min_length=args.min_length, 
+            max_length=args.max_length
+        )
     except sampling.SamplingError as e:
         logger.warning(f"Received sampling error: {e}.")
         return None, None, None, None
     try:
-        model, tokens, params = try_compile(sampler.program)
+        model, tokens, params = try_compile(program)
     except Exception:  # catch everything else to print program
         logger.warning("Unkown exception during compilation.")
         logger.warning("Program:")
-        print_program(sampler.program)
+        print_program(program)
         print()
         save_to_file(program_dataset)
         raise
-    return sampler.program, model, tokens, params
+    return program, model, tokens, params
 
 
 def to_flat_datapoints(
