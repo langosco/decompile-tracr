@@ -338,9 +338,9 @@ class ProgramSampler:
         return program, errs
 
 
-    def validate(self, sop: rasp.SOp, validate_compilation=False):
+    def validate(self, sop: rasp.SOp, val_compile=False):
         """Validate the program. This is fairly slow when 
-        validate_compilation is enabled."""
+        val_compile is enabled."""
         for x in TEST_INPUTS:
             validate_custom_types(sop, x)
             errs = validate(sop, x)
