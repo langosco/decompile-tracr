@@ -21,7 +21,7 @@ if __name__ == "__main__":
                         help="override default load path (data/batches/...)")
     parser.add_argument('--savepath', type=str, default=None,
                         help="override default save path (data/deduped/...)")
-    parser.add_argument('--include_aux', action='store_true',
+    parser.add_argument('--keep_aux', action='store_true',
                         help="whether the data includes the compiled "
                         "model and rasp code. Used for testing.")
     args = parser.parse_args()
@@ -34,12 +34,12 @@ if __name__ == "__main__":
     with jax.default_device(jax.devices("cpu")[0]):  # keep data on cpu
         data = data_utils.load_batches(
             loadpath=args.loadpath,
-            include_aux=args.include_aux,
+            keep_aux=args.keep_aux,
         )
 
     logger.info(f"Loaded data with keys {data[0].keys()}")
 
-    if not args.include_aux:
+    if not args.keep_aux:
         for x in data:
             aux_present = False
             if 'model' in x:
@@ -52,7 +52,7 @@ if __name__ == "__main__":
         if aux_present:
             logger.warning(
                 "Data includes keys 'model' and/or 'rasp'. "
-                "Did you mean to use --include_aux?")
+                "Did you mean to use --keep_aux?")
 
 
     logger.info(f"Deduplicating {len(data)} programs.")
@@ -67,7 +67,7 @@ if __name__ == "__main__":
             deduped, 
             name=name, 
             savepath=args.savepath,
-            save_aux=args.include_aux,
+            save_aux=args.keep_aux,
         )
 
 

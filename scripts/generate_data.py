@@ -48,7 +48,7 @@ parser.add_argument('--max_length', type=int, default=None,
 parser.add_argument('--ndata', type=int, default=50)
 parser.add_argument('--seed', type=int, default=None)
 parser.add_argument('--savepath', type=str, default=None)
-parser.add_argument('--include_aux', action='store_true',
+parser.add_argument('--keep_aux', action='store_true',
                     help="whether to include the compiled model "
                     "and rasp program in the output data. These "
                     "are serialized to a separate file using dill.")
@@ -79,7 +79,7 @@ def save_to_file(json_dataset, aux_dataset):
     with open(savepath / f"data_{idx}.json", "x") as f:
         json.dump(json_dataset, f)
     
-    if args.include_aux:
+    if args.keep_aux:
         with open(savepath / f"data_{idx}.dill", "xb") as f:
             dill.dump(aux_dataset, f)
 
@@ -213,7 +213,7 @@ def sample_loop(json_dataset: list, aux_dataset: list, all_rasp):
                 "n_sops": program.annotations['length'],  # nr of sops
             })
 
-            if args.include_aux:
+            if args.keep_aux:
                 aux_dataset.append({
                     "rasp": program,  # rasp.SOp
                     "model": model,  # AssembledTransformerModel

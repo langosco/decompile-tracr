@@ -111,7 +111,7 @@ def load_batch(filename: str) -> list[dict]:
             return json.load(f)
 
 
-def load_batches(loadpath = None, include_aux: bool = False) -> list[dict]:
+def load_batches(loadpath = None, keep_aux: bool = False) -> list[dict]:
     """
     Load batches created by scripts/generate_data.py
     and merge into a single list. 
@@ -125,7 +125,7 @@ def load_batches(loadpath = None, include_aux: bool = False) -> list[dict]:
         if entry.name.endswith(".json"):
             json_batch = load_batch(entry.path)
 
-            if include_aux:
+            if keep_aux:
                 try:
                     aux_batch = load_batch(entry.path.replace(".json", ".dill"))
                 except FileNotFoundError:
