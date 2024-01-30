@@ -47,7 +47,8 @@ parser.add_argument('--max_length', type=int, default=None,
                     help='max nr of sops per program')
 parser.add_argument('--ndata', type=int, default=50)
 parser.add_argument('--seed', type=int, default=None)
-parser.add_argument('--savepath', type=str, default=None)
+parser.add_argument('--savepath', type=str, default=None,
+                    help="override default save path (data/batches/...)")
 parser.add_argument('--keep_aux', action='store_true',
                     help="whether to include the compiled model "
                     "and rasp program in the output data. These "
