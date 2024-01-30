@@ -3,8 +3,9 @@
 # Each dict contains keys
 # - 'weights_and_tokens': a list of dicts, one per layer. 
 #       Used for training the metamodel.
-# - 'model': a tracr AssembledTransformerModel, inclduing the weights
 # - 'rasp': the original program
+# - Optionally: 'model': a tracr AssembledTransformerModel, 
+#       including the weights.
 # 
 # Output gets saved to paths.data_dir / "batches" / "data_{idx}.pkl"
 # TODO: clean up and make more readable
@@ -13,10 +14,12 @@ import os
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 import numpy as np
 from jaxtyping import ArrayLike
-import dill as pickle
+import dill
+import pickle
 from tqdm import tqdm
 import signal
 import argparse
+from pathlib import Path
 
 from tracr.compiler.craft_model_to_transformer import NoTokensError
 from tracr.compiler.basis_inference import InvalidValueSetError
@@ -44,10 +47,16 @@ parser.add_argument('--max_length', type=int, default=None,
                     help='max nr of sops per program')
 parser.add_argument('--ndata', type=int, default=50)
 parser.add_argument('--seed', type=int, default=None)
+parser.add_argument('--include_model', action='store_true', help='whether '
+                    'to save the compiled model')
+parser.add_argument('--savepath', type=str, default=None)
 args = parser.parse_args()
 
 
-SAVEDIR = paths.data_dir / "batches"
+if args.savepath is None:
+    SAVEDIR = paths.data_dir / "batches"
+else:
+    SAVEDIR = Path(args.savepath)
 
 
 os.makedirs(SAVEDIR, exist_ok=True)
@@ -66,7 +75,10 @@ def save_to_file(dataset):
     savepath = SAVEDIR / f"data_{idx}.pkl"
     logger.info(f"Saving generated programs to {savepath}.")
     with open(savepath, "xb") as f:
-        pickle.dump(dataset, f)
+        if args.include_model:
+            dill.dump(dataset, f)
+        else:
+            pickle.dump(dataset, f)
 
 
 class CompilationTimeout(Exception):
@@ -194,10 +206,11 @@ def sample_loop(dataset, all_rasp):
             all_rasp.add(rasp_str)
             datapoint = {
                 "weights_and_tokens": by_layer,  # list of dicts
-                "model": model,  # AssembledTransformerModel
                 "rasp": program,  # rasp.SOp
                 "name": args.name,  # train vs test
             }
+            if args.include_model:
+                datapoint['model'] = model  # AssembledTransformerModel
             dataset.append(datapoint)
             lengths.append(program.annotations['length'])
 
