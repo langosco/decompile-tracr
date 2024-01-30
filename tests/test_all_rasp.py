@@ -140,8 +140,8 @@ if __name__ == __MAIN__:
     #test_functionality_rasp_and_compiled(deduped, seed=42, verbose = True)
 
 # %%
-import matplotlib.pyplot as plt
-mlp0_in = data[0]['model'].params['transformer/layer_0/mlp/linear_1']['w']
-plt.imshow(mlp0_in)
-plt.colorbar()
+# import matplotlib.pyplot as plt
+# mlp0_in = data[0]['model'].params['transformer/layer_0/mlp/linear_1']['w']
+# plt.imshow(mlp0_in)
+# plt.colorbar()
 # %%
