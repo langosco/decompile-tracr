@@ -31,7 +31,8 @@ comparisons = [
     comparison.name for comparison in map_primitives.COMPARISONS
 ]
 
-linear_sequence_map_weights = map_primitives.LINEAR_SEQUENCE_MAP_WEIGHTS
+linear_sequence_map_weights = [
+    str(x) for x in map_primitives.LINEAR_SEQUENCE_MAP_WEIGHTS]
 
 inputs = [
     "tokens",
@@ -39,8 +40,14 @@ inputs = [
 ]
 
 
+PAD = "PAD"
+BOS = "BOS"
+EOS = "EOS"
+SEP = "SEP"
+
+
 vocab = (
-    ["PAD", "START", "END"] +
+    [PAD, BOS, EOS,  SEP] +
     ops +
     encodings +
     sop_variables +
@@ -53,4 +60,4 @@ vocab = (
 
 
 size = len(vocab)
-pad_id = vocab.index("PAD")
+pad_id = vocab.index(PAD)

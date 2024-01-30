@@ -19,7 +19,7 @@ def decode(tokenized_program: list[int]):
 
 def compile_and_tokenize(
         program: rasp.SOp,
-        vocab: set[int] = {0,1,2,3,4,5},
+        vocab: set[int] = {0,1,2,3,4},
         max_seq_len: int = 5,
     ) -> (AssembledTransformerModel, 
           dict[str, list[int]],

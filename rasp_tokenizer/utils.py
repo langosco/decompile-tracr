@@ -63,11 +63,14 @@ def add_variable_names_to_graph(graph: nx.DiGraph) -> nx.DiGraph:
 
     for label in sop_labels:
         if label in ['tokens', 'indices']:
-            continue
+            graph.nodes[label]["token"] = label
 
-        if label[:-1] == 'select_':
+        if label.startswith('select_'):
+            assert isinstance(graph.nodes[label]["EXPR"], rasp.Select)
             graph.nodes[label]["token"] = next(sel_names)
         else:
+            assert not isinstance(
+                graph.nodes[label]["EXPR"], rasp.Select)
             graph.nodes[label]["token"] = next(sop_names)
     return graph
 
@@ -86,11 +89,8 @@ def get_classname(graph: nx.DiGraph, node_id: int) -> str:
 
 
 def get_variable_name(graph: nx.DiGraph, node_id: int) -> str:
-    if node_id in ['tokens', 'indices']:
-        return node_id
-    else:
-        node = graph.nodes[node_id]
-        return node["token"]
+    node = graph.nodes[node_id]
+    return node["token"]
 
 
 def get_args(graph: nx.DiGraph, node_id: int) -> list[str]:
@@ -106,7 +106,7 @@ def get_args(graph: nx.DiGraph, node_id: int) -> list[str]:
         other_args = [expr.predicate.name]
         assert len(variable_args) == 2, f"Expected 2 args, got {len(variable_args)} for {expr.label}"
     elif isinstance(expr, rasp.LinearSequenceMap):
-        other_args = [expr.fst_fac, expr.snd_fac]
+        other_args = [str(expr.fst_fac), str(expr.snd_fac)]
         assert len(variable_args) == 2
     elif isinstance(expr, (rasp.Map, rasp.SequenceMap)):
         other_args = [repr(expr.f)]
@@ -130,13 +130,15 @@ def rasp_graph_to_layerwise_representation(
 
     for layer, node_ids in layers_to_nodes.items():
         flat_layer = []
-        flat_layer.append("START")
+        flat_layer.append(tokenizer_vocab.BOS)
         for node_id in node_ids:
+            if not flat_layer[-1] == tokenizer_vocab.BOS:
+                flat_layer.append(tokenizer_vocab.SEP)
             flat_layer.append(get_variable_name(graph, node_id))
             flat_layer.append(get_encoding(graph, node_id))
             flat_layer.append(get_classname(graph, node_id))
             flat_layer.extend(get_args(graph, node_id))
-        flat_layer.append("END")
+        flat_layer.append(tokenizer_vocab.EOS)
         flat_layer = [x for x in flat_layer if x is not None]
         layerwise_program[layer] = flat_layer
     
