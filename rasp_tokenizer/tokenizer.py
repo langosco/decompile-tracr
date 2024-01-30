@@ -52,16 +52,6 @@ def compile_and_tokenize(
     return model, tokens_by_layer, params_by_layer
 
 
-#        flat_layer = ["START"]
-#        for node_id in node_ids:
-#            flat_layer.append(get_variable_name(graph, node_id))
-#            flat_layer.append(get_encoding(graph, node_id))
-#            flat_layer.append(get_classname(graph, node_id))
-#            flat_layer.extend(get_args(graph, node_id))
-#        flat_layer.append("END")
-
-
-
 def get_next_op(str_tokens: list[str]):
     raise NotImplementedError
 
@@ -91,18 +81,16 @@ def get_next_op(str_tokens: list[str]):
     )
 
 
-
-
 def tokens_to_rasp(tokens: list[int]):
+    raise NotImplementedError
     str_tokens = decode(tokens)[1:-1]
     while len(str_tokens) > 0:
         op = get_next_op(str_tokens)
     return op
 
 
-
-
 def detokenize(tokens_by_layer: dict[str, list[int]]):
+    raise NotImplementedError
     ops_by_layer = {
         layername: decode(tokens) for layername, tokens in tokens_by_layer.items()
     }
