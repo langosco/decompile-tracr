@@ -4,7 +4,7 @@
 # - 'weights_and_tokens': a list of dicts, one per layer. 
 #       Used for training the metamodel.
 # - 'rasp': the original program
-# - Optionally: 'model': a tracr AssembledTransformerModel, 
+# - 'model': a tracr AssembledTransformerModel, 
 #       including the weights.
 # 
 # Output gets saved to paths.data_dir / "batches" / "data_{idx}.pkl"
@@ -15,11 +15,11 @@ os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 import numpy as np
 from jaxtyping import ArrayLike
 import dill
-import pickle
 from tqdm import tqdm
 import signal
 import argparse
 from pathlib import Path
+import json
 
 from tracr.compiler.craft_model_to_transformer import NoTokensError
 from tracr.compiler.basis_inference import InvalidValueSetError
@@ -47,9 +47,11 @@ parser.add_argument('--max_length', type=int, default=None,
                     help='max nr of sops per program')
 parser.add_argument('--ndata', type=int, default=50)
 parser.add_argument('--seed', type=int, default=None)
-parser.add_argument('--include_model', action='store_true', help='whether '
-                    'to save the compiled model')
 parser.add_argument('--savepath', type=str, default=None)
+parser.add_argument('--include_aux', action='store_true',
+                    help="whether to include the compiled model "
+                    "and rasp program in the output data. These "
+                    "are serialized to a separate file using dill.")
 args = parser.parse_args()
 
 
@@ -70,15 +72,16 @@ NUM_DATAPOINTS = args.ndata
 MAX_COMPILE_TIME = 5  # seconds
 
 
-def save_to_file(dataset):
+def save_to_file(json_dataset, aux_dataset):
     idx = sequential_count_via_lockfile(SAVEDIR / "count.txt")
-    savepath = SAVEDIR / f"data_{idx}.pkl"
+    savepath = SAVEDIR
     logger.info(f"Saving generated programs to {savepath}.")
-    with open(savepath, "xb") as f:
-        if args.include_model:
-            dill.dump(dataset, f)
-        else:
-            pickle.dump(dataset, f)
+    with open(savepath / f"data_{idx}.json", "x") as f:
+        json.dump(json_dataset, f)
+    
+    if args.include_aux:
+        with open(savepath / f"data_{idx}.dill", "xb") as f:
+            dill.dump(aux_dataset, f)
 
 
 class CompilationTimeout(Exception):
@@ -146,7 +149,7 @@ def sample_and_compile():
         logger.warning("Program:")
         print_program(program)
         print()
-        save_to_file(program_dataset)
+        save_to_file(json_dataset, aux_dataset)
         raise
     return program, model, tokens, params
 
@@ -180,7 +183,7 @@ def filter(by_layer: list[dict]):
         return False
 
 
-def sample_loop(dataset, all_rasp):
+def sample_loop(json_dataset: list, aux_dataset: list, all_rasp):
     for i in tqdm(range(NUM_DATAPOINTS), disable=on_cluster):
         program, model, tokens, params = sample_and_compile()
         if model is None:
@@ -204,33 +207,37 @@ def sample_loop(dataset, all_rasp):
             continue
         else:
             all_rasp.add(rasp_str)
-            datapoint = {
+            json_dataset.append({
                 "weights_and_tokens": by_layer,  # list of dicts
-                "rasp": program,  # rasp.SOp
                 "name": args.name,  # train vs test
-            }
-            if args.include_model:
-                datapoint['model'] = model  # AssembledTransformerModel
-            dataset.append(datapoint)
-            lengths.append(program.annotations['length'])
+                "n_sops": program.annotations['length'],  # nr of sops
+            })
+
+            if args.include_aux:
+                aux_dataset.append({
+                    "rasp": program,  # rasp.SOp
+                    "model": model,  # AssembledTransformerModel
+                })
 
 
 all_rasp = set()
-lengths = []
-program_dataset = []
+json_dataset = []
+aux_dataset = []
+
 
 try:
-    sample_loop(program_dataset, all_rasp)
+    sample_loop(json_dataset, aux_dataset, all_rasp)
 except KeyboardInterrupt:
     logger.info("Interrupted, saving dataset.")
 
 
-n_layers_per = [len(x) for x in program_dataset]
+lengths = [x["n_sops"] for x in json_dataset]
+n_layers_per = [len(x["weights_and_tokens"]) for x in json_dataset]
 
-logger.info(f"Generated {len(lengths)} programs.")
+logger.info(f"Generated {len(json_dataset)} programs.")
 logger.info(f"Min and max program length: {np.min(lengths)}, {np.max(lengths)}")
 logger.info(f"Average program length: {np.mean(lengths)}")
 logger.info(f"Average number of layers per program: {np.mean(n_layers_per)}")
 logger.info(f"Min and max number of layers per program: {np.min(n_layers_per)}, {np.max(n_layers_per)}")
 
-save_to_file(program_dataset)
+save_to_file(json_dataset, aux_dataset)

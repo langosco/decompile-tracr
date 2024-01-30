@@ -3,6 +3,8 @@ import os
 import argparse
 from collections import defaultdict
 
+import jax
+
 from rasp_tokenizer import data_utils
 from rasp_tokenizer import logger_config
 
@@ -19,10 +21,9 @@ if __name__ == "__main__":
                         help="override default load path (data/batches/...)")
     parser.add_argument('--savepath', type=str, default=None,
                         help="override default save path (data/deduped/...)")
-    parser.add_argument('--include_model', action='store_true',
+    parser.add_argument('--include_aux', action='store_true',
                         help="whether the data includes the compiled "
-                        "model. If so, we need to use dill instead "
-                        "of pickle. Used for testing.")
+                        "model and rasp code. Used for testing.")
     args = parser.parse_args()
 
 
@@ -30,14 +31,28 @@ if __name__ == "__main__":
 
 
     logger.info(f"Loading data for deduplication")
-    data = data_utils.load_batches(loadpath=args.loadpath,
-                                   use_dill=args.include_model)
+    with jax.default_device(jax.devices("cpu")[0]):  # keep data on cpu
+        data = data_utils.load_batches(
+            loadpath=args.loadpath,
+            include_aux=args.include_aux,
+        )
+
     logger.info(f"Loaded data with keys {data[0].keys()}")
 
-    if "model" in data[0].keys() and not args.include_model:
-        logger.warning("Data includes compiled model, but "
-                       "using pickle to load files. Did you "
-                       "mean to use --include_model?")
+    if not args.include_aux:
+        for x in data:
+            aux_present = False
+            if 'model' in x:
+                model_present = True
+                del x['model']
+            if 'rasp' in x:
+                aux_present = True
+                del x['rasp']
+
+        if aux_present:
+            logger.warning(
+                "Data includes keys 'model' and/or 'rasp'. "
+                "Did you mean to use --include_aux?")
 
 
     logger.info(f"Deduplicating {len(data)} programs.")
@@ -52,7 +67,7 @@ if __name__ == "__main__":
             deduped, 
             name=name, 
             savepath=args.savepath,
-            save_model=args.include_model,
+            save_aux=args.include_aux,
         )
 
 

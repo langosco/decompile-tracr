@@ -1,8 +1,8 @@
 import os
-import pickle
 import dill
 from collections import defaultdict
 from pathlib import Path
+import json
 
 import numpy as np
 import chex
@@ -102,15 +102,16 @@ def process_data(
     return out
 
 
-def load_batch(filename: str, use_dill: bool = False) -> list[dict]:
-    with open(filename, "rb") as f:
-        if use_dill:
+def load_batch(filename: str) -> list[dict]:
+    if filename.endswith(".dill"):
+        with open(filename, "rb") as f:
             return dill.load(f)
-        else:
-            return pickle.load(f)
+    elif filename.endswith(".json"):
+        with open(filename, "r") as f:
+            return json.load(f)
 
 
-def load_batches(loadpath = None, use_dill: bool = False) -> list[dict]:
+def load_batches(loadpath = None, include_aux: bool = False) -> list[dict]:
     """
     Load batches created by scripts/generate_data.py
     and merge into a single list. 
@@ -121,20 +122,34 @@ def load_batches(loadpath = None, use_dill: bool = False) -> list[dict]:
         path = Path(loadpath)
     data = []
     for entry in os.scandir(path):
-        if entry.name.endswith(".pkl"):
-            data.extend(load_batch(entry.path, use_dill))
+        if entry.name.endswith(".json"):
+            json_batch = load_batch(entry.path)
+
+            if include_aux:
+                try:
+                    aux_batch = load_batch(entry.path.replace(".json", ".dill"))
+                except FileNotFoundError:
+                    logger.warning(
+                        f"Could not find auxiliary data for {entry.path}. "
+                        f"Did you mean to use include_aux=False?\n"
+                    )
+                    raise
+                data.extend([x | y for x, y in zip(json_batch, aux_batch)])
+            else:
+                data.extend(json_batch)
     return data
 
 
 def dedupe(data: list[dict]) -> list[dict]:
     """Deduplicate programs by RASP string.
-    Assume data is a list as returned by load_batches().
+    Assume data is a list of dicts that include the 
+    key "weights_and_tokens", as returned by load_batches().
     """
     all_rasp = set()
     deduped = []
     for program in data:
         rasp_str = tuple(
-            x['rasp_tok'] for x in program['weights_and_tokens']
+            tuple(x['rasp_tok']) for x in program['weights_and_tokens']
         )
 
         if rasp_str in all_rasp:
@@ -149,13 +164,26 @@ def dedupe(data: list[dict]) -> list[dict]:
     return deduped
 
 
+def filter_aux(
+        x: dict, 
+        keep: bool = False,
+    ) -> dict:
+    """Filter out auxiliary keys from a dict."""
+    AUX_KEYS = ("model", "rasp")
+    if keep:
+        return {k: v for k, v in x.items() if k in AUX_KEYS}
+    else:
+        return {k: v for k, v in x.items() if k not in AUX_KEYS}
+
+
 def save_deduped(
         data: list[dict], 
         name: str = "train",
         savepath: str = None, 
-        save_model: bool = False
+        save_aux: bool = False,
     ) -> None:
     """Save data after deduplication."""
+
     if savepath is None:
         path = paths.data_dir / "deduped" 
     else:
@@ -165,23 +193,36 @@ def save_deduped(
         path = path / name
 
     os.makedirs(path, exist_ok=True)
-    path = path / "data.pkl"
 
     logger.info(f"Saving deduplicated programs to {path}.")
-    with open(path, "xb") as f:
-        if save_model:
-            dill.dump(data, f)
-        else:
-            pickle.dump(data, f)
+    json_data = [filter_aux(x) for x in data]
+    with open(path / "data.json", "x") as f:
+        json.dump(json_data, f)
+
+    if save_aux:
+        aux_data = [filter_aux(x, keep=True) for x in data]
+        with open(path / "data.dill", "xb") as f:
+            dill.dump(aux_data, f)
 
 
-def load_deduped(name="train", keep_model_and_program=False):
-    path = paths.data_dir / "deduped" / name / "data.pkl"
+def load_deduped(name="train", flatten=True, keep_aux=False):
+    
+    if flatten and keep_aux:
+        raise ValueError("Can't flatten and keep aux data.")
+
+    path = paths.data_dir / "deduped" / name
     logger.info(f"Loading data from {path}.")
-    with open(path, "rb") as f:
-        data = pickle.load(f)
-    if not keep_model_and_program:
-        data = flatten(data)
+
+    with open(path / "data.json", "r") as f:
+        data = json.load(f)
+
+    if keep_aux:
+        with open(path / "data.dill", "rb") as f:
+            aux_data = dill.load(f)
+        data = [x | y for x, y in zip(data, aux_data)]
+    elif flatten:
+        data = flatten_data(data)
+
     return data
 
 
@@ -228,7 +269,7 @@ def split_dict_data(data: dict, val_ratio: float = 0.1):
     return train, val
 
 
-def flatten(data: list[dict]) -> list[dict]:
+def flatten_data(data: list[dict]) -> list[dict]:
     """
     Convert the list of models to a list of layers. Throw away
     model-level information like the rasp program and the compiled
