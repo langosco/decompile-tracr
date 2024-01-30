@@ -84,7 +84,7 @@ def test_functionality_rasp_and_compiled(data,
     
             if not np.allclose(output_rasp, output_model, atol=atol, rtol=rtol):
                 if verbose:
-                    rasp_generator.utils.print_program(rasp)
+                    rasp_generator.utils.print_program(rasp, full=True)
                 raise ValueError(f"Outputs are not close for model '{i}' and input '{input}':\n",
                                     f"Output RASP: {output_rasp}\n",
                                     f"Output Model: {output_model}\n")
@@ -122,7 +122,7 @@ def test_non_constant_program(data,
             print(f"Model {i} is constant:")
             if verbose:
                 print("=====================================")
-                rasp_generator.utils.print_program(rasp)
+                rasp_generator.utils.print_program(rasp, full=True)
                 print("")
             count_constant += 1
             
