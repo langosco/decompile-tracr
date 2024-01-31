@@ -155,7 +155,7 @@ def test_weights_range(data,lower_bound=-100, upper_bound=100, verbose = False):
             if param_min < lower_bound or param_max > upper_bound:
                 print(f"Model {i}, param {name}, is out of bounds: min {param_min} max {param_max}\n")
 
-def test_outputs_range(data,lower_bound=-100, upper_bound=100, num_inputs = 100, seed=None):
+def test_outputs_range(data,lower_bound=-100, upper_bound=100, num_inputs = 100, seed=None, verbose = False):
     """
     Tests that outputs are within a certain range.
     """
@@ -165,7 +165,8 @@ def test_outputs_range(data,lower_bound=-100, upper_bound=100, num_inputs = 100,
         model = datapoint['model']
         rasp  = datapoint['rasp']
         out_rasp, out_model = generate_batch_outputs(num_inputs, rasp, model, skip_model=False)
-        print(out_model.min(), out_model.max())
+        if verbose:
+            print(f"model {i} min {out_model.min()} max{out_model.max()}")
         if out_model.min() < lower_bound or out_model.max() > upper_bound:
             print(f"Model {i} is out of bounds: min {out_model.min()} max {out_model.max()}\n")
 
@@ -215,7 +216,7 @@ def plot_operation_histogram(data):
     # Plotting the histogram
     operations = list(prefix_count.keys())
     counts = list(prefix_count.values())
-    plt.bar(operations, counts)
+    plt.bar(operations, counts, width=1, edgecolor='black')
     plt.xlabel('Operation')
     plt.ylabel('Frequency')
     plt.title('Histogram of Operations')
@@ -235,3 +236,5 @@ if __name__ == __MAIN__:
     test_outputs_range(deduped, num_inputs = 100, seed = 43)
     program_length_distribution(deduped)
     plot_operation_histogram(deduped)
+
+# %%
