@@ -1,11 +1,7 @@
 # %%
 
-# Assume that script/generate_data.py and script/dedupe.py has already been run
-# and that the data has been saved to ../data/deduped/test_progs/data.pkl
-
-# import numpy as np
-# from rasp_generator import sampling, utils
-
+# Assume that /script/rebuild_dataset.sh has been run to generate the data
+# and that the data has been saved to ../data/deduped/pytest/data.pkl
 
 import pickle
 from tqdm import tqdm
@@ -13,6 +9,11 @@ import numpy as np
 import numpy as np
 import random
 import rasp_generator
+from rasp_generator.utils import count_sops
+import matplotlib.pyplot as plt
+from tracr.compiler import rasp_to_graph
+import matplotlib.pyplot as plt
+
 
 # import os
 
@@ -23,7 +24,7 @@ __MAIN__ = "__main__"
 
 # %%
 from rasp_tokenizer import data_utils
-    
+from rasp_generator.utils import print_program
     
 def generate_random_input(model):
     size_input = model.input_encoder._max_seq_len - 1  # account for BOS token
@@ -32,24 +33,38 @@ def generate_random_input(model):
     return np.random.randint(0, bound_input, size_input).tolist()
 
     
-def get_model_output(input, rasp, model=None):
+def get_model_output(input, rasp, model, skip_model=False):
     raw_output_rasp = rasp(input)
     output_rasp = np.array(raw_output_rasp)
     
     output_model = None
-    if model is not None:
+    if not skip_model:
         raw_output_model = model.apply(["compiler_bos"] + input).decoded[1:]
         output_model = np.array(raw_output_model)
 
     return output_rasp, output_model
 
+def generate_batch_outputs(batch_size, rasp, model, skip_model=False):
+    batch_outputs_rasp = []
+    batch_outputs_model = []
 
-def test_functionality_rasp_and_compiled(data,
-                                        num_inputs=100, 
-                                         seed=None,
-                                         atol = 0.1,
-                                         rtol = 0.1,
-                                         verbose = False):
+    for _ in range(batch_size):
+        random_input = generate_random_input(model)
+        output_rasp, output_model = get_model_output(random_input, rasp, model, skip_model=skip_model)
+        batch_outputs_rasp.append(output_rasp)
+
+        if model is not None:
+            batch_outputs_model.append(output_model)
+
+    batch_outputs_model = np.array(batch_outputs_model)
+    batch_outputs_rasp = np.array(batch_outputs_rasp)
+    return batch_outputs_rasp, batch_outputs_model
+
+def test_func_equiv(data,num_inputs=100,seed=None,atol = 0.1,rtol = 0.1,verbose = False):
+    """
+    Tests for functional equivalence between RASP and compiled model
+    on randomly sampled inputs.
+    """
     random.seed(seed)
     np.random.seed(seed)
         
@@ -84,7 +99,7 @@ def test_functionality_rasp_and_compiled(data,
     
             if not np.allclose(output_rasp, output_model, atol=atol, rtol=rtol):
                 if verbose:
-                    rasp_generator.utils.print_program(rasp, full=True)
+                    print_program(rasp, full=True)
                 raise ValueError(f"Outputs are not close for model '{i}' and input '{input}':\n",
                                     f"Output RASP: {output_rasp}\n",
                                     f"Output Model: {output_model}\n")
@@ -95,6 +110,9 @@ def test_non_constant_program(data,
                                 seed=None,
                                 epsilon = 0.01,
                                 verbose = False):
+    """
+    Tests that programs do not produce constant outputs.
+    """
     random.seed(seed)
     np.random.seed(seed)
         
@@ -104,25 +122,16 @@ def test_non_constant_program(data,
     count_constant = 0
         
     for i, datapoint in tqdm(enumerate(data), total=len(data)):
-        
-        outputs = []
-        for _ in range(num_inputs):
-            
-            model = datapoint['model']
-            rasp = datapoint['rasp']
-            
-            input = generate_random_input(model)
-            output_rasp, _ = get_model_output(input, rasp)
-          
-            outputs.append(output_rasp)
-        outputs = np.stack(outputs, axis = 0)
-        variance = np.var(outputs, axis = 0)
+        rasp = datapoint['rasp']
+        model = datapoint['model']
+        rasp_outputs, _ = generate_batch_outputs(num_inputs, rasp, model, skip_model=True)
+        variance = np.var(rasp_outputs, axis = 0)
         #print(f"Variance for model '{i}':\n", variance.max())
         if variance.mean() < epsilon:
             print(f"Model {i} is constant:")
             if verbose:
                 print("=====================================")
-                rasp_generator.utils.print_program(rasp, full=True)
+                print_program(rasp, full=True)
                 print("")
             count_constant += 1
             
@@ -130,18 +139,99 @@ def test_non_constant_program(data,
             #raise ValueError(f"Model is constant '{i}':\n")
 
 
+def test_weights_range(data,lower_bound=-100, upper_bound=100, verbose = False):
+    """
+    Tests that weights are within a certain range.
+    """
+    for i, datapoint in tqdm(enumerate(data), total=len(data)):
+        model = datapoint['model']
+        for name, param in model.params.items():
+            param_min, param_max = np.inf, -np.inf
+            for key, value in param.items():
+                if value is None:
+                    continue
+                param_min = min(param_min, value.min())
+                param_max = max(param_max, value.max())
+            if param_min < lower_bound or param_max > upper_bound:
+                print(f"Model {i}, param {name}, is out of bounds: min {param_min} max {param_max}\n")
+
+def test_outputs_range(data,lower_bound=-100, upper_bound=100, num_inputs = 100, seed=None):
+    """
+    Tests that outputs are within a certain range.
+    """
+    random.seed(seed)
+    np.random.seed(seed)
+    for i, datapoint in tqdm(enumerate(data), total=len(data)):
+        model = datapoint['model']
+        rasp  = datapoint['rasp']
+        out_rasp, out_model = generate_batch_outputs(num_inputs, rasp, model, skip_model=False)
+        print(out_model.min(), out_model.max())
+        if out_model.min() < lower_bound or out_model.max() > upper_bound:
+            print(f"Model {i} is out of bounds: min {out_model.min()} max {out_model.max()}\n")
+
+
+def program_length_distribution(data):
+    """
+    Plots a histogram of program lengths.
+    No explicit test, best to just look at the plot.
+    """
+    prog_lens = []
+    for i, datapoint in tqdm(enumerate(data), total=len(data)):
+        rasp = datapoint['rasp']
+        prog_lens.append(count_sops(rasp))
+
+    # Calculate histogram
+    counts, bin_edges = np.histogram(prog_lens, bins=range(min(prog_lens), max(prog_lens) + 2))
+
+    # Plot the histogram
+    plt.bar(bin_edges[:-1], counts, width=1, edgecolor='black')
+    plt.xlabel('Program Length')
+    plt.ylabel('Frequency')
+    plt.title('Histogram of Program Lengths')
+    plt.show()
+
+    return counts.tolist()
+
+def plot_operation_histogram(data):
+    """
+    Plots a histogram of the frequency of each operation across a list of programs.
+    No explicit test, best to just look at the plot.
+    """
+    rasp_programs = [x['rasp'] for x in data]
+    print(len(rasp_programs))
+    prefix_count = {}
+    for program in rasp_programs:
+        graph = rasp_to_graph.extract_rasp_graph(program)
+        
+        for op in list(graph.graph.nodes):
+            prefix = op.split("_")[0]
+            if prefix in ["tokens", "indices"]:
+                continue
+            if prefix in prefix_count:
+                prefix_count[prefix] += 1
+            else:
+                prefix_count[prefix] = 1
+    
+    # Plotting the histogram
+    operations = list(prefix_count.keys())
+    counts = list(prefix_count.values())
+    plt.bar(operations, counts)
+    plt.xlabel('Operation')
+    plt.ylabel('Frequency')
+    plt.title('Histogram of Operations')
+    plt.show()
+    
+    return prefix_count
+
+
 # %%
 
 if __name__ == __MAIN__:
-    
     data = data_utils.load_batches(keep_aux=True)  # loads data generated by generate_data.py, including model & rasp
     deduped = data_utils.load_deduped(name = "pytest", flatten=False, keep_aux=True)  # loads data post-deduplication
     test_non_constant_program(deduped, num_inputs = 100, seed=42, verbose = True)
-    #test_functionality_rasp_and_compiled(deduped, seed=42, verbose = True)
-
-# %%
-# import matplotlib.pyplot as plt
-# mlp0_in = data[0]['model'].params['transformer/layer_0/mlp/linear_1']['w']
-# plt.imshow(mlp0_in)
-# plt.colorbar()
-# %%
+    test_func_equiv(deduped, seed=42, verbose = True)
+    test_weights_range(deduped, verbose = True)
+    test_outputs_range(deduped, num_inputs = 100, seed = 43)
+    program_length_distribution(deduped)
+    plot_operation_histogram(deduped)
