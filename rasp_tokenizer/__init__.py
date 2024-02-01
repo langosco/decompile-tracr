@@ -18,7 +18,7 @@ module_path = os.path.abspath(os.path.join(
 
 MAX_RASP_LENGTH = 32
 MAX_WEIGHTS_LENGTH = 8192
-MAX_WEIGHTS_LAYER_MEAN = 1.5
+MAX_WEIGHTS_LAYER_MEAN = 5.0
 
 
 class Paths:
