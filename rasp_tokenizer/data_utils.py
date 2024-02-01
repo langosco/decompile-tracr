@@ -3,6 +3,7 @@ import dill
 from collections import defaultdict
 from pathlib import Path
 import json
+import chex
 
 import numpy as np
 import chex
@@ -12,6 +13,8 @@ import jax.numpy as jnp
 from rasp_tokenizer import vocab
 from rasp_tokenizer import paths
 from rasp_tokenizer.logger_config import setup_logger
+from rasp_tokenizer.utils import sequential_count_via_lockfile
+from rasp_tokenizer import MAX_WEIGHTS_LAYER_MEAN
 
 
 logger = setup_logger(__name__)
@@ -43,9 +46,11 @@ def process_single_datapoint(
         d_model: int,
         max_rasp_len: int = 32,
         max_weights_len: int = 8192,
+        filter_weights: bool = False,
     ):
-    """Process a single datapoint for model input. Assume x is
-    a dict with keys "rasp_tok", "weights", "program_id".
+    """Process a single datapoint (ie single layer) for model 
+    input. Assume x is a dict with keys "rasp_tok", "weights", 
+    and "program_id".
     1) Rasp tokens: pad to max rasp length.
     2) Weights: pad to max_weights_len, then chunk.
     """
@@ -57,15 +62,15 @@ def process_single_datapoint(
                          f"max weights length ({max_weights_len}).")
     
     w_mean = np.mean(x['weights'])
-    if np.abs(w_mean) > 1.5:
+    if filter_weights and np.abs(w_mean) > MAX_WEIGHTS_LAYER_MEAN:
         return None
     
-    weights = pad_to(x['weights'], max_weights_len)
+    weights = pad_to(x['weights'], max_weights_len, pad_value=0.05)
     weights = pad_and_chunk(weights, d_model)  # (n_chunks, d_model)
     return {
         "rasp_tok": pad_to(x['rasp_tok'], max_rasp_len, pad_value=vocab.pad_id),
         "weights": weights,
-        "program_id": x['program_id'],
+        **{k: v for k, v in x.items() if k not in ("rasp_tok", "weights")}
     }
 
 
@@ -75,12 +80,14 @@ def process_data(
         max_rasp_len: int = 32,
         max_weights_len: int = 8192,
         name=None,
+        filter_large_weights: bool = False,
     ):
     n = len(data)
     out = defaultdict(list)
     for x in data:
         x_proc = process_single_datapoint(
-            x, d_model, max_rasp_len, max_weights_len)
+            x, d_model, max_rasp_len, max_weights_len, 
+            filter_large_weights)
 
         if x_proc is None:
             continue
@@ -89,11 +96,16 @@ def process_data(
             out[k].append(v)
 
     out = {k: np.stack(v) for k, v in out.items()}
-    out = {k: to_int(v) if k in ("rasp_tok", "program_id") else v 
+    out = {k: to_int(v) if k in ("rasp_tok", "program_id", "n_sops") else v 
            for k, v in out.items()}
-    logger.info(f"Filtered out {n - len(out['rasp_tok'])} datapoints "
-                f"({round(100 * (n - len(out['rasp_tok'])) / n, 2)}%). "
-                f"Total remaining: {len(out['rasp_tok'])}. ({name})")
+    
+    if filter_large_weights:
+        if name.startswith("test"):
+            logger.warning(f"Received filter_large_weights=True for "
+                            f"test data. This is probably a mistake.\n") 
+        logger.info(f"Filtered out {n - len(out['rasp_tok'])} datapoints "
+                    f"({round(100 * (n - len(out['rasp_tok'])) / n, 2)}%). "
+                    f"Total remaining: {len(out['rasp_tok'])}. ({name})]\n")
     # clip weights
     out["weights"] = np.clip(out["weights"], -100, 100)
     chex.assert_shape(out["rasp_tok"], (None, max_rasp_len))
@@ -254,6 +266,7 @@ def load_and_process_data(
         max_rasp_len=max_rasp_len,
         max_weights_len=max_weights_len,
         name=name,
+        filter_large_weights=True,
     )
 
     return data
@@ -279,5 +292,87 @@ def flatten_data(data: list[dict]) -> list[dict]:
     for program_id, program in enumerate(data):
         for layer in program["weights_and_tokens"]:
             layer['program_id'] = program_id
+            layer['n_sops'] = program['n_sops']
+            layer['n_layers'] = len(program['weights_and_tokens'])
             out.append(layer)
     return out
+
+
+def save_batch(
+        json_dataset: list,
+        aux_dataset: list,
+        savedir: Path = paths.data_dir / "batches",
+        keep_aux=False,
+        filename=None,
+    ):
+    if filename is None:
+        idx = sequential_count_via_lockfile(savedir / "count.txt")
+        filename = f"data_{idx}"
+    logger.info(f"Saving {len(json_dataset)} generated "
+                f"programs to {savedir}.")
+    with open(savedir / f"{filename}.json", "x") as f:
+        json.dump(json_dataset, f)
+    
+    if keep_aux:
+        with open(savedir / f"{filename}.dill", "xb") as f:
+            dill.dump(aux_dataset, f)
+
+
+def to_flat_datapoints(
+        tokens: dict[str, list[int]],
+        params: dict[str, chex.Array],
+    ) -> (list[dict], tuple):
+    """Convert a compiled model to a list of dicts, one per layer."""
+    by_layer = [
+        dict(
+            rasp_tok=tuple(tok),
+            weights=tuple(params[layer].tolist()),
+        ) for layer, tok in tokens.items()
+    ]
+    return by_layer, tuple(x['rasp_tok'] for x in by_layer)
+
+
+def get_arrays_by_program(
+        program_ids: chex.Array,
+        **kwargs,
+    ) -> list[dict[str, chex.Array]]:
+    """Get kwargs grouped by program.
+    This is a helper function for reshuffling arrays.
+    - from: shape (n, ...) where n is the number of single-layer
+        datapoints, to a list of dicts
+    - to: list of dicts, where each dict corresponds to one
+        program id, and contains arrays of variable shape
+        obtained from concatenating all kwarg elements for
+        that program id.
+    
+    Example:
+    >>> get_arrays_by_program(
+            program_ids=np.array([0, 0, 1, 1]),
+            a=np.array([1, 2, 3, 4]),
+            b=np.array([5, 6, 7, 8]),
+        )
+    [
+        {'a': array([1, 2]), 'b': array([5, 6])},
+        {'a': array([3, 4]), 'b': array([7, 8])},
+    ]
+    """
+    raise NotImplementedError
+    n = len(program_ids)
+    assert all(len(a) == n for a in kwargs.values())
+
+    arrays_by_prog = defaultdict(list)
+    for i, prog_id in enumerate(program_ids):
+        for k, v in kwargs.items():
+            arrays_by_prog[prog_id][k].append(v[i])
+            
+            arrays_by_prog[prog_id].append(
+                {k: v[i] for k, v in kwargs.items()}
+            )
+    arrays_by_prog = list(arrays_by_prog.values())
+    return arrays_by_prog
+
+
+
+
+
+

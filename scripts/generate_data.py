@@ -33,8 +33,8 @@ from rasp_tokenizer.compiling import COMPILER_BOS
 from rasp_tokenizer.logger_config import setup_logger
 from rasp_tokenizer import on_cluster
 from rasp_tokenizer import paths
-from rasp_tokenizer import MAX_RASP_LENGTH, MAX_WEIGHTS_LENGTH
-from rasp_tokenizer.utils import sequential_count_via_lockfile
+from rasp_tokenizer import MAX_RASP_LENGTH, MAX_WEIGHTS_LENGTH, MAX_WEIGHTS_LAYER_MEAN
+from rasp_tokenizer.data_utils import save_batch, to_flat_datapoints
 
 
 parser = argparse.ArgumentParser(description='Training run')
@@ -71,18 +71,6 @@ test_inputs += [[0], [0,0,0,0,0], [4,4,4,4], [0,1,2,3]]
 
 NUM_DATAPOINTS = args.ndata
 MAX_COMPILE_TIME = 5  # seconds
-
-
-def save_to_file(json_dataset, aux_dataset):
-    idx = sequential_count_via_lockfile(SAVEDIR / "count.txt")
-    savepath = SAVEDIR
-    logger.info(f"Saving generated programs to {savepath}.")
-    with open(savepath / f"data_{idx}.json", "x") as f:
-        json.dump(json_dataset, f)
-    
-    if args.keep_aux:
-        with open(savepath / f"data_{idx}.dill", "xb") as f:
-            dill.dump(aux_dataset, f)
 
 
 class CompilationTimeout(Exception):
@@ -150,34 +138,18 @@ def sample_and_compile():
         logger.warning("Program:")
         print_program(program)
         print()
-        save_to_file(json_dataset, aux_dataset)
+        save_batch(json_dataset, aux_dataset, SAVEDIR, args.keep_aux)
         raise
     return program, model, tokens, params
 
 
-def to_flat_datapoints(
-        tokens: dict[str, list[int]],
-        params: dict[str, ArrayLike],
-    ) -> (list[dict], tuple):
-    by_layer = [
-        dict(
-            rasp_tok=tuple(tok),
-            weights=tuple(params[layer].tolist()),
-        ) for layer, tok in tokens.items()
-    ]
-    # design decisions:
-    # - should we store datapoints per layer or per program?
-    # - is it bad if we lose program info? (it's bad for test data, but not necessarily for training data)
-    # - should we deduplicate based on program or based on layer?
-    # - should we deduplicated based on rasp code or rasp + weights? (if by layer)
-    return by_layer, tuple(x['rasp_tok'] for x in by_layer)
-
-
 def filter(by_layer: list[dict]):
     """Filter out bad programs."""
+    means_by_layer = [np.mean(x['weights']) for x in by_layer]
     if (
         any(len(x['rasp_tok']) > MAX_RASP_LENGTH for x in by_layer) or
-        any(len(x['weights']) > MAX_WEIGHTS_LENGTH for x in by_layer)
+        any(len(x['weights']) > MAX_WEIGHTS_LENGTH for x in by_layer) or
+        np.abs(means_by_layer).max() > MAX_WEIGHTS_LAYER_MEAN
     ):
         return True
     else:
@@ -209,9 +181,9 @@ def sample_loop(json_dataset: list, aux_dataset: list, all_rasp):
         else:
             all_rasp.add(rasp_str)
             json_dataset.append({
-                "weights_and_tokens": by_layer,  # list of dicts
                 "name": args.name,  # train vs test
                 "n_sops": program.annotations['length'],  # nr of sops
+                "weights_and_tokens": by_layer,  # list of dicts
             })
 
             if args.keep_aux:
@@ -241,4 +213,4 @@ logger.info(f"Average program length: {np.mean(lengths)}")
 logger.info(f"Average number of layers per program: {np.mean(n_layers_per)}")
 logger.info(f"Min and max number of layers per program: {np.min(n_layers_per)}, {np.max(n_layers_per)}")
 
-save_to_file(json_dataset, aux_dataset)
+save_batch(json_dataset, aux_dataset, SAVEDIR, args.keep_aux)

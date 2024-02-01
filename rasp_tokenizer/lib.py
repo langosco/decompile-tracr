@@ -1,5 +1,5 @@
 from tracr.rasp import rasp
-from rasp_generator.utils import FunctionWithRepr
+from rasp_generator.utils import FunctionWithRepr, count_sops
 
 
 def make_length():
@@ -145,9 +145,12 @@ def make_shuffle_dyck(pairs: list = [(0,1), (2,3)]) -> rasp.SOp:
     )
 
 
-examples = {
-    1: length,
-    2: make_reverse(rasp.tokens),
-    3: make_pair_balance(),
-    4: make_shuffle_dyck([(0, 1)]),
-}
+examples = [
+    length,
+    make_reverse(rasp.tokens),
+    make_pair_balance(),
+#    make_shuffle_dyck([(0, 1)]),
+]
+
+examples = [rasp.annotate(x, length=count_sops(x)) for x in examples]
+
