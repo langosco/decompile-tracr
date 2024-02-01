@@ -1,5 +1,12 @@
 from tracr.rasp import rasp
+from tracr.rasp.rasp import indices, tokens, Select, Aggregate, SelectorWidth, Map, SequenceMap, LinearSequenceMap, numerical, categorical
+from tracr.rasp.rasp import Comparison
 from rasp_generator.utils import FunctionWithRepr, count_sops
+
+LT = rasp.Comparison.LT
+EQ = rasp.Comparison.EQ
+GT = rasp.Comparison.GT
+
 
 
 def make_length():
@@ -9,6 +16,14 @@ def make_length():
 
 
 length = make_length()
+
+
+def sort():
+    smaller = Select(tokens, tokens, LT)
+    target = SelectorWidth(smaller)
+    sel_new = Select(target, indices, EQ)
+    return Aggregate(sel_new, tokens)
+
 
 
 def make_reverse(sop: rasp.SOp) -> rasp.SOp:
@@ -147,6 +162,7 @@ def make_shuffle_dyck(pairs: list = [(0,1), (2,3)]) -> rasp.SOp:
 
 examples = [
     length,
+    sort(),
     make_reverse(rasp.tokens),
     make_pair_balance(),
 #    make_shuffle_dyck([(0, 1)]),
