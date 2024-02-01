@@ -1,12 +1,17 @@
 import os
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from rasp_tokenizer.data_utils import load_deduped
 
+parser = argparse.ArgumentParser(description='Data processing.')
+parser.add_argument('--name', type=str, default="train", 
+                    help="'train', 'test', 'test_5, 'test_6")
+args = parser.parse_args()
 
 # Data loading
-data = load_deduped(name='train', flatten=False)
+data = load_deduped(name=args.name, flatten=False)
 print("Total datapoints:", len(data))
 
 
@@ -33,7 +38,7 @@ axs[0].set_xticks(range(0, 15))
 axs[1].set_title("Distribution of Weights per Model")
 axs[1].hist(weights_per_model)
 
-axs[2].set_title("Layer Lengths")
+axs[2].set_title("Number of layers per model")
 axs[2].hist(layer_lengths)
 
 axs[3].set_title("Distribution of Tokens per Layer")
