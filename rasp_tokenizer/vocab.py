@@ -61,3 +61,5 @@ vocab = (
 
 size = len(vocab)
 pad_id = vocab.index(PAD)
+bos_id = vocab.index(BOS)
+eos_id = vocab.index(EOS)

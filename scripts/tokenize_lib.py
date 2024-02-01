@@ -85,4 +85,5 @@ save_batch(
     savedir=SAVEPATH,
     keep_aux=True,
     filename="data",
+    overwrite=True,
 )
