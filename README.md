@@ -81,16 +81,13 @@ becomes the dictionary
 ### Remaining problems
 - sometimes categorical Aggregate is hard to sample (reaches max retries)
 - sometimes a sampled program doesn't depend on rasp.tokens
-- I suspect that sometimes the output is constant.
 
 
 ### TODOS
 - [ ] add tests for compiling
-- [ ] make compiling faster (eg by avoiding long programs)
 - [x] remove SOps that are all (or mostly) None
 - [x] use multiple test inputs; 
 - [ ] decide whether to remove / downweight constant SOps if frequent
-- [ ] add tests
 - [x] send PR for tracr allowing floats in rasp.Aggregate
 - [x] allow for floats in categorical SOps (after PR is accepted)
 - [x] collect statistics on generated SOps
@@ -102,6 +99,8 @@ becomes the dictionary
 - [x] generate 'draft' dataset of pairs (weights, tokenized program)
 - [ ] for short programs, consider enumerating all possible programs exhaustively
 - [ ] Ensure compatibility with 'base' tracr library
+- [x] Accellerate saving/loading by using json for tokens/weights and
+        only using pickle/dill for rasp programs and compiled models.
 
 
 Tests for sampled programs
