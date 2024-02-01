@@ -5,8 +5,7 @@ ops = [
     "Map",
     "SequenceMap",
     "LinearSequenceMap",
-    "Select",
-    "Aggregate",
+    "SelectAggregate",
     "SelectorWidth",
 ]
 
@@ -16,11 +15,7 @@ encodings = [
 ]
 
 sop_variables = [
-    f"SOp_{i}" for i in range(50)
-]
-
-selector_variables = [
-    f"Selector_{i}" for i in range(40)
+    f"sop_{i}" for i in range(25)
 ]
 
 maps = [
@@ -51,7 +46,6 @@ vocab = (
     ops +
     encodings +
     sop_variables +
-    selector_variables +
     maps +
     linear_sequence_map_weights +
     comparisons +

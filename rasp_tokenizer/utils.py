@@ -59,14 +59,14 @@ def add_variable_names_to_graph(graph: nx.DiGraph) -> nx.DiGraph:
     to the nodes in the graph."""
     sop_labels = sorted(list(graph.nodes))
     sop_names = iter(tokenizer_vocab.sop_variables)
-    sel_names = iter(tokenizer_vocab.selector_variables)
 
     for label in sop_labels:
         if label in ['tokens', 'indices']:
             graph.nodes[label]["token"] = label
         elif label.startswith('select_'):
             assert isinstance(graph.nodes[label]["EXPR"], rasp.Select)
-            graph.nodes[label]["token"] = next(sel_names)
+            pass
+#            graph.nodes[label]["token"] = next(sel_names)
         else:
             assert not isinstance(
                 graph.nodes[label]["EXPR"], rasp.Select)
@@ -84,7 +84,15 @@ def get_encoding(graph: nx.DiGraph, node_id: int) -> str:
 
 def get_classname(graph: nx.DiGraph, node_id: int) -> str:
     expr = graph.nodes[node_id]["EXPR"]
-    return type(expr).__name__
+    if isinstance(expr, rasp.Select):
+        raise ValueError("No need to get classnames for selectors, "
+                         "you're probably doing something wrong.")
+    elif isinstance(expr, rasp.Aggregate):
+        return "SelectAggregate"
+    elif isinstance(expr, rasp.SelectorWidth):
+        return "SelectorWidth"
+    else:
+        return type(expr).__name__
 
 
 def get_variable_name(graph: nx.DiGraph, node_id: int) -> str:
@@ -96,23 +104,39 @@ def get_args(graph: nx.DiGraph, node_id: int) -> list[str]:
     expr = graph.nodes[node_id]["EXPR"]
     assert expr.label == node_id
 
-    predecessor_ids = list(graph.predecessors(node_id))
-    variable_args = [get_variable_name(graph, i) for i in predecessor_ids]
-
-    if isinstance(expr, rasp.Select):
-        variable_args = [get_variable_name(graph, i) for i in 
-                         (expr.keys.label, expr.queries.label)]
-        other_args = [expr.predicate.name]
-        assert len(variable_args) == 2, f"Expected 2 args, got {len(variable_args)} for {expr.label}"
+    if isinstance(expr, rasp.Map):
+        args = [repr(expr.f), get_variable_name(graph, expr.inner.label)]
     elif isinstance(expr, rasp.LinearSequenceMap):
-        other_args = [str(expr.fst_fac), str(expr.snd_fac)]
-        assert len(variable_args) == 2
-    elif isinstance(expr, (rasp.Map, rasp.SequenceMap)):
-        other_args = [repr(expr.f)]
+        args = [
+            get_variable_name(graph, expr.fst.label), 
+            get_variable_name(graph, expr.snd.label),
+            str(expr.fst_fac),
+            str(expr.snd_fac),
+        ]
+    elif isinstance(expr, rasp.SequenceMap):
+        args = [
+            repr(expr.f), 
+            get_variable_name(graph, expr.fst.label), 
+            get_variable_name(graph, expr.snd.label),
+        ]
+    elif isinstance(expr, rasp.Aggregate):
+        args = [
+            *get_args(graph, expr.selector.label),
+            get_variable_name(graph, expr.sop.label),
+        ]
+    elif isinstance(expr, rasp.SelectorWidth):
+        args = get_args(graph, expr.selector.label)
+    elif isinstance(expr, rasp.Select):
+        args = [
+            get_variable_name(graph, expr.keys.label),
+            get_variable_name(graph, expr.queries.label),
+            expr.predicate.name,
+        ]
     else:
-        other_args = []
+        raise ValueError(f"Unknown expression type {type(expr)}.")
 
-    return other_args + variable_args
+    return args
+
 
 
 def rasp_graph_to_layerwise_representation(
@@ -131,6 +155,10 @@ def rasp_graph_to_layerwise_representation(
         flat_layer = []
         flat_layer.append(tokenizer_vocab.BOS)
         for node_id in node_ids:
+            if node_id.startswith('select_'):
+                # Skip selectors, they are included as arguments
+                # of the corresponding aggregate or selector-width
+                continue
             if not flat_layer[-1] == tokenizer_vocab.BOS:
                 flat_layer.append(tokenizer_vocab.SEP)
             flat_layer.append(get_variable_name(graph, node_id))
