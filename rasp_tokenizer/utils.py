@@ -64,8 +64,7 @@ def add_variable_names_to_graph(graph: nx.DiGraph) -> nx.DiGraph:
     for label in sop_labels:
         if label in ['tokens', 'indices']:
             graph.nodes[label]["token"] = label
-
-        if label.startswith('select_'):
+        elif label.startswith('select_'):
             assert isinstance(graph.nodes[label]["EXPR"], rasp.Select)
             graph.nodes[label]["token"] = next(sel_names)
         else:
