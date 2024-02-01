@@ -11,8 +11,8 @@ from rasp_tokenizer import logger_config
 
 # Deduplicate based on tokenized rasp code.
 
-# Load data (list of dicts) from data/batches
-# Save deduped data back to data/deduped
+# Load data (list of dicts) from data/batches/...
+# Save deduped data back to data/deduped/{name}/data.json
 
 
 if __name__ == "__main__":
@@ -37,7 +37,7 @@ if __name__ == "__main__":
             keep_aux=args.keep_aux,
         )
 
-    logger.info(f"Loaded data with keys {data[0].keys()}")
+    logger.info(f"Loaded data with keys {list(data[0].keys())}")
 
     if not args.keep_aux:
         for x in data:
@@ -62,9 +62,10 @@ if __name__ == "__main__":
     for x in deduped:
         deduped_by_name[x['name']].append(x)
 
-    for name, programs in deduped_by_name.items():
+    for name, data in deduped_by_name.items():
+        print(f"{name}: {len(data)} programs")
         data_utils.save_deduped(
-            deduped, 
+            data, 
             name=name, 
             savepath=args.savepath,
             save_aux=args.keep_aux,
