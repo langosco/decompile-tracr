@@ -31,20 +31,20 @@ weight_lens = [len(x['weights']) for x in data_per_layer]
 fig, axs = plt.subplots(3, 2, figsize=(12, 15))
 axs = axs.flatten()
 
-axs[0].set_title("Distribution of Program Lengths")
+axs[0].set_title("Distribution of program lengths")
 axs[0].hist(n_sops, bins=range(0, 15))
 axs[0].set_xticks(range(0, 15))
 
-axs[1].set_title("Distribution of Weights per Model")
+axs[1].set_title("Distribution of # parameters per model")
 axs[1].hist(weights_per_model)
 
 axs[2].set_title("Number of layers per model")
 axs[2].hist(layer_lengths)
 
-axs[3].set_title("Distribution of Tokens per Layer")
+axs[3].set_title("Distribution of tokens per layer")
 axs[3].hist(token_lens, bins=range(2, 20))
 
-axs[4].set_title("Distribution of Weight Lengths per Layer")
+axs[4].set_title("Distribution of weight lengths per layer")
 axs[4].hist(weight_lens)
 
 plt.tight_layout()
