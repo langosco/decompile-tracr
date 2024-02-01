@@ -108,6 +108,8 @@ def process_data(
                     f"Total remaining: {len(out['rasp_tok'])}. ({name})]\n")
     # clip weights
     out["weights"] = np.clip(out["weights"], -100, 100)
+
+    assert max_weights_len % d_model == 0
     chex.assert_shape(out["rasp_tok"], (None, max_rasp_len))
     chex.assert_shape(out["weights"], (None, max_weights_len//d_model, d_model))
     assert len(out["rasp_tok"]) == len(out["weights"])
@@ -266,7 +268,7 @@ def load_and_process_data(
         max_rasp_len=max_rasp_len,
         max_weights_len=max_weights_len,
         name=name,
-        filter_large_weights=True,
+        filter_large_weights=False,
     )
 
     return data
@@ -304,17 +306,20 @@ def save_batch(
         savedir: Path = paths.data_dir / "batches",
         keep_aux=False,
         filename=None,
+        overwrite=False,
     ):
     if filename is None:
         idx = sequential_count_via_lockfile(savedir / "count.txt")
         filename = f"data_{idx}"
     logger.info(f"Saving {len(json_dataset)} generated "
                 f"programs to {savedir}.")
-    with open(savedir / f"{filename}.json", "x") as f:
+    
+    open_mode = "w" if overwrite else "x"
+    with open(savedir / f"{filename}.json", open_mode) as f:
         json.dump(json_dataset, f)
     
     if keep_aux:
-        with open(savedir / f"{filename}.dill", "xb") as f:
+        with open(savedir / f"{filename}.dill", open_mode + "b") as f:
             dill.dump(aux_dataset, f)
 
 
