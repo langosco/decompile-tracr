@@ -21,7 +21,6 @@ import numpy as np
 from tracr.compiler.validating import validate
 from tracr.compiler import compiling
 from rasp_generator import map_primitives, utils
-from typing import Sequence
 
 
 class SamplingError(Exception):
