@@ -24,6 +24,11 @@ from rasp_generator import map_primitives, rasp_utils
 
 
 class SamplingError(Exception):
+    """Raised when the sampler fails to sample a program
+    satisfying the given constraints.
+    This error is raises stochastically, so it's (usually) 
+    not indicative of a bug.
+    """
     pass
 
 
