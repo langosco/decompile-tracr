@@ -56,14 +56,14 @@ if __name__ == "__main__":
 
 
     logger.info(f"Deduplicating {len(data)} programs.")
-    deduped = data_utils.dedupe(data)
+    deduped, all_rasp = data_utils.dedupe(data)
 
     deduped_by_name = defaultdict(list)
     for x in deduped:
         deduped_by_name[x['name']].append(x)
 
     for name, data in deduped_by_name.items():
-        print(f"{name}: {len(data)} programs")
+        logger.info(f"{name}: saving {len(data)} programs")
         data_utils.save_deduped(
             data, 
             name=name, 

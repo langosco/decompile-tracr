@@ -1,8 +1,13 @@
+from itertools import islice
 import os
 import dill
 from collections import defaultdict
 from pathlib import Path
-import json
+try:
+    import ujson as json
+except ImportError:
+    import json
+
 import chex
 
 import numpy as np
@@ -125,7 +130,11 @@ def load_batch(filename: str) -> list[dict]:
             return json.load(f)
 
 
-def load_batches(loadpath = None, keep_aux: bool = False) -> list[dict]:
+def load_batches(
+        loadpath = None, 
+        keep_aux: bool = False, 
+        max_datapoints=None,
+    ) -> list[dict]:
     """
     Load batches created by scripts/generate_data.py
     and merge into a single list. 
@@ -151,15 +160,24 @@ def load_batches(loadpath = None, keep_aux: bool = False) -> list[dict]:
                 data.extend([x | y for x, y in zip(json_batch, aux_batch)])
             else:
                 data.extend(json_batch)
+        
+        if max_datapoints is not None and len(data) >= max_datapoints:
+            logger.info(f"load_batches: loaded {len(data)} >= {max_datapoints} datapoints, stopping.")
+            break
+        if len(data) == 0:
+            logger.warning(f"load_batches: no data found in {path}.")
     return data
 
 
-def dedupe(data: list[dict]) -> list[dict]:
+def dedupe(data: list[dict], all_rasp: set = None) -> list[dict]:
     """Deduplicate programs by RASP string.
     Assume data is a list of dicts that include the 
     key "weights_and_tokens", as returned by load_batches().
+
+    Deduplicate by adding the RASP string to a set.
     """
-    all_rasp = set()
+    if all_rasp is None:
+        all_rasp = set()
     deduped = []
     for program in data:
         rasp_str = tuple(
@@ -175,7 +193,7 @@ def dedupe(data: list[dict]) -> list[dict]:
     logger.info(f"Deduplicated {len(data)} programs.")
     logger.info(f"Removed: {len(data) - len(deduped)} programs. "
                 f"({100*(len(data) - len(deduped)) / len(data)}%)")
-    return deduped
+    return deduped, all_rasp
 
 
 def filter_aux(
@@ -188,6 +206,17 @@ def filter_aux(
         return {k: v for k, v in x.items() if k in AUX_KEYS}
     else:
         return {k: v for k, v in x.items() if k not in AUX_KEYS}
+
+
+def batched(iterable, n):
+    "Batch data into lists of length n. The last batch may be shorter."
+    # batched('ABCDEFG', 3) --> ABC DEF G
+    it = iter(iterable)
+    while True:
+        batch = list(islice(it, n))
+        if not batch:
+            return
+        yield batch
 
 
 def save_deduped(
@@ -209,17 +238,22 @@ def save_deduped(
     os.makedirs(path, exist_ok=True)
 
     logger.info(f"Saving deduplicated programs to {path}.")
+    batchsize = 1_000
     json_data = [filter_aux(x) for x in data]
-    with open(path / "data.json", "x") as f:
-        json.dump(json_data, f)
+    for i, batch in enumerate(batched(json_data, batchsize)):
+        with open(path / f"data_{i}.json", "x") as f:
+            json.dump(batch, f)
 
     if save_aux:
         aux_data = [filter_aux(x, keep=True) for x in data]
-        with open(path / "data.dill", "xb") as f:
-            dill.dump(aux_data, f)
+
+        for i, batch in enumerate(batched(aux_data, batchsize)):
+            with open(path / f"data_{i}.dill", "xb") as f:
+                dill.dump(batch, f)
 
 
 def load_deduped(name="train", flatten=True, keep_aux=False):
+    """Deprecated, use load_batches instead."""
     
     if flatten and keep_aux:
         raise ValueError("Can't flatten and keep aux data.")
@@ -250,7 +284,17 @@ def load_and_process_data(
         max_weights_len=8192,
     ):
     """Utility for loading data and processing it for model input."""
-    data = load_deduped(name)
+#    data = load_deduped(name)
+
+    path = paths.data_dir / "deduped" / name
+    logger.info(f"Loading data from {path}.")
+    if ndata is not None:
+        max_datapoints = ndata // 3
+    else:
+        max_datapoints = None
+    data = load_batches(loadpath=path, keep_aux=False, 
+                        max_datapoints=max_datapoints)
+    data = flatten_data(data)
 
     if shuffle:
         rng = np.random.default_rng(rng)
@@ -302,7 +346,7 @@ def flatten_data(data: list[dict]) -> list[dict]:
 
 def save_batch(
         json_dataset: list,
-        aux_dataset: list,
+        aux_dataset: list = None,
         savedir: Path = paths.data_dir / "batches",
         keep_aux=False,
         filename=None,
