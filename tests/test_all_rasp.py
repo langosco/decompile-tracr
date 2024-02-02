@@ -8,8 +8,7 @@ from tqdm import tqdm
 import numpy as np
 import numpy as np
 import random
-import rasp_generator
-from rasp_generator.utils import count_sops
+from rasp_generator.rasp_utils import count_sops
 import matplotlib.pyplot as plt
 from tracr.compiler import rasp_to_graph
 import matplotlib.pyplot as plt
@@ -24,7 +23,7 @@ __MAIN__ = "__main__"
 
 # %%
 from rasp_tokenizer import data_utils
-from rasp_generator.utils import print_program
+from rasp_generator.rasp_utils import print_program
     
 def generate_random_input(model):
     size_input = model.input_encoder._max_seq_len - 1  # account for BOS token

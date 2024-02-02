@@ -1,7 +1,7 @@
 from collections import defaultdict
 from tracr.rasp import rasp
 from tracr.compiler import compiling
-from rasp_generator import sampling, utils
+from rasp_generator import rasp_utils, sampling
 import numpy as np
 import jax
 
@@ -17,7 +17,7 @@ def compile_rasp_to_model(sop: rasp.SOp, vocab={0,1,2,3,4}, max_seq_len=5, compi
     )
 
 
-test_inputs = [utils.sample_test_input(rng) for _ in range(100)]
+test_inputs = [rasp_utils.sample_test_input(rng) for _ in range(100)]
 test_inputs += [[0], [0,0,0,0,0], [4,4,4,4], [0,1,2,3]]
 n_samples = 200
 errs = defaultdict(list)

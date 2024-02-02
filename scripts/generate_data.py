@@ -27,7 +27,7 @@ from tracr.rasp import rasp
 from tracr.compiler.assemble import AssembledTransformerModel
 
 from rasp_generator import sampling
-from rasp_generator.utils import sample_test_input, print_program
+from rasp_generator.rasp_utils import sample_test_input, print_program
 from rasp_tokenizer import tokenizer
 from rasp_tokenizer.compiling import COMPILER_BOS
 from rasp_tokenizer.logger_config import setup_logger

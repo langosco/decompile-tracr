@@ -3,16 +3,8 @@
 import os
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 import numpy as np
-from jaxtyping import ArrayLike
-import pickle
-import signal
 
-from tracr.compiler.craft_model_to_transformer import NoTokensError
-from tracr.compiler.basis_inference import InvalidValueSetError
-from tracr.rasp import rasp
-from tracr.compiler.assemble import AssembledTransformerModel
-
-from rasp_generator.utils import sample_test_input, print_program
+from rasp_generator.rasp_utils import sample_test_input
 from rasp_tokenizer import tokenizer
 from rasp_tokenizer.compiling import COMPILER_BOS
 from rasp_tokenizer.logger_config import setup_logger

@@ -22,7 +22,29 @@
 
 
 from tracr.rasp import rasp
-from rasp_generator.utils import FunctionWithRepr
+
+
+class FunctionWithRepr:
+    """Minimal wrapper around a function that allows to 
+    represent it as a string."""
+    def __init__(self, fn_str: str):
+        """
+        fn_str: function in form of eval-able string, e.g. 'lambda x: x+1'."""
+        self.fn_str = fn_str
+
+    def __repr__(self):
+        return self.fn_str
+    
+    def __call__(self, *args, **kwargs):
+        return eval(self.fn_str)(*args, **kwargs)
+    
+    def compose(self, other: "FunctionWithRepr"):
+        """Compose two functions."""
+        return FunctionWithRepr(f"(lambda x: {self.fn_str})(({other.fn_str})(x))")
+    
+    def __eq__(self, other):
+        return self.fn_str == other.fn_str
+
 
 
 TYPES = [

@@ -9,28 +9,6 @@ class EmptyScopeError(Exception):
     pass
 
 
-class FunctionWithRepr:
-    """Minimal wrapper around a function that allows to 
-    represent it as a string."""
-    def __init__(self, fn_str: str):
-        """
-        fn_str: function in form of eval-able string, e.g. 'lambda x: x+1'."""
-        self.fn_str = fn_str
-
-    def __repr__(self):
-        return self.fn_str
-    
-    def __call__(self, *args, **kwargs):
-        return eval(self.fn_str)(*args, **kwargs)
-    
-    def compose(self, other: "FunctionWithRepr"):
-        """Compose two functions."""
-        return FunctionWithRepr(f"(lambda x: {self.fn_str})(({other.fn_str})(x))")
-    
-    def __eq__(self, other):
-        return self.fn_str == other.fn_str
-
-
 def annotate_type(sop: rasp.SOp, type: str):
     """Annotate a SOp with a type."""
     # important for compiler:
@@ -137,7 +115,7 @@ def fraction_none(x: list):
     return sum([1 for elem in x if elem is None]) / len(x)
 
 
-def sample_test_input(rng, vocab={0,1,2,3,4}, max_seq_len=5):
+def sample_test_input(rng, vocab={0,1,2,3,4}, max_seq_len=5):  # to validate.py ?
     seq_len = rng.choice(range(1, max_seq_len+1))
     return rng.choice(list(vocab), size=seq_len).tolist()
 

@@ -20,14 +20,14 @@ from tracr.rasp import rasp
 import numpy as np
 from tracr.compiler.validating import validate
 from tracr.compiler import compiling
-from rasp_generator import map_primitives, utils
+from rasp_generator import map_primitives, rasp_utils
 
 
 class SamplingError(Exception):
     pass
 
 
-TEST_INPUTS = [utils.sample_test_input(np.random.default_rng(0)) 
+TEST_INPUTS = [rasp_utils.sample_test_input(np.random.default_rng(0)) 
                for _ in range(50)]
 TEST_INPUTS += [[0], [0,0,0,0,0], [1,2,3,4]]
 
@@ -49,11 +49,11 @@ def sample_from_scope(
         prefer_recent=False,
     ):
     """Sample a SOp from a given list of SOps, according to constraints."""
-    sops = utils.filter_by_type(sops, type=type_constraint)
-    sops = utils.filter_by_constraints(sops, other_constraints, constraints_name)
+    sops = rasp_utils.filter_by_type(sops, type=type_constraint)
+    sops = rasp_utils.filter_by_constraints(sops, other_constraints, constraints_name)
 
     if size is not None and len(sops) < size:
-        raise utils.EmptyScopeError(
+        raise rasp_utils.EmptyScopeError(
             f"Filter failed. Not enough SOps in scope; found {len(sops)}, need {size}")
 
     if prefer_recent:
@@ -78,7 +78,7 @@ def sample_map(rng, variable_scope: list[rasp.SOp]):
     sop_in = sample_from_scope(rng, variable_scope)
     fn, output_type = map_primitives.get_map_fn(rng, sop_in.annotations["type"])
     sop_out = rasp.Map(fn, sop_in, simplify=False)
-    return utils.annotate_type(sop_out, type=output_type)
+    return rasp_utils.annotate_type(sop_out, type=output_type)
 
 
 def sample_sequence_map(rng, variable_scope: list[rasp.SOp]):
@@ -93,7 +93,7 @@ def sample_sequence_map(rng, variable_scope: list[rasp.SOp]):
     )
     fn = rng.choice(map_primitives.NONLINEAR_SEQMAP_FNS)
     sop_out = rasp.SequenceMap(fn, *args)
-    return utils.annotate_type(sop_out, type="categorical")
+    return rasp_utils.annotate_type(sop_out, type="categorical")
 
 
 def sample_linear_sequence_map(rng, variable_scope: list):
@@ -110,7 +110,7 @@ def sample_linear_sequence_map(rng, variable_scope: list):
         map_primitives.LINEAR_SEQUENCE_MAP_WEIGHTS, size=2, replace=True)
     weights = [int(w) for w in weights]
     sop_out = rasp.LinearSequenceMap(*args, *weights)
-    return utils.annotate_type(sop_out, type="float")
+    return rasp_utils.annotate_type(sop_out, type="float")
 
 
 def sample_select(rng, variable_scope: list):
@@ -121,7 +121,7 @@ def sample_select(rng, variable_scope: list):
         rng,
         variable_scope,
         type_constraint="categorical",
-        other_constraints=[lambda sop: utils.no_none_in_values(sop, TEST_INPUTS)],
+        other_constraints=[lambda sop: rasp_utils.no_none_in_values(sop, TEST_INPUTS)],
         constraints_name="no None values",
         size=2,
         replace=True,
@@ -143,12 +143,12 @@ def sample_numerical_aggregate(rng, variable_scope: list):
         rng,
         variable_scope,
         type_constraint="bool",
-        other_constraints=[lambda sop: utils.no_none_in_values(sop, TEST_INPUTS)],
+        other_constraints=[lambda sop: rasp_utils.no_none_in_values(sop, TEST_INPUTS)],
         constraints_name="no None values",
     )
     sop_out = rasp.Aggregate(selector, sop_in, default=0)
     # TODO: sometimes output can be bool here?
-    return utils.annotate_type(sop_out, type="float")  # has to be numerical (tracr constraint)
+    return rasp_utils.annotate_type(sop_out, type="float")  # has to be numerical (tracr constraint)
 
 
 def sample_categorical_aggregate(rng, variable_scope: list, max_retries=10):
@@ -163,7 +163,7 @@ def sample_categorical_aggregate(rng, variable_scope: list, max_retries=10):
         rng,
         variable_scope,
         type_constraint="categorical",
-        other_constraints=[lambda sop: utils.no_none_in_values(sop, TEST_INPUTS)],
+        other_constraints=[lambda sop: rasp_utils.no_none_in_values(sop, TEST_INPUTS)],
         constraints_name="no None values",
     )
     sop_out = rasp.Aggregate(selector, sop_in, default=None)
@@ -182,13 +182,13 @@ def sample_categorical_aggregate(rng, variable_scope: list, max_retries=10):
                 "don't result in an output domain that is a subset of the input domain."
             )
 
-    return utils.annotate_type(sop_out, type="categorical")
+    return rasp_utils.annotate_type(sop_out, type="categorical")
 
 
 def sample_selector_width(rng, variable_scope: list):
     selector = sample_select(rng, variable_scope)
     sop_out = rasp.SelectorWidth(selector)
-    return utils.annotate_type(sop_out, type="categorical")
+    return rasp_utils.annotate_type(sop_out, type="categorical")
 
 
 SAMPLE_FUNCTIONS = {
@@ -210,9 +210,9 @@ def try_to_sample_sop(rng, variable_scope: list, avoid_types: set[str] = []):
     err = None
     try:
         sop = SAMPLE_FUNCTIONS[sop_class](rng, variable_scope)
-        if any(utils.fraction_none(sop(x)) > 0.5 for x in TEST_INPUTS):
+        if any(rasp_utils.fraction_none(sop(x)) > 0.5 for x in TEST_INPUTS):
             raise SamplingError(f"Sampled SOp {sop} has too many None values.")
-    except (utils.EmptyScopeError, SamplingError) as error:
+    except (rasp_utils.EmptyScopeError, SamplingError) as error:
         err = error
         sop = None
     return sop, err, sop_class
@@ -265,8 +265,8 @@ class ProgramSampler:
     
     def reset(self):
         self.sops = [
-            utils.annotate_type(rasp.tokens, "categorical"),
-            utils.annotate_type(rasp.indices, "categorical"),
+            rasp_utils.annotate_type(rasp.tokens, "categorical"),
+            rasp_utils.annotate_type(rasp.indices, "categorical"),
         ]
 
     def sample_sops(self, n_sops=15):
@@ -288,7 +288,7 @@ class ProgramSampler:
                     f"{repr(err)} (tried to sample {sop_class})"
                 )
 
-            if sop is None and isinstance(err, utils.EmptyScopeError):
+            if sop is None and isinstance(err, rasp_utils.EmptyScopeError):
                 avoid.add(sop_class)
 
         if len(self.sops) <= 3:
@@ -310,7 +310,7 @@ class ProgramSampler:
         first_candidate = 3 if min_length is None else min_length
         candidates = np.array(self.sops[first_candidate:])
         lengths = np.array(
-            [utils.count_sops(sop) for sop in candidates])
+            [rasp_utils.count_sops(sop) for sop in candidates])
 
         valid = np.ones(len(candidates), dtype=bool)
         if min_length is not None:
@@ -327,7 +327,7 @@ class ProgramSampler:
         
         program = candidates[lengths[valid].argmax()]
 
-        length = utils.count_sops(program)
+        length = rasp_utils.count_sops(program)
         if length < 4:
             raise SamplingError(
                 f"Sampled program too short: length {length}."

@@ -1,7 +1,7 @@
 from tracr.rasp import rasp
 from tracr.rasp.rasp import indices, tokens, Select, Aggregate, SelectorWidth, Map, SequenceMap, LinearSequenceMap, numerical, categorical
-from tracr.rasp.rasp import Comparison
-from rasp_generator.utils import FunctionWithRepr, count_sops
+from rasp_generator.rasp_utils import count_sops
+from rasp_generator.map_primitives import FunctionWithRepr
 
 LT = rasp.Comparison.LT
 EQ = rasp.Comparison.EQ
