@@ -101,6 +101,8 @@ becomes the dictionary
 - [ ] Ensure compatibility with 'base' tracr library
 - [x] Accellerate saving/loading by using json for tokens/weights and
         only using pickle/dill for rasp programs and compiled models.
+- [ ] Do linear sequencemaps compile to the same model if we switch order of
+        expressions and weights are equal? what about symmetric sequencemaps?
 
 
 Tests for sampled programs
@@ -108,6 +110,8 @@ Tests for sampled programs
 - [ ] outputs are not constant in input
 - [ ] outputs are within a reasonable range, eg [-1e6, 1e6]
 - [ ] good distribution between SOp types and classes (see section 'Biasing the sampler')
+- [ ] variable names in tokenized program have same order as sop names
+- [ ] order in residual stream compiled model is the same as variable names
 
 ### Biasing the sampler
 How should we set weights for the sampler? Some possible criteria that maybe should

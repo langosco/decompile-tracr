@@ -130,40 +130,52 @@ def count_sops(program: rasp.SOp):
     return sum(sops)
 
 
-def is_equal(sop1: rasp.SOp, sop2: rasp.SOp):
+def is_equal(sop1: rasp.SOp, sop2: rasp.SOp, recursive=True,
+             verbose=False):
     """Two rasp expressions are equal if
-    1) they are of the same type,
-    2) they are annotated with the same variable type (bool, 
-    float, categorical),
+    1) they are the same op (eg both Maps)
+    2) they have the same encoding
     3) they have the same args
     """
     if type(sop1) != type(sop2):
         return False
-    elif sop1.annotations["type"] != sop2.annotations["type"]:
-        return False
     elif sop1 is sop2:
         return True
     
+    if isinstance(sop1, (rasp.TokensType, rasp.IndicesType)):
+        return True
+
+    def eq(x, y):
+        if recursive:
+            return is_equal(x, y, recursive=True, verbose=verbose)
+        else:
+            return x is y
+    
     if isinstance(sop1, rasp.Map):
-        return (sop1.f == sop2.f and
-                sop1.inner is sop2.inner)
-    elif isinstance(sop1, rasp.SequenceMap):
-        return (sop1.f == sop2.f and
-                sop1.fst is sop2.fst and
-                sop1.snd is sop2.snd)
+        out = (sop1.f == sop2.f and
+               eq(sop1.inner, sop2.inner))
     elif isinstance(sop1, rasp.LinearSequenceMap):
-        return (sop1.fst_fac == sop2.fst_fac and
-                sop1.snd_fac == sop2.snd_fac and
-                sop1.fst is sop2.fst and
-                sop1.snd is sop2.snd)
+        out = (sop1.fst_fac == sop2.fst_fac and
+               sop1.snd_fac == sop2.snd_fac and
+               eq(sop1.fst, sop2.fst) and
+               eq(sop1.snd, sop2.snd))
+    elif isinstance(sop1, rasp.SequenceMap):
+        out = (sop1.f == sop2.f and
+               eq(sop1.fst, sop2.fst) and
+               eq(sop1.snd, sop2.snd))
     elif isinstance(sop1, rasp.Select):
-        return (sop1.keys is sop2.keys and
-                sop1.queries is sop2.queries and
-                sop1.predicate is sop2.predicate)
+        out = (eq(sop1.keys, sop2.keys) and
+               eq(sop1.queries, sop2.queries) and
+               sop1.predicate == sop2.predicate)
     elif isinstance(sop1, rasp.Aggregate):
-        return (sop1.selector is sop2.selector and
-                sop1.sop is sop2.sop)
+        out = (eq(sop1.selector, sop2.selector) and 
+               eq(sop1.sop, sop2.sop))
     elif isinstance(sop1, rasp.SelectorWidth):
-        return sop1.selector is sop2.selector
+        out = eq(sop1.selector, sop2.selector)
     else:
         raise ValueError(f"Unknown SOp type {type(sop1)}.")
+    
+    if verbose and not out:
+        print(f"{sop1.label} != {sop2.label}")
+    
+    return out
