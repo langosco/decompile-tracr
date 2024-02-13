@@ -1,4 +1,4 @@
-from rasp_generator import map_primitives
+from decompile_tracr.sampling import map_primitives
 
 
 ops = [

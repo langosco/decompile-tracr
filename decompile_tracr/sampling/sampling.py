@@ -20,7 +20,7 @@ from tracr.rasp import rasp
 import numpy as np
 from tracr.compiler.validating import validate
 from tracr.compiler import compiling
-from rasp_generator import map_primitives, rasp_utils
+from decompile_tracr.sampling import map_primitives, rasp_utils
 
 
 class SamplingError(Exception):

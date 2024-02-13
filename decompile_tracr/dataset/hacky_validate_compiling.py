@@ -5,6 +5,8 @@ from rasp_generator import rasp_utils, sampling
 import numpy as np
 import jax
 
+# script currently broken after refactoring
+# TODO: delete this
 
 rng = np.random.default_rng()
 

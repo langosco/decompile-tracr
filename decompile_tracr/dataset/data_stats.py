@@ -3,7 +3,11 @@ os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
-from rasp_tokenizer.data_utils import load_deduped
+from decompile_tracr.dataset.utils import load_deduped
+
+
+# script currently broken after refactoring
+
 
 parser = argparse.ArgumentParser(description='Data processing.')
 parser.add_argument('--name', type=str, default="train", 

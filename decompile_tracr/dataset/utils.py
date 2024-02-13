@@ -9,17 +9,17 @@ except ImportError:
     import json
 
 import chex
+import fcntl
+import jax.flatten_util
 
 import numpy as np
 import chex
 import jax
 import jax.numpy as jnp
 
-from rasp_tokenizer import vocab
-from rasp_tokenizer import paths
-from rasp_tokenizer.logger_config import setup_logger
-from rasp_tokenizer.utils import sequential_count_via_lockfile
-from rasp_tokenizer import MAX_WEIGHTS_LAYER_MEAN
+from decompile_tracr.tokenizing import vocab
+from decompile_tracr.dataset import config
+from decompile_tracr.dataset.logger_config import setup_logger
 
 
 logger = setup_logger(__name__)
@@ -67,7 +67,7 @@ def process_single_datapoint(
                          f"max weights length ({max_weights_len}).")
     
     w_mean = np.mean(x['weights'])
-    if filter_weights and np.abs(w_mean) > MAX_WEIGHTS_LAYER_MEAN:
+    if filter_weights and np.abs(w_mean) > config.MAX_WEIGHTS_LAYER_MEAN:
         return None
     
     weights = pad_to(x['weights'], max_weights_len, pad_value=0.05)
@@ -136,11 +136,10 @@ def load_batches(
         max_datapoints=None,
     ) -> list[dict]:
     """
-    Load batches created by scripts/generate_data.py
-    and merge into a single list. 
+    Load all json files in loadpath and merge into a single list. 
     """
     if loadpath is None:
-        path = paths.data_dir / "batches"
+        path = config.unprocessed_dir
     else:
         path = Path(loadpath)
     data = []
@@ -169,31 +168,27 @@ def load_batches(
     return data
 
 
-def dedupe(data: list[dict], all_rasp: set = None) -> list[dict]:
+def dedupe(data: list[dict]) -> list[dict]:
     """Deduplicate programs by RASP string.
     Assume data is a list of dicts that include the 
-    key "weights_and_tokens", as returned by load_batches().
+    key "tokens", as returned by load_batches().
 
     Deduplicate by adding the RASP string to a set.
     """
-    if all_rasp is None:
-        all_rasp = set()
+    reference = set()
     deduped = []
-    for program in data:
-        rasp_str = tuple(
-            tuple(x['rasp_tok']) for x in program['weights_and_tokens']
-        )
 
-        if rasp_str in all_rasp:
-            continue  # found duplicate
-        else:
-            all_rasp.add(rasp_str)
-            deduped.append(program)
+    for x in data:
+        tuple_tokens = tuple(tuple(t) for t in x['tokens'])
+        if tuple_tokens in reference:
+            continue
+        reference.add(tuple_tokens)
+        deduped.append(x)
 
     logger.info(f"Deduplicated {len(data)} programs.")
     logger.info(f"Removed: {len(data) - len(deduped)} programs. "
                 f"({100*(len(data) - len(deduped)) / len(data)}%)")
-    return deduped, all_rasp
+    return deduped
 
 
 def filter_aux(
@@ -223,12 +218,11 @@ def save_deduped(
         data: list[dict], 
         name: str = "train",
         savepath: str = None, 
-        save_aux: bool = False,
     ) -> None:
     """Save data after deduplication."""
 
     if savepath is None:
-        path = paths.data_dir / "deduped" 
+        path = config.deduped_dir
     else:
         path = Path(savepath)
 
@@ -244,35 +238,6 @@ def save_deduped(
         with open(path / f"data_{i}.json", "x") as f:
             json.dump(batch, f)
 
-    if save_aux:
-        aux_data = [filter_aux(x, keep=True) for x in data]
-
-        for i, batch in enumerate(batched(aux_data, batchsize)):
-            with open(path / f"data_{i}.dill", "xb") as f:
-                dill.dump(batch, f)
-
-
-def load_deduped(name="train", flatten=True, keep_aux=False):
-    """Deprecated, use load_batches instead."""
-    
-    if flatten and keep_aux:
-        raise ValueError("Can't flatten and keep aux data.")
-
-    path = paths.data_dir / "deduped" / name
-    logger.info(f"Loading data from {path}.")
-
-    with open(path / "data.json", "r") as f:
-        data = json.load(f)
-
-    if keep_aux:
-        with open(path / "data.dill", "rb") as f:
-            aux_data = dill.load(f)
-        data = [x | y for x, y in zip(data, aux_data)]
-    elif flatten:
-        data = flatten_data(data)
-
-    return data
-
 
 def load_and_process_data(
         rng=None, 
@@ -286,7 +251,7 @@ def load_and_process_data(
     """Utility for loading data and processing it for model input."""
 #    data = load_deduped(name)
 
-    path = paths.data_dir / "deduped" / name
+    path = config.data_dir / "deduped" / name
     logger.info(f"Loading data from {path}.")
     if ndata is not None:
         max_datapoints = ndata // 3
@@ -346,12 +311,13 @@ def flatten_data(data: list[dict]) -> list[dict]:
 
 def save_batch(
         json_dataset: list,
-        aux_dataset: list = None,
-        savedir: Path = paths.data_dir / "batches",
+        dill_dataset: list = None,
+        savedir: Path = config.data_dir / "batches",
         keep_aux=False,
         filename=None,
         overwrite=False,
     ):
+    """Save a json and optionally a dill file."""
     if filename is None:
         idx = sequential_count_via_lockfile(savedir / "count.txt")
         filename = f"data_{idx}"
@@ -364,7 +330,7 @@ def save_batch(
     
     if keep_aux:
         with open(savedir / f"{filename}.dill", open_mode + "b") as f:
-            dill.dump(aux_dataset, f)
+            dill.dump(dill_dataset, f)
 
 
 def to_flat_datapoints(
@@ -420,8 +386,59 @@ def get_arrays_by_program(
     arrays_by_prog = list(arrays_by_prog.values())
     return arrays_by_prog
 
+def get_params(params: dict, layer_name: str) -> jax.Array:
+    """
+    params: hk parameters as returned by tracr compiler in model.params.
+    layer_name: name of the layer to extract parameters for.
+    
+    Assume layer_name is in format `layer_n/attn` or `layer_n/mlp`.
+    Return parameters for that layer as a 1-d array.
+    """
+    prefix = f'transformer/{layer_name}'
+
+    if layer_name.endswith('attn'):
+        layer_params = [
+            params[f"{prefix}/{k}"] for k in ['key', 'query', 'value', 'linear']
+        ]
+    elif layer_name.endswith('mlp'):
+        layer_params = [
+            params[f'{prefix}/{k}'] for k in ['linear_1', 'linear_2']
+        ]
+    else:
+        raise ValueError(f'Unknown layer name {layer_name}.')
+    
+    return jax.flatten_util.ravel_pytree(layer_params)[0]
+
+
+# usage:
+#     params_by_layer = {
+#         layername: utils.get_params(model.params, layername) 
+#             for layername in by_layer.keys()
+#     }
 
 
 
+def sequential_count_via_lockfile(countfile="/tmp/counter.txt"):
+    """Increment a counter in a file. 
+    Use a lockfile to ensure atomicity. If the file doesn't exist, 
+    create it and start the counter at 1."""
+    try:
+        with open(countfile, "a+") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+
+            f.seek(0)
+            counter_str = f.read().strip()
+            counter = 1 if not counter_str else int(counter_str) + 1
+
+            f.seek(0)
+            f.truncate()  # Clear the file content
+            f.write(str(counter))
+            f.flush()
+
+            fcntl.flock(f, fcntl.LOCK_UN)
+
+        return counter
+    except ValueError as e:
+        raise ValueError(f"Invalid counter value: {counter_str}. {e}")
 
 

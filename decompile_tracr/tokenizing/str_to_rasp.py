@@ -3,17 +3,17 @@
 
 from tracr.rasp import rasp
 
-from rasp_generator.map_primitives import FunctionWithRepr
-from rasp_tokenizer import vocab
+from decompile_tracr.sampling.map_primitives import FunctionWithRepr
+from decompile_tracr.tokenizing import vocab
 
 
 def str_to_rasp(
-        rasp_str: dict[list[str]],
+        rasp_str: list[list[str]],
     ) -> rasp.SOp:
     """Convert a string representation to a RASP program.
     """
-    layers = [l[1:-1] for l in rasp_str.values()]
-    ops = [op for layer in layers
+    rasp_str = [l[1:-1] for l in rasp_str]
+    ops = [op for layer in rasp_str
               for op in split_list(layer, vocab.SEP)]
     ops = [op for op in ops if len(op) > 2]
     sops = dict()

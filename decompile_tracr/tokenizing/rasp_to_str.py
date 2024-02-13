@@ -18,7 +18,7 @@ from tracr.compiler import craft_graph_to_model
 from tracr.rasp import rasp
 from tracr.compiler import nodes
 
-import rasp_tokenizer.vocab as tokenizer_vocab
+import decompile_tracr.tokenizing.vocab as tokenizer_vocab
 
 
 def rasp_to_str(program: rasp.SOp) -> dict[list[str]]:
