@@ -1,6 +1,5 @@
 from itertools import islice
 import os
-import dill
 from collections import defaultdict
 from pathlib import Path
 try:
@@ -121,50 +120,35 @@ def process_data(
     return out
 
 
-def load_batch(filename: str) -> list[dict]:
-    if filename.endswith(".dill"):
-        with open(filename, "rb") as f:
-            return dill.load(f)
-    elif filename.endswith(".json"):
-        with open(filename, "r") as f:
-            return json.load(f)
+def load_json(filename: str) -> list[dict]:
+    with open(filename, "r") as f:
+        return json.load(f)
 
 
 def load_batches(
-        loadpath = None, 
-        keep_aux: bool = False, 
+        loaddir = None, 
         max_datapoints=None,
     ) -> list[dict]:
     """
     Load all json files in loadpath and merge into a single list. 
     """
-    if loadpath is None:
+    if loaddir is None:
         path = config.unprocessed_dir
     else:
-        path = Path(loadpath)
+        path = Path(loaddir)
     data = []
     for entry in os.scandir(path):
         if entry.name.endswith(".json"):
-            json_batch = load_batch(entry.path)
-
-            if keep_aux:
-                try:
-                    aux_batch = load_batch(entry.path.replace(".json", ".dill"))
-                except FileNotFoundError:
-                    logger.warning(
-                        f"Could not find auxiliary data for {entry.path}. "
-                        f"Did you mean to use include_aux=False?\n"
-                    )
-                    raise
-                data.extend([x | y for x, y in zip(json_batch, aux_batch)])
-            else:
-                data.extend(json_batch)
+            batch = load_json(entry.path)
+            data.extend(batch)
         
         if max_datapoints is not None and len(data) >= max_datapoints:
             logger.info(f"load_batches: loaded {len(data)} >= {max_datapoints} datapoints, stopping.")
             break
-        if len(data) == 0:
-            logger.warning(f"load_batches: no data found in {path}.")
+
+    if len(data) == 0:
+        raise ValueError(f"No files found in {path}.")
+
     return data
 
 
@@ -178,6 +162,7 @@ def dedupe(data: list[dict]) -> list[dict]:
     reference = set()
     deduped = []
 
+    logger.info(f"Deduplicating {len(data)} programs.")
     for x in data:
         tuple_tokens = tuple(tuple(t) for t in x['tokens'])
         if tuple_tokens in reference:
@@ -185,22 +170,9 @@ def dedupe(data: list[dict]) -> list[dict]:
         reference.add(tuple_tokens)
         deduped.append(x)
 
-    logger.info(f"Deduplicated {len(data)} programs.")
     logger.info(f"Removed: {len(data) - len(deduped)} programs. "
                 f"({100*(len(data) - len(deduped)) / len(data)}%)")
     return deduped
-
-
-def filter_aux(
-        x: dict, 
-        keep: bool = False,
-    ) -> dict:
-    """Filter out auxiliary keys from a dict."""
-    AUX_KEYS = ("model", "rasp")
-    if keep:
-        return {k: v for k, v in x.items() if k in AUX_KEYS}
-    else:
-        return {k: v for k, v in x.items() if k not in AUX_KEYS}
 
 
 def batched(iterable, n):
@@ -212,31 +184,6 @@ def batched(iterable, n):
         if not batch:
             return
         yield batch
-
-
-def save_deduped(
-        data: list[dict], 
-        name: str = "train",
-        savepath: str = None, 
-    ) -> None:
-    """Save data after deduplication."""
-
-    if savepath is None:
-        path = config.deduped_dir
-    else:
-        path = Path(savepath)
-
-    if name is not None:
-        path = path / name
-
-    os.makedirs(path, exist_ok=True)
-
-    logger.info(f"Saving deduplicated programs to {path}.")
-    batchsize = 1_000
-    json_data = [filter_aux(x) for x in data]
-    for i, batch in enumerate(batched(json_data, batchsize)):
-        with open(path / f"data_{i}.json", "x") as f:
-            json.dump(batch, f)
 
 
 def load_and_process_data(
@@ -310,27 +257,25 @@ def flatten_data(data: list[dict]) -> list[dict]:
 
 
 def save_batch(
-        json_dataset: list,
-        dill_dataset: list = None,
-        savedir: Path = config.data_dir / "batches",
-        keep_aux=False,
-        filename=None,
-        overwrite=False,
+        data: list,
+        savedir: Path = config.unprocessed_dir,
+        overwrite = False,
+        filename = None,
     ):
-    """Save a json and optionally a dill file."""
+    """Save to a json file."""
+    os.makedirs(savedir, exist_ok=True)
+    logger.info(f"Saving {len(data)} "
+                f"datapoints to {savedir}.")
+
     if filename is None:
         idx = sequential_count_via_lockfile(savedir / "count.txt")
         filename = f"data_{idx}"
-    logger.info(f"Saving {len(json_dataset)} generated "
-                f"programs to {savedir}.")
+    else:
+        filename = Path(filename)
     
     open_mode = "w" if overwrite else "x"
     with open(savedir / f"{filename}.json", open_mode) as f:
-        json.dump(json_dataset, f)
-    
-    if keep_aux:
-        with open(savedir / f"{filename}.dill", open_mode + "b") as f:
-            dill.dump(dill_dataset, f)
+        json.dump(data, f)
 
 
 def to_flat_datapoints(
@@ -346,45 +291,6 @@ def to_flat_datapoints(
     ]
     return by_layer, tuple(x['rasp_tok'] for x in by_layer)
 
-
-def get_arrays_by_program(
-        program_ids: chex.Array,
-        **kwargs,
-    ) -> list[dict[str, chex.Array]]:
-    """Get kwargs grouped by program.
-    This is a helper function for reshuffling arrays.
-    - from: shape (n, ...) where n is the number of single-layer
-        datapoints, to a list of dicts
-    - to: list of dicts, where each dict corresponds to one
-        program id, and contains arrays of variable shape
-        obtained from concatenating all kwarg elements for
-        that program id.
-    
-    Example:
-    >>> get_arrays_by_program(
-            program_ids=np.array([0, 0, 1, 1]),
-            a=np.array([1, 2, 3, 4]),
-            b=np.array([5, 6, 7, 8]),
-        )
-    [
-        {'a': array([1, 2]), 'b': array([5, 6])},
-        {'a': array([3, 4]), 'b': array([7, 8])},
-    ]
-    """
-    raise NotImplementedError
-    n = len(program_ids)
-    assert all(len(a) == n for a in kwargs.values())
-
-    arrays_by_prog = defaultdict(list)
-    for i, prog_id in enumerate(program_ids):
-        for k, v in kwargs.items():
-            arrays_by_prog[prog_id][k].append(v[i])
-            
-            arrays_by_prog[prog_id].append(
-                {k: v[i] for k, v in kwargs.items()}
-            )
-    arrays_by_prog = list(arrays_by_prog.values())
-    return arrays_by_prog
 
 def get_params(params: dict, layer_name: str) -> jax.Array:
     """
@@ -418,10 +324,37 @@ def get_params(params: dict, layer_name: str) -> jax.Array:
 
 
 
+
+def rw_lockfile(
+        lockfile="/tmp/counter.txt", 
+        get_new: callable = lambda x: ""
+    ):
+    """read content of lockfile, then append to it.
+    Use a lockfile to ensure atomicity. If the file doesn't exist, 
+    create it and start the counter at 1.
+    """
+    with open(lockfile, "a+") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+
+        # read from start of file
+        f.seek(0)
+        content = f.read().strip()
+
+        # write new content
+        write_content = get_new(content)
+        f.write(write_content)
+        f.flush()
+
+        fcntl.flock(f, fcntl.LOCK_UN)
+    return content, write_content
+
+
 def sequential_count_via_lockfile(countfile="/tmp/counter.txt"):
     """Increment a counter in a file. 
     Use a lockfile to ensure atomicity. If the file doesn't exist, 
     create it and start the counter at 1."""
+#    return rw_lockfile(countfile, lambda x: str(int(x) + 1))
+
     try:
         with open(countfile, "a+") as f:
             fcntl.flock(f, fcntl.LOCK_EX)
@@ -442,3 +375,8 @@ def sequential_count_via_lockfile(countfile="/tmp/counter.txt"):
         raise ValueError(f"Invalid counter value: {counter_str}. {e}")
 
 
+def layer_names(n_layers):
+    assert n_layers % 2 == 0
+    for i in range(n_layers // 2):
+        yield f"layer_{i}/attn"
+        yield f"layer_{i}/mlp"

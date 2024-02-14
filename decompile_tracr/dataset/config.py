@@ -6,6 +6,7 @@ from pathlib import Path
 on_cluster = "SCRATCH" in os.environ or "SLURM_CONF" in os.environ
 interactive = os.isatty(sys.stdout.fileno())
 hpc_storage_dir = Path("/rds/project/rds-eWkDxBhxBrQ")
+global_disable_tqdm = not interactive
 
 
 # Set up global constants

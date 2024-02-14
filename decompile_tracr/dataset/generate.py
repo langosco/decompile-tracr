@@ -4,58 +4,40 @@ import numpy as np
 from tqdm import tqdm
 import argparse
 from pathlib import Path
-import json
-import dill
 
 from decompile_tracr.sampling import sampling
 from decompile_tracr.tokenizing import tokenizer
 from decompile_tracr.dataset.logger_config import setup_logger
 from decompile_tracr.dataset import config 
-from decompile_tracr.dataset.utils import sequential_count_via_lockfile
+from decompile_tracr.dataset.utils import save_batch
 
 
 logger = setup_logger(__name__)
 
 
-def save_batch(
-        json_dataset: list,
-        dill_dataset: list = None,
-        savedir: Path = config.unprocessed_dir,
-        keep_aux=False,
-        overwrite=False,
-        filename = None,
-    ):
-    """Save to a json and optionally a dill file."""
-    logger.info(f"Saving {len(json_dataset)} generated "
-                f"programs to {savedir}.")
-
-    if filename is None:
-        idx = sequential_count_via_lockfile(savedir / "count.txt")
-        filename = f"data_{idx}"
-    else:
-        filename = Path(filename)
-    
-    open_mode = "w" if overwrite else "x"
-    with open(savedir / f"{filename}.json", open_mode) as f:
-        json.dump(json_dataset, f)
-    
-    if keep_aux:
-        with open(savedir / f"{filename}.dill", open_mode + "b") as f:
-            dill.dump(dill_dataset, f)
+def generate(
+    rng: np.random.Generator, 
+    ndata: int, 
+    name: str, 
+    savedir: Path = config.unprocessed_dir,
+    **sampler_kwargs
+) -> list[dict]:
+    data = sample_loop(rng, ndata, name, **sampler_kwargs)
+    save_batch(data, savedir)
+    return data
 
 
-def sample_rasp(args):
+def sample_rasp(
+        rng: np.random.Generator,
+        **sampler_kwargs,
+):
     """Sample a program while catching and logging errors."""
     sampler = sampling.ProgramSampler(rng=rng)
     try:
-        program, _ = sampler.sample(
-            n_sops=args.n_sops, 
-            min_length=args.min_length, 
-            max_length=args.max_length
-        )
+        program, _ = sampler.sample(**sampler_kwargs)
     except sampling.SamplingError as e:
         logger.warning(f"Received sampling error: {e}.")
-        program = sample_rasp(args)
+        program = sample_rasp(rng, **sampler_kwargs)
     return program
 
 
@@ -64,27 +46,23 @@ def filter(by_layer: list[dict]):
     return any(len(x) > config.MAX_RASP_LENGTH for x in by_layer)
 
 
-def sample_loop(args, json_dataset, aux_dataset):
-    """Modifies json_dataset and aux_dataset in-place."""
-    for i in tqdm(range(args.ndata), disable=config.on_cluster):
-        program = sample_rasp(args)
+def sample_loop(rng, ndata, name: str, **sampler_kwargs):
+    data = []
+    for i in tqdm(range(ndata), disable=config.global_disable_tqdm):
+        program = sample_rasp(rng, **sampler_kwargs)
         tokens = tokenizer.tokenize(program)
 
         if filter(tokens):
             logger.warning(f"Skipping program {i} (too large).")
             continue
 
-        json_dataset.append({
-            "name": args.name,  # eg "train" or "test"
+        data.append({
+            "name": name,  # eg "train" or "test"
             "n_sops": program.annotations['length'],  # nr of sops
             "tokens": tokens,
         })
-
-        if args.keep_aux:
-            aux_dataset.append({
-                "rasp": program,  # rasp.SOp
-            })
-
+    return data
+    
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Training run')
@@ -99,10 +77,6 @@ def parse_args():
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--savedir', type=str, default=None,
                         help="override default save path (data/batches/...)")
-    parser.add_argument('--keep_aux', action='store_true',
-                        help="whether to include the rasp program "
-                        "in the output data. rasp expressions are serialized "
-                        "to a separate file using dill.")
     args = parser.parse_args()
 
     if args.savedir is None:
@@ -115,26 +89,22 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    os.makedirs(args.savedir, exist_ok=True)
     rng = np.random.default_rng(args.seed)
 
-    # output data
-    json_dataset = []
-    aux_dataset = []
+    sampler_kwargs = {
+        "n_sops": args.n_sops, 
+        "min_length": args.min_length, 
+        "max_length": args.max_length
+    }
 
-    try:
-        sample_loop(args, json_dataset, aux_dataset)
-    except KeyboardInterrupt:
-        logger.info("Interrupted, saving dataset.")
+    data = generate(rng, args.ndata, args.name, args.savedir, 
+                             **sampler_kwargs)
 
+    lengths = [x["n_sops"] for x in data]
+    n_layers_per = [len(x["tokens"]) for x in data]
 
-    lengths = [x["n_sops"] for x in json_dataset]
-    n_layers_per = [len(x["tokens"]) for x in json_dataset]
-
-    logger.info(f"Generated {len(json_dataset)} programs.")
+    logger.info(f"Generated {len(data)} programs.")
     logger.info(f"Min and max program length: {np.min(lengths)}, {np.max(lengths)}")
     logger.info(f"Average program length: {np.mean(lengths)}")
     logger.info(f"Average number of layers per program: {np.mean(n_layers_per)}")
     logger.info(f"Min and max number of layers per program: {np.min(n_layers_per)}, {np.max(n_layers_per)}")
-
-    save_batch(json_dataset, aux_dataset, args.savedir, args.keep_aux)
