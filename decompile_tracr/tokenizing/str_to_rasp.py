@@ -7,8 +7,7 @@ from decompile_tracr.sampling.map_primitives import FunctionWithRepr
 from decompile_tracr.tokenizing import vocab
 
 
-def str_to_rasp(
-        rasp_str: list[list[str]],
+def str_to_rasp(rasp_str: list[list[str]],
     ) -> rasp.SOp:
     """Convert a string representation to a RASP program.
     """

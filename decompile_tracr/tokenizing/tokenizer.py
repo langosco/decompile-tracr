@@ -1,8 +1,6 @@
 # Desc: encode / decode a RASP program into a sequence of tokens.
 
 from tracr.rasp import rasp
-from tracr.rasp import rasp
-
 
 from decompile_tracr.tokenizing import rasp_to_str, str_to_rasp
 import decompile_tracr.tokenizing.vocab as voc
@@ -26,6 +24,6 @@ def tokenize(program: rasp.SOp) -> list[list[int]]:
     return [encode(v) for v in by_layer]
 
 
-def detokenize(tokens: list[list[int]]):
+def detokenize(tokens: list[list[int]]) -> rasp.SOp:
     decoded = [decode(x) for x in tokens]
     return str_to_rasp.str_to_rasp(decoded)
