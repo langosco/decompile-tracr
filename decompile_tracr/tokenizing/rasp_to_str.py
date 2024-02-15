@@ -18,10 +18,10 @@ from tracr.compiler import craft_graph_to_model
 from tracr.rasp import rasp
 from tracr.compiler import nodes
 
-import decompile_tracr.tokenizing.vocab as tokenizer_vocab
+from decompile_tracr.tokenizing import vocab
 
 
-def rasp_to_str(program: rasp.SOp) -> dict[list[str]]:
+def rasp_to_str(program: rasp.SOp) -> list[list[str]]:
     dummy_vocab = set(range(2))
     dummy_max_seq_len = 2
     dummy_bos="bos"
@@ -43,42 +43,40 @@ def rasp_to_str(program: rasp.SOp) -> dict[list[str]]:
         mlp_exactness=dummy_mlp_exactness,
     )
 
-    return rasp_graph_to_str(graph, sources)
+    rasp_str = rasp_graph_to_str(graph, sources)
+    validate_rasp_str(rasp_str)
+    return rasp_str
 
 
 def rasp_graph_to_str(
         graph: nx.DiGraph,
         sources,
-    ) -> dict[list[str]]:
+    ) -> list[list[str]]:
     """Convert a rasp graph to a string representation.
     Returns a dict that maps every layer to a list of tokens.
     """
-    layers_to_nodes = get_nodes_by_layer(graph, sources)
+    layers_to_nodes = get_sops_by_layer(graph, sources)
     graph = add_variable_names_to_graph(graph)
 
-    layerwise_program = {}
+    layerwise_program = []
 
-    for layer, node_ids in layers_to_nodes.items():
-        flat_layer = []
-        flat_layer.append(tokenizer_vocab.BOS)
+    for node_ids in layers_to_nodes.values():
+        layer = []
+        layer.append(vocab.BOS)
         for node_id in node_ids:
-            if node_id.startswith('select_'):
-                # Skip selectors, they are included as arguments
-                # of the corresponding aggregate or selector-width
-                continue
-            if not flat_layer[-1] == tokenizer_vocab.BOS:
-                flat_layer.append(tokenizer_vocab.SEP)
-            flat_layer.append(get_variable_name(graph, node_id))
-            flat_layer.append(get_encoding(graph, node_id))
-            flat_layer.append(get_classname(graph, node_id))
-            flat_layer.extend(get_args(graph, node_id))
-        flat_layer.append(tokenizer_vocab.EOS)
-        layerwise_program[layer] = flat_layer
+            if not layer[-1] == vocab.BOS:
+                layer.append(vocab.SEP)
+            layer.append(get_variable_name(graph, node_id))
+            layer.append(get_encoding(graph, node_id))
+            layer.append(get_classname(graph, node_id))
+            layer.extend(get_args(graph, node_id))
+        layer.append(vocab.EOS)
+        layerwise_program.append(layer)
     
     return layerwise_program
 
 
-def get_nodes_by_layer(
+def get_sops_by_layer(
         program_graph: nx.DiGraph,
         sources: list[nodes.Node]
     ) -> dict[list[str]]:
@@ -95,18 +93,10 @@ def get_nodes_by_layer(
 
     layers_to_nodes = {get_layer_name_from_number(i): []
                        for i in range(n_layers)}
+
     for node_id, layer in nodes_to_layers.items():
-        layername = get_layer_name_from_number(layer)
-        if node_id.startswith("aggregate") or node_id.startswith("selector_width"):
-            # Include selector as well.
-            # Note this will double count if a selector appears as
-            # an argument of multiple aggregates or selector-widths
-            # There's probably no way around this, since the same
-            # selector can appear in multiple layers.
-            selector_id = list(program_graph.predecessors(node_id))[0]
-            assert selector_id.startswith("select_")
-            layers_to_nodes[layername].append(selector_id)
-        layers_to_nodes[layername].append(node_id)
+        layers_to_nodes[get_layer_name_from_number(layer)
+                        ].append(node_id)
 
     return layers_to_nodes
 
@@ -114,8 +104,13 @@ def get_nodes_by_layer(
 def add_variable_names_to_graph(graph: nx.DiGraph) -> nx.DiGraph:
     """Allocate variable names from the tokenizer vocabulary
     to the nodes in the graph."""
-    sop_labels = sorted(list(graph.nodes))
-    sop_names = iter(tokenizer_vocab.sop_variables)
+    # Assign variable names in graph-topological order, 
+    # independent of SOp labels. At compile time, SOps 
+    # are stored in the residual stream ordered by SOp label, 
+    # so this can result in two equally tokenized programs 
+    # having different compiled weights.
+    sop_labels = nx.topological_sort(graph)
+    sop_names = iter(vocab.sop_variables)
 
     for label in sop_labels:
         assert 'token' not in graph.nodes[label]
@@ -208,3 +203,33 @@ def get_layer_name_from_number(layer_number: int) -> str:
     else:
         return f"layer_{new_layer_number}/mlp"
 
+
+def validate_rasp_str(rasp_str: list[list[str]]):
+    """Validate a string representation of a RASP program.
+    """
+    if not isinstance(rasp_str, list):
+        raise ValueError("Input must be a list.")
+    if not all(isinstance(x, list) for x in rasp_str):
+        raise ValueError("Input must be a list of lists.")
+    if not all(isinstance(x, str) for l in rasp_str for x in l):
+        raise ValueError("Input must be a list of lists of strings.")
+    
+    if not len(rasp_str) % 2 == 0:
+        raise ValueError("Input must have an even number of layers.")
+
+    for l in rasp_str:
+        if len(l) < 2:
+            raise ValueError("Each layer must include at least EOS and BOS")
+        elif l[0] != vocab.BOS or l[-1] != vocab.EOS:
+            raise ValueError("Each layer must start with BOS and end with EOS.")
+    
+    flat = [x for l in rasp_str for x in l]
+
+    for x in flat:
+        if x not in vocab.vocab:
+            raise ValueError(f"Invalid token: {x}.")
+
+    variable_names = set([x for x in flat if x in vocab.sop_variables])
+    if not variable_names == set(vocab.sop_variables[:len(variable_names)]):
+        raise ValueError(f"Variable names must be in order: {vocab.sop_variables}."
+                         f"Found: {variable_names}.")

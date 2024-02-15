@@ -20,10 +20,17 @@ def tokenize(program: rasp.SOp) -> list[list[int]]:
     Output is a list of lists, where each list is 
     a layer of the program.
     """
-    by_layer = rasp_to_str.rasp_to_str(program).values()
-    return [encode(v) for v in by_layer]
+    if not isinstance(program, rasp.SOp):
+        raise ValueError("Input must be a RASP program.")
+
+    by_layer = rasp_to_str.rasp_to_str(program)
+    return [encode(l) for l in by_layer]
 
 
 def detokenize(tokens: list[list[int]]) -> rasp.SOp:
+    if not (isinstance(tokens, list) and isinstance(tokens[0], list) 
+            and isinstance(tokens[0][0], int)):
+        raise ValueError("Input must be a list of lists of ints.")
+
     decoded = [decode(x) for x in tokens]
     return str_to_rasp.str_to_rasp(decoded)

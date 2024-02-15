@@ -17,7 +17,6 @@ encodings = [
 sop_variables = [
     f"sop_{i}" for i in range(25)
 ]
-sop_variables = sorted(sop_variables)
 
 maps = [
     repr(fn) for fn in map_primitives.ALL_FNS

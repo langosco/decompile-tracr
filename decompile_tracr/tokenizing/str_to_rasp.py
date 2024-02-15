@@ -5,21 +5,24 @@ from tracr.rasp import rasp
 
 from decompile_tracr.sampling.map_primitives import FunctionWithRepr
 from decompile_tracr.tokenizing import vocab
+from decompile_tracr.tokenizing.rasp_to_str import validate_rasp_str
 
 
 def str_to_rasp(rasp_str: list[list[str]],
     ) -> rasp.SOp:
     """Convert a string representation to a RASP program.
     """
+    validate_rasp_str(rasp_str)
     rasp_str = [l[1:-1] for l in rasp_str]
     ops = [op for layer in rasp_str
               for op in split_list(layer, vocab.SEP)]
     ops = [op for op in ops if len(op) > 2]
     sops = dict()
     for op in ops:
-        name, expr = str_to_rasp_op(op, sops)
-        sops[name] = expr
-    return expr
+        name = op[0]
+        sops[name] = str_to_rasp_op(op, sops)
+    output_sop = sops[name]
+    return output_sop
     
 
 def split_list(l: list, sep: str):
@@ -38,7 +41,8 @@ def split_list(l: list, sep: str):
     return out
 
 
-def str_to_rasp_op(op: list[str], sops: list[rasp.SOp]):
+def str_to_rasp_op(op: list[str], sops: list[rasp.SOp]
+    ) -> rasp.SOp:
     """Recover a single rasp op from a string representation.
     """
     varname, enc, op_name, *args = op
@@ -70,7 +74,7 @@ def str_to_rasp_op(op: list[str], sops: list[rasp.SOp]):
     else:
         raise ValueError(f"Unknown op: {op_name}")
     
-    return varname, rasp.__dict__[enc](out)
+    return rasp.__dict__[enc](out).named(varname)
 
 
 def get_sop_from_name(name: str, sops: dict[str, rasp.SOp]):
@@ -82,7 +86,3 @@ def get_sop_from_name(name: str, sops: dict[str, rasp.SOp]):
         return sops[name]
     else:
         raise ValueError(f"Unknown sop: {name}.")
-
-
-
-

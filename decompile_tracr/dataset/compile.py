@@ -1,9 +1,6 @@
 import os
 from pathlib import Path
-from functools import partial
 import fcntl
-
-import jax
 
 from tracr.compiler import compile_rasp_to_model
 
@@ -71,17 +68,23 @@ def load_next_batch(loaddir: str):
         return utils.load_json(path)
 
 
-def get_weights(tokens: list[int]):
-    """Get flattened weights for every layer."""
+def compile_tokens_to_model(tokens: list[int]):
+    """Compile a list of tokens into a model."""
     program = tokenizer.detokenize(tokens)
     model = compile_rasp_to_model(
         program=program,
-        vocab={1,2,3,4},
+        vocab=set(range(5)),
         max_seq_len=5,
     )
+    return model
 
+
+def get_weights(tokens: list[int]):
+    """Get flattened weights for every layer."""
+    model = compile_tokens_to_model(tokens)
     n_layers = len(tokens)
-    flat_weights = [utils.get_params(model.params, layername)
-            for layername in utils.layer_names(n_layers)]
-    flat_weights = [x.tolist() for x in flat_weights]
-    return flat_weights
+    flat_weights = [
+        utils.get_params(model.params, layername) 
+        for layername in utils.layer_names(n_layers)
+    ]
+    return [x.tolist() for x in flat_weights]
