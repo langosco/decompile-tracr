@@ -103,6 +103,7 @@ becomes the dictionary
         only using pickle/dill for rasp programs and compiled models.
 - [ ] Do linear sequencemaps compile to the same model if we switch order of
         expressions and weights are equal? what about symmetric sequencemaps?
+- [ ] Test determinism under fixed rng seed
 
 
 Tests for sampled programs
