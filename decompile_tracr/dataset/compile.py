@@ -5,7 +5,7 @@ import fcntl
 from tracr.compiler import compile_rasp_to_model
 
 from decompile_tracr.tokenizing import tokenizer
-from decompile_tracr.dataset import utils
+from decompile_tracr.dataset import data_utils
 from decompile_tracr.dataset.logger_config import setup_logger
 
 
@@ -25,7 +25,7 @@ def compile(loaddir: str, savedir: str):
         for x in data:
             x['weights'] = get_weights(x['tokens'])
 
-        utils.save_batch(data, savedir)
+        data_utils.save_batch(data, savedir)
 
 
 def get_next_filename(file_list: list[str], loaddir: Path):
@@ -65,7 +65,7 @@ def load_next_batch(loaddir: str):
     if path == "":
         return None
     else:
-        return utils.load_json(path)
+        return data_utils.load_json(path)
 
 
 def compile_tokens_to_model(tokens: list[int]):
@@ -84,7 +84,7 @@ def get_weights(tokens: list[int]):
     model = compile_tokens_to_model(tokens)
     n_layers = len(tokens)
     flat_weights = [
-        utils.get_params(model.params, layername) 
-        for layername in utils.layer_names(n_layers)
+        data_utils.get_params(model.params, layername) 
+        for layername in data_utils.layer_names(n_layers)
     ]
     return [x.tolist() for x in flat_weights]

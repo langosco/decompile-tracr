@@ -7,7 +7,7 @@ from pathlib import Path
 
 import jax
 
-from decompile_tracr.dataset import utils
+from decompile_tracr.dataset import data_utils
 from decompile_tracr.dataset import logger_config
 from decompile_tracr.dataset import config
 
@@ -35,8 +35,8 @@ def save_deduped(deduped: list[dict], savedir: str = config.deduped_dir):
     logger.info(f"Splitting data by name: {list(deduped_by_name.keys())}")
 
     for name, data in deduped_by_name.items():
-        for batch in utils.batched(data, BATCHSIZE):
-            utils.save_batch(
+        for batch in data_utils.batched(data, BATCHSIZE):
+            data_utils.save_batch(
                 batch,
                 savedir=savedir / name
             )
@@ -44,8 +44,8 @@ def save_deduped(deduped: list[dict], savedir: str = config.deduped_dir):
 
 def dedupe(loaddir: str, savedir: str):
     """Load, dedupe, and save data."""
-    data = utils.load_batches(loaddir)
-    deduped = utils.dedupe(data)
+    data = data_utils.load_batches(loaddir)
+    deduped = data_utils.dedupe(data)
     save_deduped(deduped, savedir)
     return deduped
 

@@ -9,7 +9,7 @@ from decompile_tracr.sampling import sampling
 from decompile_tracr.tokenizing import tokenizer
 from decompile_tracr.dataset.logger_config import setup_logger
 from decompile_tracr.dataset import config 
-from decompile_tracr.dataset.utils import save_batch
+from decompile_tracr.dataset.data_utils import save_batch
 
 
 logger = setup_logger(__name__)

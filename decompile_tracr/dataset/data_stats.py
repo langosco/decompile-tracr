@@ -3,7 +3,7 @@ os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
-from decompile_tracr.dataset.utils import load_deduped
+from decompile_tracr.dataset.data_utils import load_deduped
 
 
 # script currently broken after refactoring

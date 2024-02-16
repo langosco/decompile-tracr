@@ -10,7 +10,7 @@ from decompile_tracr.dataset import generate
 from decompile_tracr.dataset import tokenize_lib
 from decompile_tracr.dataset import dedupe
 from decompile_tracr.dataset import compile
-from decompile_tracr.dataset import utils
+from decompile_tracr.dataset import data_utils
 
 
 BASE_DIR = config.data_dir / "test_make_dataset"
@@ -63,7 +63,7 @@ def test_tokenization(make_test_data):
     program is the same as the original."""
     deduped_dirs = list((BASE_DIR / "deduped").iterdir())
     deduped_dirs = [x for x in deduped_dirs if x.is_dir()]
-    data = [utils.load_batches(d) for d in deduped_dirs]
+    data = [data_utils.load_batches(d) for d in deduped_dirs]
     data = [x for ds in data for x in ds]
 
     for x in data:
