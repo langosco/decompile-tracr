@@ -5,6 +5,9 @@ from tqdm import tqdm
 import argparse
 from pathlib import Path
 
+from tracr.compiler.basis_inference import InvalidValueSetError
+from tracr.compiler.craft_model_to_transformer import NoTokensError
+
 from decompile_tracr.sampling import sampling
 from decompile_tracr.tokenizing import tokenizer
 from decompile_tracr.dataset.logger_config import setup_logger
@@ -50,7 +53,10 @@ def sample_loop(rng, ndata, name: str, **sampler_kwargs):
     data = []
     for i in tqdm(range(ndata), disable=config.global_disable_tqdm):
         program = sample_rasp(rng, **sampler_kwargs)
-        tokens = tokenizer.tokenize(program)
+        try:
+            tokens = tokenizer.tokenize(program)
+        except (InvalidValueSetError, NoTokensError) as e:
+            logger.warning(f"Skipping program {i} ({e}).")
 
         if filter(tokens):
             logger.warning(f"Skipping program {i} (too large).")

@@ -3,6 +3,8 @@ from pathlib import Path
 import fcntl
 
 from tracr.compiler import compile_rasp_to_model
+from tracr.compiler.basis_inference import InvalidValueSetError
+from tracr.compiler.craft_model_to_transformer import NoTokensError
 
 from decompile_tracr.tokenizing import tokenizer
 from decompile_tracr.dataset import data_utils
@@ -23,7 +25,11 @@ def compile(loaddir: str, savedir: str):
             return None
 
         for x in data:
-            x['weights'] = get_weights(x['tokens'])
+            try:
+                x['weights'] = get_weights(x['tokens'])
+            except (InvalidValueSetError, NoTokensError) as e:
+                logger.warning(f"Skipping program {x['id']} ({e}).")
+                continue
 
         data_utils.save_batch(data, savedir)
 
