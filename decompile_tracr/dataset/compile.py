@@ -28,7 +28,7 @@ def compile(loaddir: str, savedir: str):
             try:
                 x['weights'] = get_weights(x['tokens'])
             except (InvalidValueSetError, NoTokensError) as e:
-                logger.warning(f"Skipping program {x['id']} ({e}).")
+                logger.warning(f"Skipping program ({e}).")
                 continue
 
         data_utils.save_batch(data, savedir)
