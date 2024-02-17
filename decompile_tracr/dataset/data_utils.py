@@ -28,7 +28,7 @@ logger = setup_logger(__name__)
 def load_and_process_data(
         rng=None, 
         loaddir=config.full_dataset_dir,
-        max_programs=1000,
+        max_data=None,
         shuffle=False, 
         name="train",
         d_model=64,
@@ -37,8 +37,11 @@ def load_and_process_data(
     ) -> dict[str, np.ndarray]:
     """Load dataset and process it for model input."""
     logger.info(f"Loading data from {loaddir}.")
-    data = load_batches(loaddir=loaddir, max_datapoints=max_programs)
+    data = load_batches(loaddir=loaddir, max_data=max_data)
     data = flatten_data(data)
+
+    if max_data is not None:
+        data = data[:max_data]
 
     if shuffle:
         rng = np.random.default_rng(rng)
@@ -74,6 +77,7 @@ def flatten_data(data: list[dict]) -> list[dict]:
                 "n_sops": program['n_sops'],
                 "n_layers": n_layers,
             })
+    
     return out
 
 
@@ -181,7 +185,7 @@ def load_json(filename: str) -> list[dict]:
 
 def load_batches(
     loaddir: Path,
-    max_datapoints: Optional[int] = None,
+    max_data: Optional[int] = None,
 ) -> list[dict]:
     """Load all json files in loaddir and merge into a single list. 
     """
@@ -191,16 +195,16 @@ def load_batches(
             batch = load_json(entry.path)
             data.extend(batch)
         
-        if max_datapoints is not None and len(data) >= max_datapoints:
+        if max_data is not None and len(data) >= max_data:
             logger.info(f"load_batches: Loaded "
-                        f"{len(data)} >= {max_datapoints} datapoints, stopping.")
-            data = data[:max_datapoints]
+                        f"{len(data)} >= {max_data} datapoints, stopping.")
+            data = data[:max_data]
             break
 
     if len(data) == 0:
         raise ValueError(f"load_batches: No files found in {loaddir}.")
-    elif max_datapoints is not None and len(data) < max_datapoints:
-        logger.warning(f"load_batches: Loaded {len(data)} < {max_datapoints} datapoints.")
+    elif max_data is not None and len(data) < max_data:
+        logger.warning(f"load_batches: Loaded {len(data)} < {max_data} datapoints.")
 
     return data
 
