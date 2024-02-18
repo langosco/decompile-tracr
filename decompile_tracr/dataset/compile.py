@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import fcntl
+import argparse
 
 from tracr.compiler import compile_rasp_to_model
 from tracr.compiler.basis_inference import InvalidValueSetError
@@ -8,6 +9,7 @@ from tracr.compiler.craft_model_to_transformer import NoTokensError
 
 from decompile_tracr.tokenizing import tokenizer
 from decompile_tracr.dataset import data_utils
+from decompile_tracr.dataset import config
 from decompile_tracr.dataset.logger_config import setup_logger
 
 
@@ -94,3 +96,23 @@ def get_weights(tokens: list[int]):
         for layername in data_utils.layer_names(n_layers)
     ]
     return [x.tolist() for x in flat_weights]
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Data processing.')
+    parser.add_argument('--loadpath', type=str, default=None, 
+                        help="override default load path (data/unprocessed/...)")
+    parser.add_argument('--savepath', type=str, default=None,
+                        help="override default save path (data/deduped/...)")
+    args = parser.parse_args()
+
+    if args.loadpath is None:
+        args.loadpath = config.deduped_dir
+    
+    if args.savepath is None:
+        args.savepath = config.full_dataset_dir
+
+    compile(
+        loaddir=args.loadpath,
+        savedir=args.savepath,
+    )
