@@ -40,9 +40,10 @@ def make_test_data():
     dedupe.dedupe(
         loaddir=BASE_DIR / "unprocessed",
         savedir=BASE_DIR / "deduped",
+        batchsize=50,
     )
 
-    compile.compile(
+    compile.compile_all(
         loaddir=BASE_DIR / "deduped",
         savedir=BASE_DIR / "full",
     )

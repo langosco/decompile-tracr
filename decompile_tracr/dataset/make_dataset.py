@@ -28,6 +28,7 @@ tokenize_lib.tokenize_lib(savedir=config.unprocessed_dir)
 dedupe.dedupe(
     loaddir=config.unprocessed_dir,
     savedir=config.deduped_dir,
+    batchsize=1024,
 )
 
 compile.compile_all(

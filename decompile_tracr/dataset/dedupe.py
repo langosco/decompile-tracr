@@ -47,11 +47,12 @@ def save_deduped(
             )
 
 
-def dedupe(loaddir: str | Path, savedir: str | Path) -> list[dict]:
+def dedupe(loaddir: str | Path, savedir: str | Path,
+           batchsize: int) -> list[dict]:
     """Load, dedupe, and save data."""
     data = data_utils.load_batches(loaddir)
     deduped = data_utils.dedupe(data)
-    save_deduped(deduped, savedir)
+    save_deduped(deduped, savedir, batchsize)
     return deduped
 
 
