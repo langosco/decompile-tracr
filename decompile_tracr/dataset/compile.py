@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import fcntl
 import argparse
+from tqdm import tqdm
 
 from tracr.compiler import compile_rasp_to_model
 from tracr.compiler.basis_inference import InvalidValueSetError
@@ -27,7 +28,8 @@ def compile(loaddir: str, savedir: str):
         if data is None:
             return None
 
-        for x in data:
+        for x in tqdm(data, disable=config.global_disable_tqdm, 
+                      desc="Compiling"):
             try:
                 x['weights'] = get_weights(x['tokens'])
             except (InvalidValueSetError, NoTokensError) as e:

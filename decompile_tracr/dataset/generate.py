@@ -51,7 +51,8 @@ def filter(by_layer: list[dict]):
 
 def sample_loop(rng, ndata, name: str, **sampler_kwargs):
     data = []
-    for i in tqdm(range(ndata), disable=config.global_disable_tqdm):
+    for i in tqdm(range(ndata), disable=config.global_disable_tqdm, 
+                  desc="Sampling"):
         program = sample_rasp(rng, **sampler_kwargs)
         try:
             tokens = tokenizer.tokenize(program)
