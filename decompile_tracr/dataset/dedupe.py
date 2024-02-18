@@ -27,10 +27,11 @@ def save_deduped(
     batchsize: int = DEFAULT_BATCHSIZE,
 ) -> None:
     """Split data by name and save to data/deduped/{name}."""
-    # delete data/deduped if it exists
     savedir = Path(savedir)
-    shutil.rmtree(savedir, ignore_errors=True)
-    os.makedirs(savedir)
+    if savedir.exists():
+        logger.info(f"Deleting existing data at {savedir}.")
+        shutil.rmtree(savedir, ignore_errors=True)
+        os.makedirs(savedir)
 
     deduped_by_name = defaultdict(list)
     for x in deduped:

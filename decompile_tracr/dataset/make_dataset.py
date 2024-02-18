@@ -30,7 +30,7 @@ dedupe.dedupe(
     savedir=config.deduped_dir,
 )
 
-compile.compile(
+compile.compile_all(
     loaddir=config.deduped_dir,
     savedir=config.full_dataset_dir,
 )

@@ -3,6 +3,7 @@ from pathlib import Path
 import fcntl
 import argparse
 from tqdm import tqdm
+import shutil
 
 from tracr.compiler import compile_rasp_to_model
 from tracr.compiler.basis_inference import InvalidValueSetError
@@ -17,46 +18,38 @@ from decompile_tracr.dataset.logger_config import setup_logger
 logger = setup_logger(__name__)
 
 
-def compile(loaddir: str, savedir: str):
+def compile_all(loaddir: str, savedir: str):
     """
     Load and compile rasp programs in batches.
     Save compiled programs to savedir.
     """
+    if savedir.exists():
+        logger.info(f"Deleting existing data at {savedir}.")
+        shutil.rmtree(savedir, ignore_errors=True)
+        os.makedirs(savedir)
+
     logger.info(f"Compiling data from {loaddir}.")
-    while True:
-        data = load_next_batch(loaddir)
-        if data is None:
-            return None
-
-        for x in tqdm(data, disable=config.global_disable_tqdm, 
-                      desc="Compiling"):
-            try:
-                x['weights'] = get_weights(x['tokens'])
-            except (InvalidValueSetError, NoTokensError) as e:
-                logger.warning(f"Skipping program ({e}).")
-                continue
-        
-        data = [x for x in data if 'weights' in x]
-        data_utils.save_batch(data, savedir)
+    while compile_single_batch(loaddir, savedir) is not None:
+        pass
 
 
-def get_next_filename(file_list: list[str], loaddir: Path):
-    """given a list of filenames, return the next filename to load"""
-    total = 0
-    for entry in os.scandir(loaddir):
-        if entry.is_dir():
-            out = get_next_filename(file_list, entry.path)
-            if out != "":
-                return out
+def compile_single_batch(loaddir: str, savedir: str):
+    """Load and compile the next batch of rasp programs."""
+    data = load_next_batch(loaddir)
+    if data is None:
+        return None
 
-        if not entry.path.endswith(".json"):
+    for x in tqdm(data, disable=config.global_disable_tqdm, 
+                    desc="Compiling"):
+        try:
+            x['weights'] = get_weights(x['tokens'])
+        except (InvalidValueSetError, NoTokensError) as e:
+            logger.warning(f"Skipping program ({e}).")
             continue
-
-        if entry.path not in file_list:
-            total += 1
-            return entry.path
     
-    return ""
+    data = [x for x in data if 'weights' in x]
+    data_utils.save_batch(data, savedir)
+    return data
 
 
 def load_next_batch(loaddir: str):
@@ -82,17 +75,6 @@ def load_next_batch(loaddir: str):
         return data_utils.load_json(path)
 
 
-def compile_tokens_to_model(tokens: list[int]):
-    """Compile a list of tokens into a model."""
-    program = tokenizer.detokenize(tokens)
-    model = compile_rasp_to_model(
-        program=program,
-        vocab=set(range(5)),
-        max_seq_len=5,
-    )
-    return model
-
-
 def get_weights(tokens: list[int]):
     """Get flattened weights for every layer."""
     model = compile_tokens_to_model(tokens)
@@ -104,12 +86,44 @@ def get_weights(tokens: list[int]):
     return [x.tolist() for x in flat_weights]
 
 
+def get_next_filename(file_list: list[str], loaddir: Path):
+    """given a list of filenames, return the next filename to load"""
+    total = 0
+    for entry in os.scandir(loaddir):
+        if entry.is_dir():
+            out = get_next_filename(file_list, entry.path)
+            if out != "":
+                return out
+
+        if not entry.path.endswith(".json"):
+            continue
+
+        if entry.path not in file_list:
+            total += 1
+            return entry.path
+    
+    return ""
+
+
+def compile_tokens_to_model(tokens: list[int]):
+    """Compile a list of tokens into a model."""
+    program = tokenizer.detokenize(tokens)
+    model = compile_rasp_to_model(
+        program=program,
+        vocab=set(range(5)),
+        max_seq_len=5,
+    )
+    return model
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Data processing.')
     parser.add_argument('--loadpath', type=str, default=None, 
                         help="override default load path (data/unprocessed/...)")
     parser.add_argument('--savepath', type=str, default=None,
                         help="override default save path (data/deduped/...)")
+    parser.add_argument('--single_batch_only', action='store_true',
+                        help="compile a single batch (file) and then stop.")
     args = parser.parse_args()
 
     if args.loadpath is None:
@@ -117,8 +131,14 @@ if __name__ == "__main__":
     
     if args.savepath is None:
         args.savepath = config.full_dataset_dir
-
-    compile(
-        loaddir=args.loadpath,
-        savedir=args.savepath,
-    )
+    
+    if args.single_batch_only:
+        compile_single_batch(
+            loaddir=args.loadpath,
+            savedir=args.savepath,
+        )
+    else:
+        compile_all(
+            loaddir=args.loadpath,
+            savedir=args.savepath,
+        )

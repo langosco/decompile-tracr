@@ -104,6 +104,7 @@ becomes the dictionary
 - [ ] Do linear sequencemaps compile to the same model if we switch order of
         expressions and weights are equal? what about symmetric sequencemaps?
 - [ ] Test determinism under fixed rng seed
+- [ ] Investigate why different InvalidValueSet errors happen at tokenize time vs compile time
 
 
 Tests for sampled programs
