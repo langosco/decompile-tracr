@@ -261,8 +261,6 @@ def save_batch(
     ):
     """Save to a json file."""
     os.makedirs(savedir, exist_ok=True)
-    logger.info(f"Saving {len(data)} "
-                f"datapoints to {savedir}.")
 
     if filename is None:
         idx = sequential_count_via_lockfile(savedir / "count.txt")
@@ -270,8 +268,11 @@ def save_batch(
     else:
         filename = Path(filename)
     
+    savepath = savedir / f"{filename}.json"
+    logger.info(f"Saving {len(data)} "
+                f"datapoints to {savepath}.")
     open_mode = "w" if overwrite else "x"
-    with open(savedir / f"{filename}.json", open_mode) as f:
+    with open(savepath, open_mode) as f:
         json.dump(data, f)
 
 

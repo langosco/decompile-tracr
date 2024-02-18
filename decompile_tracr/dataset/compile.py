@@ -21,6 +21,7 @@ def compile(loaddir: str, savedir: str):
     Load and compile rasp programs in batches.
     Save compiled programs to savedir.
     """
+    logger.info(f"Compiling data from {loaddir}.")
     while True:
         data = load_next_batch(loaddir)
         if data is None:
@@ -57,7 +58,7 @@ def get_next_filename(file_list: list[str], loaddir: Path):
 
 def load_next_batch(loaddir: str):
     """check lockfile for next batch to load"""
-    LOCKFILE = loaddir / "lockfile.txt"
+    LOCKFILE = loaddir / "files_already_loaded.lock"
     with open(LOCKFILE, "a+") as f:
         fcntl.flock(f, fcntl.LOCK_EX)
 
@@ -71,6 +72,8 @@ def load_next_batch(loaddir: str):
         fcntl.flock(f, fcntl.LOCK_UN)
     
     if path == "":
+        logger.info(f"No more files to load. "
+                    "All filenames present in {LOCKFILE}")
         return None
     else:
         return data_utils.load_json(path)
