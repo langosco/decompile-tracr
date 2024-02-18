@@ -35,7 +35,8 @@ def compile(loaddir: str, savedir: str):
             except (InvalidValueSetError, NoTokensError) as e:
                 logger.warning(f"Skipping program ({e}).")
                 continue
-
+        
+        data = [x for x in data if 'weights' in x]
         data_utils.save_batch(data, savedir)
 
 
