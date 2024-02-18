@@ -65,4 +65,4 @@ if __name__ == "__main__":
                         help="batch size for saving deduped data.")
     args = parser.parse_args()
 
-    dedupe(args.loadpath, args.savepath, battchsize=args.batchsize)
+    dedupe(args.loadpath, args.savepath, batchsize=args.batchsize)
