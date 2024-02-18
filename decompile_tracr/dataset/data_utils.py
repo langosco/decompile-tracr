@@ -259,7 +259,10 @@ def save_batch(
         overwrite = False,
         filename = None,
     ):
-    """Save to a json file."""
+    """Save data to a json file.
+    If filename is not set, use a counter to generate a new 
+    filename.
+    """
     os.makedirs(savedir, exist_ok=True)
 
     if filename is None:

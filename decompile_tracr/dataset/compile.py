@@ -75,8 +75,8 @@ def load_next_batch(loaddir: str):
         fcntl.flock(f, fcntl.LOCK_UN)
     
     if path == "":
-        logger.info(f"No more files to load. "
-                    "All filenames present in {LOCKFILE}")
+        logger.info("No more files to load. "
+                    f"All filenames present in {LOCKFILE}")
         return None
     else:
         return data_utils.load_json(path)

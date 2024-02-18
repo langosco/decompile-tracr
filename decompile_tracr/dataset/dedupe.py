@@ -12,7 +12,7 @@ from decompile_tracr.dataset import logger_config
 from decompile_tracr.dataset import config
 
 logger = logger_config.setup_logger(__name__)
-BATCHSIZE = 1024
+DEFAULT_BATCHSIZE = 1024
 
 
 # Deduplicate based on tokenized rasp code.
@@ -21,7 +21,11 @@ BATCHSIZE = 1024
 # Save deduped data back to data/deduped/{name}/data.json
 
 
-def save_deduped(deduped: list[dict], savedir: str = config.deduped_dir):
+def save_deduped(
+    deduped: list[dict],
+    savedir: str | Path = config.deduped_dir,
+    batchsize: int = DEFAULT_BATCHSIZE,
+) -> None:
     """Split data by name and save to data/deduped/{name}."""
     # delete data/deduped if it exists
     savedir = Path(savedir)
@@ -35,14 +39,14 @@ def save_deduped(deduped: list[dict], savedir: str = config.deduped_dir):
     logger.info(f"Splitting data by name: {list(deduped_by_name.keys())}")
 
     for name, data in deduped_by_name.items():
-        for batch in data_utils.batched(data, BATCHSIZE):
+        for batch in data_utils.batched(data, batchsize):
             data_utils.save_batch(
                 batch,
                 savedir=savedir / name
             )
 
 
-def dedupe(loaddir: str, savedir: str):
+def dedupe(loaddir: str | Path, savedir: str | Path) -> list[dict]:
     """Load, dedupe, and save data."""
     data = data_utils.load_batches(loaddir)
     deduped = data_utils.dedupe(data)
@@ -52,16 +56,12 @@ def dedupe(loaddir: str, savedir: str):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Data processing.')
-    parser.add_argument('--loadpath', type=str, default=None, 
+    parser.add_argument('--loadpath', type=str, default=config.unprocessed_dir, 
                         help="override default load path (data/unprocessed/...)")
-    parser.add_argument('--savepath', type=str, default=None,
+    parser.add_argument('--savepath', type=str, default=config.deduped_dir,
                         help="override default save path (data/deduped/...)")
+    parser.add_argument('--batchsize', type=int, default=DEFAULT_BATCHSIZE,
+                        help="batch size for saving deduped data.")
     args = parser.parse_args()
 
-    if args.loadpath is None:
-        args.loadpath = config.unprocessed_dir
-    
-    if args.savepath is None:
-        args.savepath = config.deduped_dir
-
-    dedupe(args.loadpath, args.savepath)
+    dedupe(args.loadpath, args.savepath, battchsize=args.batchsize)
