@@ -273,7 +273,7 @@ def save_batch(
     
     savepath = savedir / f"{filename}.json"
     logger.info(f"Saving {len(data)} "
-                f"datapoints to {savepath}.")
+                f"datapoints to {savepath}")
     open_mode = "w" if overwrite else "x"
     with open(savepath, open_mode) as f:
         json.dump(data, f)

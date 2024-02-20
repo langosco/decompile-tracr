@@ -33,6 +33,7 @@ def save_deduped(
         shutil.rmtree(savedir, ignore_errors=True)
         os.makedirs(savedir)
 
+    logger.info("Begin loading data and deduping.")
     deduped_by_name = defaultdict(list)
     for x in deduped:
         deduped_by_name[x['name']].append(x)

@@ -25,6 +25,7 @@ def generate(
     savedir: Path = config.unprocessed_dir,
     **sampler_kwargs
 ) -> list[dict]:
+    logger.info("Begin sampling RASP programs.")
     data = sample_loop(rng, ndata, name, **sampler_kwargs)
     save_batch(data, savedir)
     return data
