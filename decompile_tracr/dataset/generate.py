@@ -75,12 +75,8 @@ def sample_loop(rng, ndata, name: str, program_length: int):
 def parse_args():
     parser = argparse.ArgumentParser(description='Training run')
     parser.add_argument('--name', type=str, default="train")
-    parser.add_argument('--n_sops', type=int, default=10, 
-                        help='how many sops to sample per program.')
-    parser.add_argument('--min_length', type=int, default=4, 
-                        help='min nr of sops per program')
-    parser.add_argument('--max_length', type=int, default=None, 
-                        help='max nr of sops per program')
+    parser.add_argument('--program_length', type=int, default=10, 
+                        help='program length')
     parser.add_argument('--ndata', type=int, default=10)
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--savedir', type=str, default=None,
