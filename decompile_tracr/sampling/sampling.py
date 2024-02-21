@@ -196,7 +196,7 @@ def sample_selector_width(rng, variable_scope: list):
     return rasp_utils.annotate_type(sop_out, type="categorical")
 
 
-SAMPLE_FUNCTIONS = {
+SAMPLER_FUNCTIONS = {
     "map": sample_map,
     "sequence_map": sample_sequence_map,
     "linear_sequence_map": sample_linear_sequence_map,
@@ -206,150 +206,52 @@ SAMPLE_FUNCTIONS = {
 }
 
 
-def try_to_sample_sop(rng, variable_scope: list, avoid_types: set[str] = []):
+def try_to_sample_sop(
+    rng, 
+    variable_scope: list, 
+    avoid_types: set[str],
+) -> tuple[list, set[str]]:
     """Sample a SOp.
     If the sampler fails, it will return a SamplingError and the class of the SOp.
     This allows us to try again with a different class."""
-    sample_from = set(SAMPLE_FUNCTIONS.keys()) - set(avoid_types)
-    sop_class = rng.choice(list(sample_from))
+    sop_class = rng.choice(list(set(SAMPLER_FUNCTIONS.keys()) - set(avoid_types)))
     err = None
     try:
-        sop = SAMPLE_FUNCTIONS[sop_class](rng, variable_scope)
+        sop = SAMPLER_FUNCTIONS[sop_class](rng, variable_scope)
         if any(rasp_utils.fraction_none(sop(x)) > 0.5 for x in TEST_INPUTS):
             raise SamplingError(f"Sampled SOp {sop} has too many None values.")
-    except (rasp_utils.EmptyScopeError, SamplingError) as error:
-        err = error
-        sop = None
-    return sop, err, sop_class
+        variable_scope.append(sop)
+        avoid_types.clear()
+    except (rasp_utils.EmptyScopeError, SamplingError):
+        # TODO: might be worth returning the error type and message and to
+        # collect stats on most common errors
+        avoid_types.add(sop_class)
+    return variable_scope, avoid_types
 
 
-# TODO: move this fn to a different module, maybe validate.py?
-def validate_custom_types(expr: rasp.SOp, test_input):
-    out = expr(test_input)
-    if expr.annotations["type"] == "bool":
-        # bools are numerical and only take values 0 or 1
-        if not set(out).issubset({0, 1, None}):
-            raise ValueError(f"Bool SOps may only take values 0 or 1. Instead, received {out}")
-        elif not rasp.numerical(expr):
-            raise ValueError(f"Bool SOps must be numerical. Instead, {expr} is categorical.")
-    elif expr.annotations["type"] == "float":
-        # floats are numerical and can take any value
-        if not rasp.numerical(expr):
-            raise ValueError(f"Float SOps must be numerical. Instead, {expr} is categorical.")
-    elif expr.annotations["type"] == "categorical":
-        if not rasp.categorical(expr):
-            raise ValueError(f"{expr} is annotated as type=categorical, but is actually numerical.")
+def init_variable_scope():
+    """Initialize the variable scope with the basic SOps."""
+    return [
+        rasp_utils.annotate_type(rasp.tokens, "categorical"),
+        rasp_utils.annotate_type(rasp.indices, "categorical"),
+    ]
 
 
-def validate_compilation(expr: rasp.SOp, test_input: list):
-    model = compiling.compile_rasp_to_model(
-        expr,
-        vocab={0,1,2,3,4},
-        max_seq_len=5,
-        compiler_bos="BOS"
-    )
-
-    rasp_out = expr(test_input)
-    rasp_out_sanitized = [0 if x is None else x for x in rasp_out]
-    model_out = model.apply(["BOS"] + test_input).decoded[1:]
-
-    if not np.allclose(model_out, rasp_out_sanitized, rtol=1e-3, atol=1e-3):
-        raise ValueError(f"Compiled program {expr.label} does not match RASP output.\n"
-                            f"Compiled output: {model_out}\n"
-                            f"RASP output: {rasp_out}\n"
-                            f"Test input: {test_input}\n"
-                            f"SOp: {expr}")
-
-
-class ProgramSampler:
-    def __init__(
-            self, 
-            rng: Optional[np.random.RandomState] = None,
-        ):
-        self.rng = np.random.default_rng(rng)
-    
-    def reset(self):
-        self.sops = [
-            rasp_utils.annotate_type(rasp.tokens, "categorical"),
-            rasp_utils.annotate_type(rasp.indices, "categorical"),
-        ]
-
-    def sample_sops(self, n_sops=15):
-        """Sample a list of SOps.
-        Returns a list of errors that occurred during sampling.
-        """
-        self.reset()
-        errs = []
-        for _ in range(n_sops):
-            avoid = set()
-            sop, err, sop_class = try_to_sample_sop(
-                self.rng, self.sops, avoid)
-
-            if sop is not None:
-                self.sops.append(sop)
-            else:
-                assert err is not None
-                errs.append(
-                    f"{repr(err)} (tried to sample {sop_class})"
-                )
-
-            if sop is None and isinstance(err, rasp_utils.EmptyScopeError):
-                avoid.add(sop_class)
-
-        if len(self.sops) <= 3:
-            errs = "\n".join([str(err) for err in errs])
-            raise SamplingError(f"Failed to sample program. Received errors:\n"
-                                f"{errs}")
-
-        return errs
-    
-
-    def sample(self, n_sops=15, min_length=None, max_length=None):
-        """Sample a program. Always choose longest valid program.
-        Args:
-            n_sops: number of SOps to sample
-            min_length: minimum length of the program in SOps
-            max_length: maximum length of the program in SOps
-        """
-        errs = self.sample_sops(n_sops=n_sops)
-        first_candidate = 3 if min_length is None else min_length
-        candidates = np.array(self.sops[first_candidate:])
-        lengths = np.array(
-            [rasp_utils.count_sops(sop) for sop in candidates])
-
-        valid = np.ones(len(candidates), dtype=bool)
-        if min_length is not None:
-            valid = lengths >= min_length
-        if max_length is not None:
-            valid = (lengths <= max_length) & valid
-        
-        candidates = candidates[valid]
-
-        if len(candidates) == 0:
-            raise SamplingError(
-                f"Could not find program of length between "
-                f"{min_length} and {max_length}.")
-        
-        program = candidates[lengths[valid].argmax()]
-
-        length = rasp_utils.count_sops(program)
-        if length < 4:
-            raise SamplingError(
-                f"Sampled program too short: length {length}."
-            )
-        program = rasp.annotate(program, length=length)
-        self.program = program
-        return program, errs
-
-
-    def validate(self, sop: rasp.SOp, val_compile=False):
-        """Validate the program. This is fairly slow when 
-        val_compile is enabled."""
-        for x in TEST_INPUTS:
-            validate_custom_types(sop, x)
-            errs = validate(sop, x)
-            if len(errs) > 0:
-                raise ValueError(f"Invalid program: {errs}")
-            elif val_compile:
-                validate_compilation(sop, x)
-        return
+def sample(
+    rng: np.random.Generator,
+    program_length: int,
+) -> rasp.SOp:
+    """Sample a RASP program.
+    Args:
+        rng: numpy random number generator
+        program_length: length of the program in SOps
+    """
+    variable_scope = init_variable_scope()
+    avoid = set()
+    curr_length = 1
+    while curr_length < program_length:
+        variable_scope, avoid = try_to_sample_sop(rng, variable_scope, avoid)
+        curr_length = rasp_utils.count_sops(variable_scope[-1])
+    program = variable_scope[-1]
+    program = rasp.annotate(program, length=curr_length)
+    return program

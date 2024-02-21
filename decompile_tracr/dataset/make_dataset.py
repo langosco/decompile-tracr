@@ -1,3 +1,8 @@
+# Desc: Script to generate a dataset for training a decompiler
+# Usually you would want to instead run generate.py and compile.py
+# in parallel (eg by running many instances of the scripts), but
+# this script is useful for generating a sample dataset using a 
+# single thread.
 
 import numpy as np
 

@@ -21,18 +21,12 @@ def make_test_data():
     shutil.rmtree(BASE_DIR, ignore_errors=True)
     os.makedirs(BASE_DIR)
 
-    sampler_kwargs = {
-        "n_sops": 10,
-        "min_length": 4,
-        "max_length": None
-    }
-
     generate.generate(
         rng, 
-        ndata=5, 
+        ndata=100, 
         name='testing_make_dataset', 
         savedir=BASE_DIR / "unprocessed",
-        **sampler_kwargs,
+        program_length=10,
     )
 
     tokenize_lib.tokenize_lib(savedir=BASE_DIR / "unprocessed")

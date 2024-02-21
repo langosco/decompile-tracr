@@ -7,6 +7,7 @@ from pathlib import Path
 
 from tracr.compiler.basis_inference import InvalidValueSetError
 from tracr.compiler.craft_model_to_transformer import NoTokensError
+from tracr.rasp import rasp
 
 from decompile_tracr.sampling import sampling
 from decompile_tracr.tokenizing import tokenizer
@@ -23,25 +24,24 @@ def generate(
     ndata: int, 
     name: str, 
     savedir: Path = config.unprocessed_dir,
-    **sampler_kwargs
+    program_length: int = 10,
 ) -> list[dict]:
     logger.info("Begin sampling RASP programs.")
-    data = sample_loop(rng, ndata, name, **sampler_kwargs)
+    data = sample_loop(rng, ndata, name, program_length)
     save_batch(data, savedir)
     return data
 
 
 def sample_rasp(
         rng: np.random.Generator,
-        **sampler_kwargs,
-):
+        program_length: int,
+) -> rasp.SOp:
     """Sample a program while catching and logging errors."""
-    sampler = sampling.ProgramSampler(rng=rng)
     try:
-        program, _ = sampler.sample(**sampler_kwargs)
+        program = sampling.sample(rng, program_length)
     except sampling.SamplingError as e:
         logger.warning(f"Received sampling error: {e}.")
-        program = sample_rasp(rng, **sampler_kwargs)
+        program = sample_rasp(rng, program_length)
     return program
 
 
@@ -50,11 +50,11 @@ def filter(by_layer: list[dict]):
     return any(len(x) > config.MAX_RASP_LENGTH for x in by_layer)
 
 
-def sample_loop(rng, ndata, name: str, **sampler_kwargs):
+def sample_loop(rng, ndata, name: str, program_length: int):
     data = []
     for i in tqdm(range(ndata), disable=config.global_disable_tqdm, 
                   desc="Sampling"):
-        program = sample_rasp(rng, **sampler_kwargs)
+        program = sample_rasp(rng, program_length)
         try:
             tokens = tokenizer.tokenize(program)
         except (InvalidValueSetError, NoTokensError) as e:
@@ -99,14 +99,7 @@ if __name__ == "__main__":
     args = parse_args()
     rng = np.random.default_rng(args.seed)
 
-    sampler_kwargs = {
-        "n_sops": args.n_sops, 
-        "min_length": args.min_length, 
-        "max_length": args.max_length
-    }
-
-    data = generate(rng, args.ndata, args.name, args.savedir, 
-                             **sampler_kwargs)
+    data = generate(rng, args.ndata, args.name, args.savedir, args.program_length)
 
     lengths = [x["n_sops"] for x in data]
     n_layers_per = [len(x["tokens"]) for x in data]
