@@ -5,6 +5,7 @@ import shutil
 
 
 from decompile_tracr.tokenizing import tokenizer
+from decompile_tracr.tokenizing import vocab
 from decompile_tracr.dataset import config
 from decompile_tracr.dataset import generate
 from decompile_tracr.dataset import tokenize_lib
@@ -23,13 +24,18 @@ def make_test_data():
 
     generate.generate(
         rng, 
-        ndata=100, 
+        ndata=5, 
         name='testing_make_dataset', 
         savedir=BASE_DIR / "unprocessed",
         program_length=10,
     )
 
     tokenize_lib.tokenize_lib(savedir=BASE_DIR / "unprocessed")
+
+    # to make sure that dedupe is working:
+    for f in (BASE_DIR / "unprocessed").iterdir():
+        if f.is_file() and f.suffix == ".json":
+            shutil.copy(f, BASE_DIR / "unprocessed" / f"duplicate_{f.name}")
 
     dedupe.dedupe(
         loaddir=BASE_DIR / "unprocessed",
@@ -45,8 +51,9 @@ def make_test_data():
 
 
 def test_sampling(make_test_data):
-    pass
-
+    data = data_utils.load_batches(BASE_DIR / "unprocessed")
+    for x in data:
+        _has_bos_and_eos(x['tokens'])
 
 
 def test_deduplication(make_test_data):
@@ -71,3 +78,12 @@ def test_tokenization(make_test_data):
 
 def test_compilation(make_test_data):
     pass
+
+
+
+def _has_bos_and_eos(tokens: list):
+    """Test that each sequence begins with BOS and ends with EOS"""
+    for layer in tokens:
+        decoded = tokenizer.decode(layer)
+        assert decoded[0] == vocab.BOS, f"Expected BOS, got {decoded[0]}"
+        assert decoded[-1] == vocab.EOS, f"Expected EOS, got {decoded[-1]}"

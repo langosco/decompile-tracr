@@ -1,4 +1,4 @@
-from typing import Optional
+import numpy as np
 from tracr.rasp import rasp
 from tracr.compiler import rasp_to_graph
 from tracr.compiler.validating import validate
@@ -26,31 +26,20 @@ def annotate_type(sop: rasp.SOp, type: str):
 
 def filter_by_type(sops: list[rasp.SOp], type: str = None):
     """Return the subset of SOps that are of a given type"""
-    filtered = sops
     if type is not None:
-        filtered = [sop for sop in filtered if sop.annotations["type"] == type]
-    if len(filtered) == 0:
+        mask = [1 if sop.annotations["type"] == type else 0 for sop in sops]
+    else:
+        mask = [1 for _ in sops]
+    if len(mask) == 0:
         raise EmptyScopeError(f"Filter failed. No SOps of type {type} in scope.")
-    return filtered
+    return np.array(mask)
 
 
-def filter_by_constraints(
-        sops: list[rasp.SOp], 
-        constraints: list[callable],
-        constraints_name: Optional[str] = None):
-    """Return the subset of SOps that satisfy a set of constraints.
-    A constraint is a callable that takes a SOp and return a boolean."""
-    filtered = sops
-    for constraint in constraints:
-        filtered = [v for v in filtered if constraint(v)]
-
-    if len(filtered) == 0:
-        err_msg = "Filter failed. No SOps in scope satisfy constraints."
-        if constraints_name is not None:
-            err_msg += f" Constraints: {constraints_name}."
-        raise EmptyScopeError(err_msg)
-
-    return filtered
+def filter_nones(sops: list[rasp.SOp], test_inputs: list[list]):
+    mask = [1 if no_none_in_values(sop, test_inputs) else 0 for sop in sops]
+    if len(mask) == 0:
+        raise EmptyScopeError("Filter failed. All SOps contain None on some test input.")
+    return np.array(mask)
 
 
 def no_none_in_values(sop: rasp.SOp, test_inputs: list[list]):

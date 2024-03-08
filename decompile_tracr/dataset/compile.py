@@ -4,6 +4,7 @@ import fcntl
 import argparse
 from tqdm import tqdm
 import shutil
+import psutil
 
 from tracr.compiler import compile_rasp_to_model
 from tracr.compiler.basis_inference import InvalidValueSetError
@@ -16,6 +17,7 @@ from decompile_tracr.dataset.logger_config import setup_logger
 
 
 logger = setup_logger(__name__)
+process = psutil.Process()
 
 
 def compile_all(loaddir: str, savedir: str):
@@ -43,13 +45,19 @@ def compile_single_batch(
     if data is None:
         return None
 
+    i = 0
     for x in tqdm(data, disable=config.global_disable_tqdm, 
                     desc="Compiling"):
         try:
             x['weights'] = get_weights(x['tokens'], max_weights_len)
         except (InvalidValueSetError, NoTokensError, DataError) as e:
             logger.warning(f"Skipping program ({e}).")
-            continue
+
+        if i % 25 == 0:
+            mem_info = process.memory_full_info()
+            logger.info(f"Memory usage: {mem_info.uss / 1024**2:.2f} "
+                        "MB ({len(data)} programs).")
+            i += 1
     
     data = [x for x in data if 'weights' in x]
     data_utils.save_batch(data, savedir)

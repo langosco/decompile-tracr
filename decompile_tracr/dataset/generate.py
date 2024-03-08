@@ -4,6 +4,7 @@ import numpy as np
 from tqdm import tqdm
 import argparse
 from pathlib import Path
+import psutil
 
 from tracr.compiler.basis_inference import InvalidValueSetError
 from tracr.compiler.craft_model_to_transformer import NoTokensError
@@ -17,6 +18,7 @@ from decompile_tracr.dataset.data_utils import save_batch
 
 
 logger = setup_logger(__name__)
+process = psutil.Process()
 
 
 def generate(
@@ -28,6 +30,7 @@ def generate(
 ) -> list[dict]:
     logger.info("Begin sampling RASP programs.")
     data = sample_loop(rng, ndata, name, program_length)
+    logger.info(f"Done sampling {len(data)} RASP programs.")
     save_batch(data, savedir)
     return data
 
@@ -69,6 +72,11 @@ def sample_loop(rng, ndata, name: str, program_length: int):
             "n_sops": program.annotations['length'],  # nr of sops
             "tokens": tokens,
         })
+
+        if i % 100 == 0:
+            mem_info = process.memory_full_info()
+            logger.info(f"Memory usage: {mem_info.uss / 1024**2:.2f} "
+                        "MB ({len(data)} programs).")
     return data
     
 

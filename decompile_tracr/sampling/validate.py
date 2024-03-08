@@ -1,13 +1,12 @@
-from typing import Optional
-from tracr.rasp import rasp
 import numpy as np
-from tracr.compiler.validating import validate
+
+from tracr.rasp import rasp
+from tracr.compiler import validating
 from tracr.compiler import compiling
-from decompile_tracr.sampling import map_primitives, rasp_utils
 
 
 # TODO: move this fn to a different module, maybe validate.py?
-def validate_custom_types(expr: rasp.SOp, test_input):
+def validate_custom_types(expr: rasp.SOp, test_input: list) -> None:
     """We use custom types - bool, float, and categorical - to enforce
     constraints on the output of SOps. If those constraints are violated,
     this function raises an error.
@@ -28,7 +27,7 @@ def validate_custom_types(expr: rasp.SOp, test_input):
             raise ValueError(f"{expr} is annotated as type=categorical, but is actually numerical.")
 
 
-def validate_compilation(expr: rasp.SOp, test_input: list):
+def validate_compilation(expr: rasp.SOp, test_input: list) -> None:
     model = compiling.compile_rasp_to_model(
         expr,
         vocab={0,1,2,3,4},
@@ -47,3 +46,22 @@ def validate_compilation(expr: rasp.SOp, test_input: list):
                             f"Test input: {test_input}\n"
                             f"SOp: {expr}")
 
+
+def is_valid(program: rasp.SOp, x) -> bool:
+    """The best / most comprehensive set of checks we can do without
+    compiling the program.
+    Returns True if no errors are found, False otherwise.
+    """
+    try:
+        validate_custom_types(program, x)
+    except ValueError as e:
+        return False
+
+    try:
+        errs = validating.validate(program, x)
+    except ValueError as e:
+        if e.args[0] in ["key is None!", "query is None!"]:
+            return 
+        else:
+            raise
+    return len(errs) == 0

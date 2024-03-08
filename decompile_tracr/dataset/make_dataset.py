@@ -14,29 +14,25 @@ from decompile_tracr.dataset import compile
 
 rng = np.random.default_rng(42)
 
-sampler_kwargs = {
-    "n_sops": 10,
-    "min_length": 4,
-    "max_length": None
-}
 
-generate.generate(
-    rng, 
-    ndata=10, 
-    name='testing_make_dataset', 
-    savedir=config.unprocessed_dir,
-    **sampler_kwargs,
-)
+if __name__ == "__main__":
+    generate.generate(
+        rng, 
+        ndata=20, 
+        name='testing_make_dataset', 
+        savedir=config.unprocessed_dir,
+        program_length=10,
+    )
 
-tokenize_lib.tokenize_lib(savedir=config.unprocessed_dir)
+    tokenize_lib.tokenize_lib(savedir=config.unprocessed_dir)
 
-dedupe.dedupe(
-    loaddir=config.unprocessed_dir,
-    savedir=config.deduped_dir,
-    batchsize=1024,
-)
+    dedupe.dedupe(
+        loaddir=config.unprocessed_dir,
+        savedir=config.deduped_dir,
+        batchsize=1024,
+    )
 
-compile.compile_all(
-    loaddir=config.deduped_dir,
-    savedir=config.full_dataset_dir,
-)
+    compile.compile_all(
+        loaddir=config.deduped_dir,
+        savedir=config.full_dataset_dir,
+    )

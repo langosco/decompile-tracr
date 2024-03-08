@@ -24,13 +24,13 @@ def tokenize_loop():
             "n_sops": program.annotations['length'],  # nr of sops
             "tokens": tokens,
         })
-    
-    logger.info(f"Compiled all {len(data)} example programs.")
     return data
 
 
 def tokenize_lib(savedir=config.unprocessed_dir):
+    logger.info("Begin tokenizing example programs.")
     data = tokenize_loop()
+    logger.info(f"Done tokenizing {len(data)} example programs.")
     save_batch(
         data=data, 
         savedir=savedir,

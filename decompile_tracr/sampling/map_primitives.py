@@ -31,12 +31,13 @@ class FunctionWithRepr:
         """
         fn_str: function in form of eval-able string, e.g. 'lambda x: x+1'."""
         self.fn_str = fn_str
+        self.fn = eval(fn_str)
 
     def __repr__(self):
         return self.fn_str
     
     def __call__(self, *args, **kwargs):
-        return eval(self.fn_str)(*args, **kwargs)
+        return self.fn(*args, **kwargs)
     
     def compose(self, other: "FunctionWithRepr"):
         """Compose two functions."""
