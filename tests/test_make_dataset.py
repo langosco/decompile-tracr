@@ -4,6 +4,8 @@ import numpy as np
 import shutil
 
 
+from decompile_tracr.sampling import rasp_utils
+from decompile_tracr.sampling import sampling
 from decompile_tracr.tokenizing import tokenizer
 from decompile_tracr.tokenizing import vocab
 from decompile_tracr.dataset import config
@@ -14,44 +16,11 @@ from decompile_tracr.dataset import compile
 from decompile_tracr.dataset import data_utils
 
 
-BASE_DIR = config.data_dir / "test_make_dataset"
-rng = np.random.default_rng(42)
-
-@pytest.fixture(scope="module")
-def make_test_data():
-    shutil.rmtree(BASE_DIR, ignore_errors=True)
-    os.makedirs(BASE_DIR)
-
-    generate.generate(
-        rng, 
-        ndata=5, 
-        name='testing_make_dataset', 
-        savedir=BASE_DIR / "unprocessed",
-        program_length=10,
-    )
-
-    tokenize_lib.tokenize_lib(savedir=BASE_DIR / "unprocessed")
-
-    # to make sure that dedupe is working:
-    for f in (BASE_DIR / "unprocessed").iterdir():
-        if f.is_file() and f.suffix == ".json":
-            shutil.copy(f, BASE_DIR / "unprocessed" / f"duplicate_{f.name}")
-
-    dedupe.dedupe(
-        loaddir=BASE_DIR / "unprocessed",
-        savedir=BASE_DIR / "deduped",
-        batchsize=50,
-    )
-
-    compile.compile_all(
-        loaddir=BASE_DIR / "deduped",
-        savedir=BASE_DIR / "full",
-    )
-    return None
+rng = np.random.default_rng()
 
 
-def test_sampling(make_test_data):
-    data = data_utils.load_batches(BASE_DIR / "unprocessed")
+def test_sampling(base_dir, make_test_data):
+    data = data_utils.load_batches(base_dir / "unprocessed")
     for x in data:
         _has_bos_and_eos(x['tokens'])
 
@@ -60,10 +29,10 @@ def test_deduplication(make_test_data):
     pass
 
 
-def test_tokenization(make_test_data):
+def test_tokenization(base_dir, make_test_data):
     """De-tokenize, then re-tokenize. Ensure that the re-tokenized
     program is the same as the original."""
-    deduped_dirs = list((BASE_DIR / "deduped").iterdir())
+    deduped_dirs = list((base_dir / "deduped").iterdir())
     deduped_dirs = [x for x in deduped_dirs if x.is_dir()]
     data = [data_utils.load_batches(d) for d in deduped_dirs]
     data = [x for ds in data for x in ds]
@@ -76,9 +45,10 @@ def test_tokenization(make_test_data):
         )
 
 
-def test_compilation(make_test_data):
+def test_compilation(base_dir, make_test_data):
+    # this is hard because we can't easily load a compiled model
+    # once we saved the weights.
     pass
-
 
 
 def _has_bos_and_eos(tokens: list):
