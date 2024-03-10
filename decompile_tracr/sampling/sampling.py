@@ -110,23 +110,22 @@ class Sampler:
         )
 
         if size is None:
-            return idx, self.scope[idx]
+            return self.scope[idx]
         else:
-            return idx.tolist(), [self.scope[i] for i in idx]
+            return [self.scope[i] for i in idx]
 
     def add_map(self):
         """Sample a map. A map applies a function elementwise to a SOp.
         The input SOps can be categorical, float, or bool."""
-        idx, sop_in = self.sample_from_scope()
+        sop_in = self.sample_from_scope()
         fn, output_type = map_primitives.get_map_fn(self.rng, sop_in.annotations["type"])
         sop_out = rasp.Map(fn, sop_in, simplify=False)
         self.scope.append(rasp_utils.annotate_type(sop_out, type=output_type))
-        self.past.append({len(self.past)} | self.past[idx])
 
     def add_sequence_map(self):
         """Sample a sequence map. A SM applies a function elementwise to
         two categorical SOps. The output is always categorical."""
-        idxs, sops_in = self.sample_from_scope(
+        sops_in = self.sample_from_scope(
             type="categorical", 
             size=2, 
             replace=False,
@@ -134,12 +133,11 @@ class Sampler:
         fn = self.rng.choice(map_primitives.NONLINEAR_SEQMAP_FNS)
         sop_out = rasp.SequenceMap(fn, *sops_in)
         self.scope.append(rasp_utils.annotate_type(sop_out, type="categorical"))
-        self.past.append({len(self.past)} | self.past[idxs[0]] | self.past[idxs[1]])
 
     def add_linear_sequence_map(self):
         """Sample a linear sequence map. A LNS linearly combines two
         numerical SOps. The output is always numerical."""
-        idxs, sops_in = self.sample_from_scope(
+        sops_in = self.sample_from_scope(
             type="float", 
             size=2, 
             replace=False,
@@ -149,7 +147,6 @@ class Sampler:
         weights = [int(w) for w in weights]
         sop_out = rasp.LinearSequenceMap(*sops_in, *weights)
         self.scope.append(rasp_utils.annotate_type(sop_out, type="float"))
-        self.past.append({len(self.past)} | self.past[idxs[0]] | self.past[idxs[1]])
 
     def add_numerical_aggregate(self):
         """
@@ -158,16 +155,14 @@ class Sampler:
         that is numerical and only takes values 0 or 1.
         This constraint is necessary for all aggregates with numerical SOps.
         """
-        selector, parents = self.get_selector()
-        idx, sop_in = self.sample_from_scope(
+        selector = self.get_selector()
+        sop_in = self.sample_from_scope(
             type="bool",
             allow_none_values=False,
         )
-        parents += [idx]
         sop_out = rasp.Aggregate(selector, sop_in, default=0)
         # TODO: sometimes output can be bool here?
         self.scope.append(rasp_utils.annotate_type(sop_out, type="float"))
-        self.past.append({len(self.past)}.union(*[self.past[p] for p in parents]))
 
     def add_categorical_aggregate(self, max_retries=10):
         """
@@ -176,12 +171,11 @@ class Sampler:
         This usually means that the selector has width 1, but it could also mean that a width > 1
         selector is used but the output domain of the aggregate is still equal to the input domain.
         """
-        idx, sop_in = self.sample_from_scope(
+        sop_in = self.sample_from_scope(
             type="categorical",
             allow_none_values=False,
         )
-        selector, parents = self.get_selector()
-        parents += [idx]
+        selector = self.get_selector()
         sop_out = rasp.Aggregate(selector, sop_in, default=None)
         sop_out = rasp_utils.annotate_type(sop_out, type="categorical")
 
@@ -208,20 +202,18 @@ class Sampler:
                     logger.info(f"aggregate sop: {sop_out.label}")
                     print()
             self.scope.append(sop_out)
-            self.past.append({len(self.past)}.union(*[self.past[p] for p in parents]))
 
     def add_selector_width(self):
-        selector, parents = self.get_selector()
+        selector = self.get_selector()
         sop_out = rasp.SelectorWidth(selector)
         self.scope.append(rasp_utils.annotate_type(sop_out, type="categorical"))
-        self.past.append({len(self.past)}.union(*[self.past[p] for p in parents]))
 
     def get_selector(self):
         """Sample a rasp.Select. A select takes two categorical SOps and
         returns a selector (matrix) of booleans. Note this is not an SOp.
         """
         # TODO: allow Selectors with bools (numerical & 0-1) as input?
-        idxs, sops_in = self.sample_from_scope(
+        sops_in = self.sample_from_scope(
             type="categorical",
             allow_none_values=False,
             size=2,
@@ -229,7 +221,7 @@ class Sampler:
         )
         comparison = self.rng.choice(map_primitives.COMPARISONS)
         selector = rasp.Select(*sops_in, comparison)
-        return selector, idxs
+        return selector
 
     def try_to_add_sop(self, avoid_types: set[str]) -> tuple[list, set[str]]:
         """Sample a single SOp.
@@ -265,8 +257,7 @@ class Sampler:
         return self.scope[-1](x)
     
     def current_length(self):
-#        return rasp_utils.count_sops(self.scope[-1])
-        return len(self.past[-1])
+        return rasp_utils.count_sops(self.scope[-1])
 
 
 def sample(
