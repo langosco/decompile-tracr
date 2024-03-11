@@ -18,7 +18,7 @@ rng = np.random.default_rng(42)
 if __name__ == "__main__":
     generate.generate(
         rng, 
-        ndata=20, 
+        ndata=100, 
         name='testing_make_dataset', 
         savedir=config.unprocessed_dir,
         program_length=10,

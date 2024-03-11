@@ -3,11 +3,14 @@ os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
-from decompile_tracr.dataset.data_utils import load_deduped
+from decompile_tracr.dataset import data_utils
+from decompile_tracr.dataset import config
 
 
 # script currently broken after refactoring
 
+# TODO:
+# - histogram of ops
 
 parser = argparse.ArgumentParser(description='Data processing.')
 parser.add_argument('--name', type=str, default="train", 
@@ -15,48 +18,50 @@ parser.add_argument('--name', type=str, default="train",
 args = parser.parse_args()
 
 # Data loading
-data = load_deduped(name=args.name, flatten=False)
+data = data_utils.load_batches(config.data_dir / "full")
 print("Total datapoints:", len(data))
 
 
 # Preprocessing data for histograms
 n_sops = [x['n_sops'] for x in data]
-weights_per_model = [
-    sum(len(layer['weights']) for layer in d['weights_and_tokens']
-    ) for d in data
-]
-layer_lengths = [len(x['weights_and_tokens']) for x in data]
-data_per_layer = [l for x in data for l in x['weights_and_tokens']]
-token_lens = [len(x['rasp_tok']) for x in data_per_layer]
-weight_lens = [len(x['weights']) for x in data_per_layer]
+n_params = [len([w for layer in x['weights'] for w in layer]) for x in data]
+n_tokens = [len([t for layer in x['tokens'] for t in layer]) for x in data]
+n_layers = [len(x['weights']) for x in data]
+
+n_params_per_layer = [len(layer) for x in data for layer in x['weights']]
+n_tokens_per_layer = [len(layer) for x in data for layer in x['tokens']]
 
 
 # Plotting
 fig, axs = plt.subplots(3, 2, figsize=(12, 15))
 axs = axs.flatten()
 
-axs[0].set_title("Distribution of program lengths")
+axs[0].set_title("Program length (# SOps per program)")
 axs[0].hist(n_sops, bins=range(0, 15))
 axs[0].set_xticks(range(0, 15))
 
-axs[1].set_title("Distribution of # parameters per model")
-axs[1].hist(weights_per_model)
+axs[1].set_title("Layers per model")
+axs[1].hist(n_layers)
 
-axs[2].set_title("Number of layers per model")
-axs[2].hist(layer_lengths)
+axs[2].set_title("Parameters per model")
+axs[2].hist(n_params)
 
-axs[3].set_title("Distribution of tokens per layer")
-axs[3].hist(token_lens, bins=range(2, 20))
+axs[3].set_title("Tokens per model")
+axs[3].hist(n_tokens)
 
-axs[4].set_title("Distribution of weight lengths per layer")
-axs[4].hist(weight_lens)
+axs[4].set_title("Parameters per layer")
+axs[4].hist(n_params_per_layer)
+
+axs[5].set_title("Tokens per layer")
+axs[5].hist(n_tokens_per_layer, bins=range(2, 20))
+
 
 plt.tight_layout()
 plt.show()
 
 
 # Statistics
-print("Min weights per model:", np.min(weights_per_model))
-print("Max weights per model:", np.max(weights_per_model))
-print("Min weights per layer", np.min(weight_lens))
-print("Max weights per layer", np.max(weight_lens))
+print("Min weights per model:", np.min(n_params))
+print("Max weights per model:", np.max(n_params))
+print("Min weights per layer", np.min(n_params_per_layer))
+print("Max weights per layer", np.max(n_params_per_layer))

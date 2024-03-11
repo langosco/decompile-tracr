@@ -62,8 +62,7 @@ def load_and_process_data(
 def flatten_data(data: list[dict]) -> list[dict]:
     """
     Convert the list of models to a list of layers. Throw away
-    model-level information like the rasp program and the compiled
-    model.
+    model-level information like the rasp program.
     """
     out = []
     for program_id, program in enumerate(data):
