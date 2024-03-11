@@ -61,7 +61,7 @@ def is_valid(program: rasp.SOp, x) -> bool:
         errs = validating.validate(program, x)
     except ValueError as e:
         if e.args[0] in ["key is None!", "query is None!"]:
-            return 
+            return False
         else:
             raise
     return len(errs) == 0

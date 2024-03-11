@@ -104,8 +104,8 @@ def fraction_none(x: list):
     return sum([1 for elem in x if elem is None]) / len(x)
 
 
-def sample_test_input(rng, vocab={0,1,2,3,4}, max_seq_len=5):  # to validate.py ?
-    seq_len = rng.choice(range(1, max_seq_len+1))
+def sample_test_input(rng, vocab={0,1,2,3,4}, max_seq_len=5, min_seq_len=1):  # to validate.py ?
+    seq_len = rng.choice(range(min_seq_len, max_seq_len+1))
     return rng.choice(list(vocab), size=seq_len).tolist()
 
 

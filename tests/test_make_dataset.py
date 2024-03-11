@@ -2,6 +2,7 @@ import os
 import pytest
 import numpy as np
 import shutil
+import jax
 
 
 from decompile_tracr.sampling import rasp_utils
@@ -49,6 +50,22 @@ def test_compilation(base_dir, make_test_data):
     # this is hard because we can't easily load a compiled model
     # once we saved the weights.
     pass
+
+
+def test_weights_range(base_dir, make_test_data):
+    """Test that compiled model weights are within a reasonable range."""
+    LOWER, UPPER = -1e6, 1e6
+    print("type:", type(base_dir))
+    data = data_utils.load_batches(base_dir / "full")
+    data = data_utils.flatten_data(data)
+    data = [x['weights'] for x in data]
+    with jax.default_device(jax.devices("cpu")[0]):
+        data = jax.flatten_util.ravel_pytree(data)[0]
+    assert np.all(data > LOWER) and np.all(data < UPPER), (
+        "Some parameters exceed bounds. Found parameters of sizes "
+        f"(min, max): ({np.min(data)}, {np.max(data)})."
+    )
+
 
 
 def _has_bos_and_eos(tokens: list):

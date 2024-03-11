@@ -19,7 +19,7 @@ def base_dir():
 
 
 @pytest.fixture(scope="session")
-def make_test_data():
+def make_test_data(base_dir):
     shutil.rmtree(base_dir, ignore_errors=True)
     os.makedirs(base_dir)
 
