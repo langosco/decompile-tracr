@@ -56,8 +56,9 @@ def compile_single_batch(
         if i % 25 == 0:
             mem_info = process.memory_full_info()
             logger.info(f"Memory usage: {mem_info.uss / 1024**2:.2f} "
-                        f"MB ({len(data)} programs).")
-            i += 1
+                        f"MB ({i}/{len(data)} programs compiled).")
+        
+        i += 1
     
     data = [x for x in data if 'weights' in x]
     data_utils.save_batch(data, savedir)
@@ -96,9 +97,9 @@ def get_weights(tokens: list[int], max_weights_len: int):
         for layername in data_utils.layer_names(n_layers)
     ]
     if any(len(x) > max_weights_len for x in flat_weights):
-        raise DataError(f"Too many params (> {max_weights_len}).")
+        raise DataError(f"Too many params (> {max_weights_len})")
     elif any(x.mean() > config.MAX_WEIGHTS_LAYER_MEAN for x in flat_weights):
-        raise DataError("Mean of weights too large.")
+        raise DataError("Mean of weights too large")
     return [x.tolist() for x in flat_weights]
 
 

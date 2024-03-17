@@ -76,7 +76,7 @@ def sample_loop(rng, ndata, name: str, program_length: int):
         if i % 100 == 0:
             mem_info = process.memory_full_info()
             logger.info(f"Memory usage: {mem_info.uss / 1024**2:.2f} "
-                        "MB ({len(data)} programs).")
+                        f"MB ({len(data)} programs).")
     return data
     
 
