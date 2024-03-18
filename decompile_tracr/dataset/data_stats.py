@@ -15,11 +15,16 @@ from decompile_tracr.dataset import config
 parser = argparse.ArgumentParser(description='Data processing.')
 parser.add_argument('--name', type=str, default="train", 
                     help="'train', 'test', 'test_5, 'test_6")
+parser.add_argument('--no_plot', action='store_true', help="Don't plot histograms")
 args = parser.parse_args()
 
 # Data loading
-data = data_utils.load_batches(config.data_dir / "full")
-print("Total datapoints:", len(data))
+data = data_utils.load_batches(config.full_dataset_dir)
+rasp_only = []
+for d in os.scandir(config.deduped_dir):
+    if d.is_dir():
+        rasp_only.extend(data_utils.load_batches(d))
+
 
 
 # Preprocessing data for histograms
@@ -31,41 +36,53 @@ n_layers = [len(x['weights']) for x in data]
 n_params_per_layer = [len(layer) for x in data for layer in x['weights']]
 n_tokens_per_layer = [len(layer) for x in data for layer in x['tokens']]
 
+
+# Statistics
+print("Total datapoints:", len(data))
 print("Total layers:", sum(n_layers))
+print()
 assert sum(n_layers) == len(n_params_per_layer)
 assert sum(n_layers) == len(n_tokens_per_layer)
 
+n_data_rasp = len(rasp_only)
+n_layers_rasp = len([layer for x in rasp_only for layer in x['tokens']])
 
-# Plotting
-fig, axs = plt.subplots(3, 2, figsize=(12, 15))
-axs = axs.flatten()
+print(f"Total datapoints pre compilation: {n_data_rasp:,}")
+print(f"Total layers pre compilation: {n_layers_rasp:,}")
+print()
 
-axs[0].set_title("Program length (# SOps per program)")
-axs[0].hist(n_sops, bins=range(0, 15))
-axs[0].set_xticks(range(0, 15))
-
-axs[1].set_title("Layers per model")
-axs[1].hist(n_layers)
-
-axs[2].set_title("Parameters per model")
-axs[2].hist(n_params)
-
-axs[3].set_title("Tokens per model")
-axs[3].hist(n_tokens)
-
-axs[4].set_title("Parameters per layer")
-axs[4].hist(n_params_per_layer)
-
-axs[5].set_title("Tokens per layer")
-axs[5].hist(n_tokens_per_layer, bins=range(2, 20))
+print(f"Min weights per model: {np.min(n_params):,}")
+print(f"Max weights per model: {np.max(n_params):,}")
+print("Min weights per layer:", np.min(n_params_per_layer))
+print("Max weights per layer:", np.max(n_params_per_layer))
 
 
-plt.tight_layout()
-plt.show()
+if not args.no_plot:
+    # Plotting
+    fig, axs = plt.subplots(3, 2, figsize=(12, 15))
+    axs = axs.flatten()
+
+    axs[0].set_title("Program length (# SOps per program)")
+    axs[0].hist(n_sops, bins=range(0, 15))
+    axs[0].set_xticks(range(0, 15))
+
+    axs[1].set_title("Layers per model")
+    axs[1].hist(n_layers)
+
+    axs[2].set_title("Parameters per model")
+    axs[2].hist(n_params)
+
+    axs[3].set_title("Tokens per model")
+    axs[3].hist(n_tokens)
+
+    axs[4].set_title("Parameters per layer")
+    axs[4].hist(n_params_per_layer)
+
+    axs[5].set_title("Tokens per layer")
+    axs[5].hist(n_tokens_per_layer, bins=range(2, 20))
 
 
-# Statistics
-print("Min weights per model:", np.min(n_params))
-print("Max weights per model:", np.max(n_params))
-print("Min weights per layer", np.min(n_params_per_layer))
-print("Max weights per layer", np.max(n_params_per_layer))
+    plt.tight_layout()
+    plt.show()
+
+

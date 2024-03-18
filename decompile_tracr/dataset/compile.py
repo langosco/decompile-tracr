@@ -21,12 +21,12 @@ logger = setup_logger(__name__)
 process = psutil.Process()
 
 
-def compile_all(loaddir: str, savedir: str):
+def compile_all(loaddir: str, savedir: str, continued=False):
     """
     Load and compile rasp programs in batches.
     Save compiled programs to savedir.
     """
-    if savedir.exists():
+    if savedir.exists() and not continued:
         logger.info(f"Deleting existing data at {savedir}.")
         shutil.rmtree(savedir, ignore_errors=True)
         os.makedirs(savedir)
@@ -147,6 +147,10 @@ if __name__ == "__main__":
                         help="override default save path (data/deduped/...)")
     parser.add_argument('--single_batch_only', action='store_true',
                         help="compile a single batch (file) and then stop.")
+    parser.add_argument('--continued', action='store_true',
+                        help="continue compiling from the last batch. can result"
+                             " in missing data if the last batch was not fully"
+                             " compiled. always True if --single_batch_only.")
     args = parser.parse_args()
 
     if args.loadpath is None:
@@ -165,4 +169,5 @@ if __name__ == "__main__":
         compile_all(
             loaddir=args.loadpath,
             savedir=args.savepath,
+            continued=args.continued,
         )
