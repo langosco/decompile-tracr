@@ -15,7 +15,7 @@ rng = np.random.default_rng(42)
 
 @pytest.fixture(scope="session")
 def base_dir():
-    return config.data_dir / "test_make_dataset"
+    return config.data_dir.parent / ".tests_cache"
 
 
 @pytest.fixture(scope="session")

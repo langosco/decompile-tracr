@@ -18,8 +18,8 @@ rng = np.random.default_rng(42)
 if __name__ == "__main__":
     generate.generate(
         rng, 
-        ndata=100, 
-        name='testing_make_dataset', 
+        ndata=50_000,
+        name='train', 
         savedir=config.unprocessed_dir,
         program_length=10,
     )
@@ -29,7 +29,7 @@ if __name__ == "__main__":
     dedupe.dedupe(
         loaddir=config.unprocessed_dir,
         savedir=config.deduped_dir,
-        batchsize=1024,
+        batchsize=256,
     )
 
     compile.compile_all(

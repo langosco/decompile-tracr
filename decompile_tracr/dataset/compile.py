@@ -5,6 +5,7 @@ import argparse
 from tqdm import tqdm
 import shutil
 import psutil
+import jax
 
 from tracr.compiler import compile_rasp_to_model
 from tracr.compiler.basis_inference import InvalidValueSetError
@@ -32,6 +33,7 @@ def compile_all(loaddir: str, savedir: str):
 
     logger.info(f"Compiling all RASP programs found in {loaddir}.")
     while compile_single_batch(loaddir, savedir) is not None:
+        jax.clear_caches()
         pass
 
 

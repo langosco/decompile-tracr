@@ -31,6 +31,10 @@ n_layers = [len(x['weights']) for x in data]
 n_params_per_layer = [len(layer) for x in data for layer in x['weights']]
 n_tokens_per_layer = [len(layer) for x in data for layer in x['tokens']]
 
+print("Total layers:", sum(n_layers))
+assert sum(n_layers) == len(n_params_per_layer)
+assert sum(n_layers) == len(n_tokens_per_layer)
+
 
 # Plotting
 fig, axs = plt.subplots(3, 2, figsize=(12, 15))
