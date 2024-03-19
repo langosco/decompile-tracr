@@ -21,7 +21,8 @@ logger = setup_logger(__name__)
 process = psutil.Process()
 
 
-def compile_all(loaddir: str, savedir: str, continued=False):
+def compile_all(loaddir: str, savedir: str, continued=False, 
+                max_batches=None):
     """
     Load and compile rasp programs in batches.
     Save compiled programs to savedir.
@@ -32,9 +33,10 @@ def compile_all(loaddir: str, savedir: str, continued=False):
         os.makedirs(savedir)
 
     logger.info(f"Compiling all RASP programs found in {loaddir}.")
-    while compile_single_batch(loaddir, savedir) is not None:
+    for _ in range(max_batches or 10**8):
+        if compile_single_batch(loaddir, savedir) is None:
+            break
         jax.clear_caches()
-        pass
 
 
 def compile_single_batch(
@@ -151,6 +153,8 @@ if __name__ == "__main__":
                         help="continue compiling from the last batch. can result"
                              " in missing data if the last batch was not fully"
                              " compiled. always True if --single_batch_only.")
+    parser.add_argument('--max_batches', type=int, default=None,
+                        help="maximum number of batches to compile. default: None")
     args = parser.parse_args()
 
     if args.loadpath is None:
@@ -170,4 +174,5 @@ if __name__ == "__main__":
             loaddir=args.loadpath,
             savedir=args.savepath,
             continued=args.continued,
+            max_batches=args.max_batches,
         )
