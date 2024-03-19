@@ -19,7 +19,8 @@ DEFAULT_BATCHSIZE = 1024
 
 # Load data (list of dicts) from data/batches/...
 # Save deduped data back to data/deduped/{name}/data.json
-
+# TODO: allow for deduping new generated data without
+# forcing a re-compile of all old data.
 
 def save_deduped(
     deduped: list[dict],

@@ -20,11 +20,11 @@ args = parser.parse_args()
 
 # Data loading
 data = data_utils.load_batches(config.full_dataset_dir)
-rasp_only = []
+all_rasp = data_utils.load_batches(config.unprocessed_dir)
+deduped_rasp = []
 for d in os.scandir(config.deduped_dir):
     if d.is_dir():
-        rasp_only.extend(data_utils.load_batches(d))
-
+        deduped_rasp.extend(data_utils.load_batches(d))
 
 
 # Preprocessing data for histograms
@@ -38,18 +38,24 @@ n_tokens_per_layer = [len(layer) for x in data for layer in x['tokens']]
 
 
 # Statistics
-print("Total datapoints:", len(data))
-print("Total layers:", sum(n_layers))
+n_data_deduped = len(deduped_rasp)
+n_layers_deduped = len([layer for x in deduped_rasp for layer in x['tokens']])
+n_data_rasp = len(all_rasp)
+n_layers_rasp = len([layer for x in all_rasp for layer in x['tokens']])
+
+print(f"Total datapoints pre deduping (unprocessed): {n_data_rasp:,}")
+print(f"Total layers pre deduping (unprocessed): {n_layers_rasp:,}")
+print()
+
+print(f"Total datapoints pre compilation (deduped): {n_data_deduped:,}")
+print(f"Total layers pre compilation (deduped): {n_layers_deduped:,}")
+print()
+
+print(f"Total datapoints (compiled): {len(data):,}")
+print(f"Total layers (compiled): {sum(n_layers):,}")
 print()
 assert sum(n_layers) == len(n_params_per_layer)
 assert sum(n_layers) == len(n_tokens_per_layer)
-
-n_data_rasp = len(rasp_only)
-n_layers_rasp = len([layer for x in rasp_only for layer in x['tokens']])
-
-print(f"Total datapoints pre compilation: {n_data_rasp:,}")
-print(f"Total layers pre compilation: {n_layers_rasp:,}")
-print()
 
 print(f"Min weights per model: {np.min(n_params):,}")
 print(f"Max weights per model: {np.max(n_params):,}")
