@@ -16,10 +16,15 @@ parser = argparse.ArgumentParser(description='Data processing.')
 parser.add_argument('--name', type=str, default="train", 
                     help="'train', 'test', 'test_5, 'test_6")
 parser.add_argument('--no_plot', action='store_true', help="Don't plot histograms")
+parser.add_argument('--max_datapoints', type=int, default=None, 
+                    help="Limit number of datapoints")
 args = parser.parse_args()
 
 # Data loading
-data = data_utils.load_batches(config.full_dataset_dir)
+data = data_utils.load_batches(
+    config.full_dataset_dir, 
+    max_data=args.max_datapoints
+)
 all_rasp = data_utils.load_batches(config.unprocessed_dir)
 deduped_rasp = []
 for d in os.scandir(config.deduped_dir):
