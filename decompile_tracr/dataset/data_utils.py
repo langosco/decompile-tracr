@@ -23,25 +23,24 @@ from decompile_tracr.dataset.logger_config import setup_logger
 
 
 logger = setup_logger(__name__)
+NUMPY_DTYPE = np.float16
 
 
 def load_and_process_data(
-        rng=None, 
-        loaddir=config.full_dataset_dir,
-        max_data=None,
-        shuffle=False, 
-        name="train",
-        d_model=64,
-        max_rasp_len=32,
-        max_weights_len=8192,
-    ) -> dict[str, np.ndarray]:
+    rng=None, 
+    loaddir=config.full_dataset_dir,
+    max_data=None,
+    shuffle=False, 
+    name="train",
+    d_model=64,
+    max_rasp_len=32,
+    max_weights_len=8192,
+    split_layers=True,
+) -> dict[str, np.ndarray]:
     """Load dataset and process it for model input."""
     logger.info(f"Loading data from {loaddir}.")
     data = load_batches(loaddir=loaddir, max_data=max_data)
-    data = flatten_data(data)
-
-    if max_data is not None:
-        data = data[:max_data]
+    data = flatten_data(data, split_layers=split_layers)
 
     if shuffle:
         rng = np.random.default_rng(rng)
@@ -59,19 +58,32 @@ def load_and_process_data(
     return data
 
 
-def flatten_data(data: list[dict]) -> list[dict]:
+def flatten_data(data: list[dict], split_layers=True) -> list[dict]:
     """
     Convert the list of models to a list of layers. Throw away
     model-level information like the rasp program.
+
+    If split_layers is False, datapoints correspond to entire models. If
+    True, datapoints correspond to individual layers.
     """
     out = []
     for program_id, program in enumerate(data):
         n_layers = len(program['weights'])
         assert len(program['tokens']) == n_layers
-        for w, t in zip(program["weights"], program["tokens"]):
+
+        if split_layers:
+            for w, t in zip(program["weights"], program["tokens"]):
+                out.append({
+                    "weights": w,
+                    "tokens": t,
+                    "program_id": program_id,
+                    "n_sops": program['n_sops'],
+                    "n_layers": n_layers,
+                })
+        else:
             out.append({
-                "weights": w,
-                "tokens": t,
+                "weights": np.concatenate(program["weights"]).astype(NUMPY_DTYPE),
+                "tokens": np.concatenate(program["tokens"]).astype(NUMPY_DTYPE),
                 "program_id": program_id,
                 "n_sops": program['n_sops'],
                 "n_layers": n_layers,
@@ -87,25 +99,31 @@ def process_data(
     max_weights_len: int = 8192,
     name=None,
     filter_large_weights: bool = False,
-    ) -> dict[str, np.ndarray]:
-    """Process a list of dicts into a dict of arrays for model input."""
+) -> dict[str, np.ndarray]:
+    """Process a list of dicts into a dict of arrays for model input.
+    Deletes original datapoints (i.e. elements of data) to free memory.
+    """
     n = len(data)
     out = defaultdict(list)
-    for x in data:
-        x_proc = process_single_datapoint(
-            x, d_model, max_rasp_len, max_weights_len, 
-            filter_large_weights)
+
+    # process data from list[dict] to dict of lists
+    while data:
+        x_proc = process_single_datapoint(data.pop(), 
+            d_model, max_rasp_len, max_weights_len, filter_large_weights)
 
         if x_proc is None:
             continue
 
         for k, v in x_proc.items():
             out[k].append(v)
-
-    out = {k: np.stack(v) for k, v in out.items()}
+        
+    # stack to np.arrays & clip
+    out = {k: np.stack(v).astype(NUMPY_DTYPE) for k, v in out.items()}
     out = {k: to_int(v) if k in ("tokens", "program_id", "n_sops") else v 
            for k, v in out.items()}
+    out["weights"] = np.clip(out["weights"], -100, 100)
     
+    # logging & sanity checks
     if filter_large_weights:
         if name.startswith("test"):
             logger.warning(f"Received filter_large_weights=True for "
@@ -113,8 +131,6 @@ def process_data(
         logger.info(f"Filtered out {n - len(out['tokens'])} datapoints "
                     f"({round(100 * (n - len(out['tokens'])) / n, 2)}%). "
                     f"Total remaining: {len(out['tokens'])}. ({name})]\n")
-    # clip weights
-    out["weights"] = np.clip(out["weights"], -100, 100)
 
     assert max_weights_len % d_model == 0
     chex.assert_shape(out["tokens"], (None, max_rasp_len))
@@ -124,12 +140,12 @@ def process_data(
 
 
 def process_single_datapoint(
-        x: dict[str, tuple],
-        d_model: int,
-        max_rasp_len: int = 32,
-        max_weights_len: int = 8192,
-        filter_weights: bool = False,
-    ) -> dict[str, np.ndarray] | None:
+    x: dict[str, tuple],
+    d_model: int,
+    max_rasp_len: int = 32,
+    max_weights_len: int = 8192,
+    filter_weights: bool = False,
+) -> dict[str, np.ndarray] | None:
     """Process a single datapoint (ie single layer) for model 
     input. Assume x is a dict with keys "tokens", "weights", 
     and "program_id".
@@ -143,21 +159,23 @@ def process_single_datapoint(
         raise ValueError(f"Weights length ({len(x['weights'])}) exceeds "
                          f"max weights length ({max_weights_len}).")
     
-    w_mean = np.mean(x['weights'])
+    w_mean = np.mean(x['weights'], dtype=np.float64)
     if filter_weights and np.abs(w_mean) > config.MAX_WEIGHTS_LAYER_MEAN:
         return None
     
-    weights = pad_to(x['weights'], max_weights_len, pad_value=0.05)
+    weights = np.array(x['weights'], dtype=NUMPY_DTYPE)
+    weights = pad_to(weights, max_weights_len, pad_value=0.05)
     weights = pad_and_chunk(weights, d_model)  # (n_chunks, d_model)
+    tokens = np.array(x['tokens'])
     return {
-        "tokens": pad_to(x['tokens'], max_rasp_len, pad_value=vocab.pad_id),
+        "tokens": pad_to(tokens, max_rasp_len, pad_value=vocab.pad_id),
         "weights": weights,
         **{k: v for k, v in x.items() if k not in ("tokens", "weights")}
     }
 
 
 def to_int(array: np.ndarray) -> np.ndarray:
-    int_arr = array.astype(np.int32)
+    int_arr = array.astype(np.int64)
     assert np.allclose(array, int_arr), f"Array is not integer: {array}"
     return int_arr
 
@@ -171,8 +189,8 @@ def pad_and_chunk(arr: chex.Array, chunk_size: int) -> chex.Array:
 
 def pad_to(x: np.ndarray, max_len: int, pad_value: int = 0):
     """Pad a 1D array to a given length. Not jittable."""
-    x = np.array(x)
     assert len(x) <= max_len
+    assert isinstance(x, np.ndarray), f"Expected np.ndarray, got {type(x)}."
     chex.assert_rank(x, 1)
     return np.pad(x, (0, max_len - len(x)), constant_values=pad_value)
 
@@ -196,8 +214,8 @@ def load_batches(
         
         if max_data is not None and len(data) >= max_data:
             logger.info(f"load_batches: Loaded "
-                        f"{len(data)} >= {max_data} datapoints, stopping.")
-            data = data[:max_data]
+                        f"{len(data)} >= {max_data} datapoints. Stopping "
+                        f"and truncating to {max_data}.")
             break
 
     if len(data) == 0:
@@ -205,7 +223,7 @@ def load_batches(
     elif max_data is not None and len(data) < max_data:
         logger.warning(f"load_batches: Loaded {len(data)} < {max_data} datapoints.")
 
-    return data
+    return data[:max_data]
 
 
 def dedupe(data: list[dict]) -> list[dict]:
@@ -253,11 +271,11 @@ def split_dict_data(data: dict, val_ratio: float = 0.1):
 
 
 def save_batch(
-        data: list,
-        savedir: Path = config.unprocessed_dir,
-        overwrite = False,
-        filename = None,
-    ):
+    data: list,
+    savedir: Path = config.unprocessed_dir,
+    overwrite = False,
+    filename = None,
+) -> None:
     """Save data to a json file.
     If filename is not set, use a counter to generate a new 
     filename.
@@ -303,9 +321,9 @@ def get_params(params: dict, layer_name: str) -> jax.Array:
 
 
 def rw_lockfile(
-        lockfile="/tmp/counter.txt", 
-        get_new: callable = lambda x: ""
-    ):
+    lockfile="/tmp/counter.txt", 
+    get_new: callable = lambda x: ""
+) -> tuple[str, str]:
     """read content of lockfile, then append to it.
     Use a lockfile to ensure atomicity. If the file doesn't exist, 
     create it and start the counter at 1.
