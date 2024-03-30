@@ -47,7 +47,6 @@ class FunctionWithRepr:
         return self.fn_str == other.fn_str
 
 
-
 TYPES = [
     "bool",
     "float",
@@ -57,14 +56,14 @@ TYPES = [
 
 # Tracr only supports categorical inputs.
 # These are integers, but they'll be treated as categorical.
-VOCAB_SIZE = 5
+VOCAB_SIZE = 10
 VOCAB = list(range(VOCAB_SIZE))
 
 
 # categorical --> categorical
 # (note that range == domain. might change this later)
-CAT_TO_CAT = [FunctionWithRepr(f"lambda x: x + {n % VOCAB_SIZE}") for n in VOCAB]
-CAT_TO_CAT += [
+#CAT_TO_CAT = [FunctionWithRepr(f"lambda x: x + {n % VOCAB_SIZE}") for n in VOCAB]  # TODO remvoe
+CAT_TO_CAT = [
     FunctionWithRepr(f"lambda x: x + 1"),
     FunctionWithRepr(f"lambda x: x - 1"),
 ]
@@ -81,10 +80,10 @@ CAT_TO_FLOAT = [  # note that negative floats are not allowed (bc of ReLUs)
 
 # categorical --> bool
 CAT_TO_BOOL = (
-    [FunctionWithRepr(f"lambda x: x == {n}") for n in VOCAB] +
-    [FunctionWithRepr(f"lambda x: x != {n}") for n in VOCAB] +
-    [FunctionWithRepr(f"lambda x: x > {n}") for n in VOCAB] +
-    [FunctionWithRepr(f"lambda x: x < {n}") for n in VOCAB]
+    [FunctionWithRepr(f"lambda x: x == {n}") for n in (2,3)] +
+    [FunctionWithRepr(f"lambda x: x != {n}") for n in (2,3)] +
+    [FunctionWithRepr(f"lambda x: x > {n}") for n in (2,3)] +
+    [FunctionWithRepr(f"lambda x: x < {n}") for n in (2,3)]
 )
 
 
@@ -96,21 +95,22 @@ BOOL_TO_BOOL = [
 ]
 
 # bool --> float and bool --> categorical
-BOOL_TO_FLOAT = BOOL_TO_BOOL
-BOOL_TO_CAT = BOOL_TO_BOOL
+# BOOL_TO_FLOAT = BOOL_TO_BOOL
+# BOOL_TO_CAT = BOOL_TO_BOOL
 
 
 # float --> float
-FLOAT_TO_FLOAT = CAT_TO_FLOAT
+# FLOAT_TO_FLOAT = CAT_TO_FLOAT
 
 # float --> bool
 # TODO: consider using more thresholds
-threshold = 0
+threshold = 3.5
 FLOAT_TO_BOOL = [
     FunctionWithRepr(f"lambda x: x > {threshold}"),
     FunctionWithRepr(f"lambda x: x < {threshold}"),
     FunctionWithRepr(f"lambda x: x == 0"),
 ]
+
 
 # float --> categorical
 FLOAT_TO_CAT = [
@@ -119,13 +119,17 @@ FLOAT_TO_CAT = [
 ]
 
 
+FREQ_TO_BOOL = [  # freq = outputs from numerical Aggregate
+    FunctionWithRepr(f"lambda x: x > 0.5"),
+    FunctionWithRepr(f"lambda x: bool(x)"),
+]
+
+
 # rasp.SequenceMap only supports categorical --> categorical
 NONLINEAR_SEQMAP_FNS = [
     FunctionWithRepr("lambda x, y: x * y"),
-    FunctionWithRepr(f"lambda x, y: x * (y + 1) % {VOCAB_SIZE}"),
-    FunctionWithRepr(f"lambda x, y: x * (y + x) % {VOCAB_SIZE}"),
     FunctionWithRepr(f"lambda x, y: x + y % {VOCAB_SIZE}"),
-    FunctionWithRepr(f"lambda x, y: x - y"),
+#    FunctionWithRepr(f"lambda x, y: x - y % {VOCAB_SIZE}"),
     FunctionWithRepr(f"lambda x, y: x or y"),
     FunctionWithRepr(f"lambda x, y: x and y"),
 #    FunctionWithRepr("lambda x, y: x/y"),  # need to avoid y = 0
@@ -133,14 +137,14 @@ NONLINEAR_SEQMAP_FNS = [
 ]
 
 
-LINEAR_SEQUENCE_MAP_WEIGHTS = [-3, -2, -1, 0, 1, 2, 3]
+LINEAR_SEQUENCE_MAP_WEIGHTS = [-3, -2, -1, 1, 2, 3]
 
 
 ALL_FNS = (
-    BOOL_TO_BOOL + BOOL_TO_FLOAT + BOOL_TO_CAT +
-    FLOAT_TO_BOOL + FLOAT_TO_FLOAT + FLOAT_TO_CAT +
-    CAT_TO_BOOL + CAT_TO_FLOAT + CAT_TO_CAT +
-    NONLINEAR_SEQMAP_FNS
+    BOOL_TO_BOOL +
+    FLOAT_TO_BOOL + FLOAT_TO_CAT +
+    CAT_TO_BOOL + CAT_TO_FLOAT + CAT_TO_CAT + 
+    FREQ_TO_BOOL + NONLINEAR_SEQMAP_FNS
 )
 
 
@@ -158,18 +162,21 @@ COMPARISONS = [
 
 FUNCTIONS_BY_SIGNATURE = {
     "bool --> bool": BOOL_TO_BOOL,
-    "bool --> float": BOOL_TO_FLOAT,
-    "bool --> categorical": BOOL_TO_CAT,
+    "bool --> float": BOOL_TO_BOOL,
+    "bool --> categorical": BOOL_TO_BOOL,
     "float --> bool": FLOAT_TO_BOOL,
-    "float --> float": FLOAT_TO_FLOAT,
+    "float --> float": CAT_TO_FLOAT,
     "float --> categorical": FLOAT_TO_CAT,
     "categorical --> bool": CAT_TO_BOOL,
     "categorical --> float": CAT_TO_FLOAT,
     "categorical --> categorical": CAT_TO_CAT,
+    "freq --> bool": FREQ_TO_BOOL,
+    "freq --> float": CAT_TO_FLOAT,
+    "freq --> categorical": FLOAT_TO_CAT,
 }
 
 
-def get_map_fn(rng, input_type: str) -> (callable, str):
+def get_map_fn(rng, input_type: str) -> tuple[callable, str]:
     """
     Randomly determine an output domain (ie type), then sample a function
     from the set of functions that map from input_type --> output_type.

@@ -150,7 +150,7 @@ if __name__ == "__main__":
     parser.add_argument('--single_batch_only', action='store_true',
                         help="compile a single batch (file) and then stop.")
     parser.add_argument('--continued', action='store_true',
-                        help="continue compiling from the last batch. can result"
+                        help="don't delete current data on startup. can result"
                              " in missing data if the last batch was not fully"
                              " compiled. always True if --single_batch_only.")
     parser.add_argument('--max_batches', type=int, default=None,

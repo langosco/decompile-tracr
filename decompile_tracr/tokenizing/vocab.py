@@ -52,6 +52,7 @@ vocab = (
     inputs
 )
 
+vocab = tuple(sorted(list(set(vocab))))
 
 size = len(vocab)
 pad_id = vocab.index(PAD)

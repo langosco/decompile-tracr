@@ -118,7 +118,10 @@ class Sampler:
         """Sample a map. A map applies a function elementwise to a SOp.
         The input SOps can be categorical, float, or bool."""
         sop_in = self.sample_from_scope()
-        fn, output_type = map_primitives.get_map_fn(self.rng, sop_in.annotations["type"])
+        input_type = sop_in.annotations["type"]
+        if input_type == "float" and isinstance(sop_in, rasp.Aggregate):
+            input_type = "freq"  # hack to accomodate outputs from numerical Aggregates, which are always between 0 and 1
+        fn, output_type = map_primitives.get_map_fn(self.rng, input_type)
         sop_out = rasp.Map(fn, sop_in, simplify=False)
         self.scope.append(rasp_utils.annotate_type(sop_out, type=output_type))
 
@@ -150,10 +153,11 @@ class Sampler:
 
     def add_numerical_aggregate(self):
         """
-        Tracr puts constraints on select-aggregate operations. This aggregate is 
-        sampled to satisfy the constraint that the sop argument is 'boolean',
-        that is numerical and only takes values 0 or 1.
-        This constraint is necessary for all aggregates with numerical SOps.
+        Tracr puts constraints on select-aggregate operations. Numerical aggregates are 
+        sampled to satisfy the constraint that the sop argument is 'boolean', i.e. it is
+        numerical and only takes values 0 or 1. This constraint is necessary for all 
+        aggregates with numerical SOps.
+        Note: outputs are always in the closed interval [0, 1] ('frequencies').
         """
         selector = self.get_selector()
         sop_in = self.sample_from_scope(
@@ -237,8 +241,20 @@ class Sampler:
             "selector_width": self.add_selector_width,
         }
 
-        sop_class = self.rng.choice(list(set(add_functions) - set(avoid_types)))
+        weights = {
+            "map": 1,
+            "sequence_map": 0.8,
+            "linear_sequence_map": 1,
+            "numerical_aggregate": 1,
+            "categorical_aggregate": 1,
+            "selector_width": 0.05,
+        }
+
+        sop_classes = list(set(add_functions.keys()) - set(avoid_types))
+        weights = np.array([weights[c] for c in sop_classes]); weights /= weights.sum()
+        sop_class = self.rng.choice(sop_classes, p=weights)
         add = add_functions[sop_class]
+
         try:
             add()
             if any(rasp_utils.fraction_none(self.run(x)) > 0.5 for x in TEST_INPUTS):

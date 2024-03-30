@@ -19,6 +19,7 @@ from decompile_tracr.dataset.data_utils import save_batch
 
 logger = setup_logger(__name__)
 process = psutil.Process()
+VERBOSE = False
 
 
 def generate(
@@ -73,7 +74,7 @@ def sample_loop(rng, ndata, name: str, program_length: int):
             "tokens": tokens,
         })
 
-        if i % 100 == 0:
+        if i % 100 == 0 and VERBOSE:
             mem_info = process.memory_full_info()
             logger.info(f"Memory usage: {mem_info.uss / 1024**2:.2f} "
                         f"MB ({len(data)} programs).")
@@ -84,7 +85,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Training run')
     parser.add_argument('--name', type=str, default="train")
     parser.add_argument('--program_length', type=int, default=10, 
-                        help='program length')
+                        help='program length (nr of sops)')
     parser.add_argument('--ndata', type=int, default=10)
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--savedir', type=str, default=None,
