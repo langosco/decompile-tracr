@@ -40,9 +40,9 @@ def compile_all(loaddir: str, savedir: str, continued=False,
 
 
 def compile_single_batch(
-        loaddir: str, 
-        savedir: str,
-        max_weights_len: int = config.MAX_WEIGHTS_LENGTH
+    loaddir: str, 
+    savedir: str,
+    max_weights_len: int = config.MAX_WEIGHTS_LENGTH
 ) -> list[dict]:
     """Load and compile the next batch of rasp programs."""
     data = load_next_batch(loaddir)
@@ -92,7 +92,8 @@ def load_next_batch(loaddir: str):
         return data_utils.load_json(path)
 
 
-def get_weights(tokens: list[int], max_weights_len: int):
+def get_weights(tokens: list[int], max_weights_len: int
+) -> list[list[float]]:
     """Get flattened weights for every layer."""
     model = compile_tokens_to_model(tokens)
     n_layers = len(tokens)

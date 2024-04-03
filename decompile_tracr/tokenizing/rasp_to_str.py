@@ -227,9 +227,11 @@ def validate_rasp_str(rasp_str: list[list[str]]):
 
     for x in flat:
         if x not in vocab.vocab:
-            raise ValueError(f"Invalid token: {x}.")
+            raise ValueError(f"Invalid token: {x}. (Sometimes this happens "
+            "when you hand-craft example programs that are not sampled from the vocab.")
 
     variable_names = set([x for x in flat if x in vocab.sop_variables])
-    if not variable_names == set(vocab.sop_variables[:len(variable_names)]):
-        raise ValueError(f"Variable names must be in order: {vocab.sop_variables}."
+    variable_names_in_vocab_order = vocab.sop_variables[:len(variable_names)]
+    if not variable_names == set(variable_names_in_vocab_order):
+        raise ValueError(f"Variable names be assigned from 0 in increasing order: {variable_names_in_vocab_order}. "
                          f"Found: {variable_names}.")

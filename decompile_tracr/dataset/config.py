@@ -28,10 +28,10 @@ def set_data_dir():
         data_dir = hpc_storage_dir / "lauro/rasp-data/"
     else:
         data_dir = module_path / "data/"
-    return data_dir
+    return data_dir, module_path
 
 
-data_dir = set_data_dir()
+data_dir, module_path = set_data_dir()
 
 # Set up global default paths
 # 1) data/unprocessed contains the output of the program

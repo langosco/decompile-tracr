@@ -80,7 +80,7 @@ CAT_TO_FLOAT = [  # note that negative floats are not allowed (bc of ReLUs)
 
 # categorical --> bool
 CAT_TO_BOOL = (
-    [FunctionWithRepr(f"lambda x: x == {n}") for n in (2,3)] +
+    [FunctionWithRepr(f"lambda x: x == {n}") for n in (0,1,2,3)] +
     [FunctionWithRepr(f"lambda x: x != {n}") for n in (2,3)] +
     [FunctionWithRepr(f"lambda x: x > {n}") for n in (2,3)] +
     [FunctionWithRepr(f"lambda x: x < {n}") for n in (2,3)]
@@ -130,6 +130,7 @@ NONLINEAR_SEQMAP_FNS = [
     FunctionWithRepr("lambda x, y: x * y"),
     FunctionWithRepr(f"lambda x, y: x + y % {VOCAB_SIZE}"),
 #    FunctionWithRepr(f"lambda x, y: x - y % {VOCAB_SIZE}"),
+#    FunctionWithRepr(f"lambda x, y: x - y"),
     FunctionWithRepr(f"lambda x, y: x or y"),
     FunctionWithRepr(f"lambda x, y: x and y"),
 #    FunctionWithRepr("lambda x, y: x/y"),  # need to avoid y = 0

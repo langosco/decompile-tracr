@@ -18,9 +18,9 @@ sop_variables = [
     f"sop_{i}" for i in range(25)
 ]
 
-maps = [
+maps = list(set([
     repr(fn) for fn in map_primitives.ALL_FNS
-]
+]))
 
 comparisons = [
     comparison.name for comparison in map_primitives.COMPARISONS
@@ -52,7 +52,8 @@ vocab = (
     inputs
 )
 
-vocab = tuple(sorted(list(set(vocab))))
+vocab = tuple(vocab)
+assert len(vocab) == len(set(vocab)), "vocab has duplicates"
 
 size = len(vocab)
 pad_id = vocab.index(PAD)

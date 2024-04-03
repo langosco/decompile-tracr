@@ -3,6 +3,7 @@ import os
 from collections import defaultdict
 from pathlib import Path
 from typing import Generator, Optional
+import ast
 try:
     import ujson as json
 except ImportError:
@@ -121,7 +122,7 @@ def process_data(
     out = {k: np.stack(v).astype(NUMPY_DTYPE) for k, v in out.items()}
     out = {k: to_int(v) if k in ("tokens", "program_id", "n_sops") else v 
            for k, v in out.items()}
-    out["weights"] = np.clip(out["weights"], -100, 100)
+#    out["weights"] = np.clip(out["weights"], -100, 100)
     
     # logging & sanity checks
     if filter_large_weights:
@@ -314,6 +315,8 @@ def get_params(params: dict, layer_name: str) -> jax.Array:
         layer_params = [
             params[f'{prefix}/{k}'] for k in ['linear_1', 'linear_2']
         ]
+    elif layer_name == 'embed':
+        layer_params = [params['token_embed'], params['pos_embed']]
     else:
         raise ValueError(f'Unknown layer name {layer_name}.')
     
@@ -371,7 +374,8 @@ def sequential_count_via_lockfile(countfile="/tmp/counter.txt") -> int:
 
 
 def layer_names(n_layers: int) -> Generator[str, None, None]:
-    assert n_layers % 2 == 0
+    assert n_layers % 2 == 0, "n_layers must be even."
+    yield "embed"
     for i in range(n_layers // 2):
         yield f"layer_{i}/attn"
         yield f"layer_{i}/mlp"

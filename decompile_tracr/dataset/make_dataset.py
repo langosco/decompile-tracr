@@ -18,13 +18,13 @@ rng = np.random.default_rng(42)
 if __name__ == "__main__":
     generate.generate(
         rng, 
-        ndata=50_000,
+        ndata=1_000,
         name='train', 
         savedir=config.unprocessed_dir,
-        program_length=10,
+        program_length=7,
     )
 
-    tokenize_lib.tokenize_lib(savedir=config.unprocessed_dir)
+#    tokenize_lib.tokenize_lib(savedir=config.unprocessed_dir)
 
     dedupe.dedupe(
         loaddir=config.unprocessed_dir,
