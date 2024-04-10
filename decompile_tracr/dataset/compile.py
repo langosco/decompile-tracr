@@ -21,17 +21,11 @@ logger = setup_logger(__name__)
 process = psutil.Process()
 
 
-def compile_all(loaddir: str, savedir: str, continued=False, 
-                max_batches=None):
+def compile_all(loaddir: str, savedir: str, max_batches=None):
     """
     Load and compile rasp programs in batches.
     Save compiled programs to savedir.
     """
-    if savedir.exists() and not continued:
-        logger.info(f"Deleting existing data at {savedir}.")
-        shutil.rmtree(savedir, ignore_errors=True)
-        os.makedirs(savedir)
-
     logger.info(f"Compiling all RASP programs found in {loaddir}.")
     for _ in range(max_batches or 10**8):
         if compile_single_batch(loaddir, savedir) is None:
@@ -142,6 +136,13 @@ def compile_tokens_to_model(tokens: list[int]):
     return model
 
 
+def delete_existing(savedir: str):
+    logger.info(f"Deleting existing data at {savedir}.")
+    shutil.rmtree(savedir, ignore_errors=True)
+    os.makedirs(savedir)
+
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Data processing.')
     parser.add_argument('--loadpath', type=str, default=None, 
@@ -150,10 +151,8 @@ if __name__ == "__main__":
                         help="override default save path (data/deduped/...)")
     parser.add_argument('--single_batch_only', action='store_true',
                         help="compile a single batch (file) and then stop.")
-    parser.add_argument('--continued', action='store_true',
-                        help="don't delete current data on startup. can result"
-                             " in missing data if the last batch was not fully"
-                             " compiled. always True if --single_batch_only.")
+    parser.add_argument('--delete_existing', action='store_true',
+                        help="delete current data on startup.")
     parser.add_argument('--max_batches', type=int, default=None,
                         help="maximum number of batches to compile. default: None")
     args = parser.parse_args()
@@ -163,6 +162,9 @@ if __name__ == "__main__":
     
     if args.savepath is None:
         args.savepath = config.full_dataset_dir
+    
+    if args.delete_existing:
+        delete_existing(args.savepath)
     
     if args.single_batch_only:
         logger.info("Compile one batch of programs.")
@@ -174,6 +176,5 @@ if __name__ == "__main__":
         compile_all(
             loaddir=args.loadpath,
             savedir=args.savepath,
-            continued=args.continued,
             max_batches=args.max_batches,
         )
