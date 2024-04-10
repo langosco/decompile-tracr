@@ -49,9 +49,9 @@ def rasp_to_str(program: rasp.SOp) -> list[list[str]]:
 
 
 def rasp_graph_to_str(
-        graph: nx.DiGraph,
-        sources,
-    ) -> list[list[str]]:
+    graph: nx.DiGraph,
+    sources,
+) -> list[list[str]]:
     """Convert a rasp graph to a string representation.
     Returns a dict that maps every layer to a list of tokens.
     """
@@ -77,9 +77,9 @@ def rasp_graph_to_str(
 
 
 def get_sops_by_layer(
-        program_graph: nx.DiGraph,
-        sources: list[nodes.Node]
-    ) -> dict[list[str]]:
+    program_graph: nx.DiGraph,
+    sources: list[nodes.Node]
+) -> dict[list[str]]:
     """Convert a RASP program to a dict that maps every layer
     to corresponding RASP operations performed by that layer."""
     # this is a dict nodes -> layer number:

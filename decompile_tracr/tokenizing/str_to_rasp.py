@@ -8,8 +8,7 @@ from decompile_tracr.tokenizing import vocab
 from decompile_tracr.tokenizing.rasp_to_str import validate_rasp_str
 
 
-def str_to_rasp(rasp_str: list[list[str]],
-    ) -> rasp.SOp:
+def str_to_rasp(rasp_str: list[list[str]]) -> rasp.SOp:
     """Convert a string representation to a RASP program.
     """
     validate_rasp_str(rasp_str)
@@ -25,7 +24,7 @@ def str_to_rasp(rasp_str: list[list[str]],
     return output_sop
     
 
-def split_list(l: list, sep: str):
+def split_list(l: list, sep: str) -> list[list]:
     """Split a list by a separator.
     """
     out = []
