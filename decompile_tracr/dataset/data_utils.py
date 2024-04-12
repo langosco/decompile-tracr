@@ -177,6 +177,7 @@ def get_tokens_by_layer(tokens: list[int]):
             current = []
     for l in layers:
         l.insert(0, vocab.bos_id)
+        assert l[-1] == vocab.eol_id
         l[-1] = vocab.eos_id
     return layers
 

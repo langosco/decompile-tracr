@@ -54,8 +54,10 @@ def rasp_graph_to_str(
 ) -> list[str]:
     """Convert a rasp graph to a representation as list of string tokens.
     """
-    layers_to_nodes = get_sops_by_layer(graph, sources)
-    graph = add_variable_names_to_graph(graph)
+    node_to_layer = craft_graph_to_model._allocate_modules_to_layers(
+        graph, sources)
+    layers_to_nodes = get_nodes_by_layer(node_to_layer)
+    graph = add_variable_names_to_graph(graph, layers_to_nodes)
 
     rep = [vocab.BOS]
 
@@ -71,40 +73,45 @@ def rasp_graph_to_str(
     return rep
 
 
-def get_sops_by_layer(
-    program_graph: nx.DiGraph,
-    sources: list[nodes.Node]
-) -> dict[list[str]]:
-    """Convert a RASP program to a dict that maps every layer
-    to corresponding RASP operations performed by that layer."""
-    # this is a dict nodes -> layer number:
-    nodes_to_layers = craft_graph_to_model._allocate_modules_to_layers(program_graph, sources)
-
-    # we want a dictionary the other way around, i.e. 
-    # layer_name -> list of nodes:
-    n_layers = max(nodes_to_layers.values()) + 1
+def get_nodes_by_layer(node_to_layer: dict[str, int]) -> dict[str, list[str]]:
+    """Requires that node_to_layer is a dict that maps 
+    node_id -> layer_number,  {"map_1": 1, "map_2": 1}.
+    This function returns an inverted mapping, i.e. a dictionary that maps
+    layer -> list of node_ids, e.g. {"layer_0/mlp": ["map_1", "map_2"]}.
+    """
+    n_layers = max(node_to_layer.values()) + 1
     if n_layers % 2 != 0:
         n_layers += 1  # must be even
 
     layers_to_nodes = {get_layer_name_from_number(i): []
                        for i in range(n_layers)}
 
-    for node_id, layer in nodes_to_layers.items():
+    for node_id, layer in node_to_layer.items():
+        assert isinstance(node_id, str)
+        assert isinstance(layer, int)
         layers_to_nodes[get_layer_name_from_number(layer)
                         ].append(node_id)
+    
+    # sort the nodes in each layer by their node_id
+    for layer in layers_to_nodes.values():
+        layer.sort()
 
     return layers_to_nodes
 
 
-def add_variable_names_to_graph(graph: nx.DiGraph) -> nx.DiGraph:
+def add_variable_names_to_graph(
+    graph: nx.DiGraph, 
+    layers_to_nodes: dict[str, str],
+) -> nx.DiGraph:
     """Allocate variable names from the tokenizer vocabulary
     to the nodes in the graph."""
-    # Assign variable names in graph-topological order, 
-    # independent of SOp labels. At compile time, SOps 
-    # are stored in the residual stream ordered by SOp label, 
-    # so this can result in two equally tokenized programs 
-    # having different compiled weights.
-    sop_labels = nx.topological_sort(graph)
+    sop_labels = []
+    if "tokens" in graph.nodes:
+        sop_labels.append("tokens")
+    if "indices" in graph.nodes:
+        sop_labels.append("indices")
+    sop_labels += [node_id for layer in layers_to_nodes.values() 
+                  for node_id in layer]
     sop_names = iter(vocab.sop_variables)
 
     for label in sop_labels:
