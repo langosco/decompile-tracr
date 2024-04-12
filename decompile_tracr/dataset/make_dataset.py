@@ -18,7 +18,7 @@ rng = np.random.default_rng(42)
 if __name__ == "__main__":
     generate.generate(
         rng, 
-        ndata=1_000,
+        ndata=50,
         name='train', 
         savedir=config.unprocessed_dir,
         program_length=7,

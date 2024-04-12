@@ -1,25 +1,26 @@
 # Desc: encode / decode a RASP program into a sequence of tokens.
 
+import numpy as np
 from tracr.rasp import rasp
 
 from decompile_tracr.tokenizing import rasp_to_str, str_to_rasp
 import decompile_tracr.tokenizing.vocab as voc
 
 
-def encode(flat_program: list[str]):
-    return [voc.vocab.index(x) for x in flat_program]
+def encode(x: str) -> int:
+    try:
+        return voc.vocab.index(x)
+    except ValueError as e:
+        assert e.args[0] == "tuple.index(x): x not in tuple"
+        raise ValueError(f"Not in vocab: {x}")
 
 
-def decode(tokenized_program: list[int]):
-    return [voc.vocab[x] for x in tokenized_program]
+def decode(x: int) -> str:
+    return voc.vocab[x]
 
 
-def tokenize(program: rasp.SOp) -> list[list[int]]:
-    """
-    Tokenize a RASP program.
-    Output is a list of lists, where each list is 
-    a layer of the program.
-    """
+def tokenize(program: rasp.SOp) -> list[int]:
+    """Tokenize a RASP program."""
     if not isinstance(program, rasp.SOp):
         raise ValueError("Input must be a RASP program.")
 
@@ -27,10 +28,10 @@ def tokenize(program: rasp.SOp) -> list[list[int]]:
     return [encode(l) for l in by_layer]
 
 
-def detokenize(tokens: list[list[int]]) -> rasp.SOp:
-    if not (isinstance(tokens, list) and isinstance(tokens[0], list) 
-            and isinstance(tokens[0][0], int)):
-        raise ValueError("Input must be a list of lists of ints.")
+def detokenize(tokens: list[int]) -> rasp.SOp:
+    if not isinstance(tokens[0], (int, np.integer)):
+        raise ValueError(f"Input elements must be integers. Got "
+                         f"{type(tokens[0])}.")
 
     decoded = [decode(x) for x in tokens]
     return str_to_rasp.str_to_rasp(decoded)

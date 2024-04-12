@@ -130,7 +130,7 @@ NONLINEAR_SEQMAP_FNS = [
     FunctionWithRepr("lambda x, y: x * y"),
     FunctionWithRepr(f"lambda x, y: x + y % {VOCAB_SIZE}"),
 #    FunctionWithRepr(f"lambda x, y: x - y % {VOCAB_SIZE}"),
-#    FunctionWithRepr(f"lambda x, y: x - y"),
+    FunctionWithRepr(f"lambda x, y: x - y"),  # remove?
     FunctionWithRepr(f"lambda x, y: x or y"),
     FunctionWithRepr(f"lambda x, y: x and y"),
 #    FunctionWithRepr("lambda x, y: x/y"),  # need to avoid y = 0

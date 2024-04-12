@@ -1,8 +1,10 @@
 import os
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 import pytest
+import networkx as nx
 
 from tracr.rasp import rasp
+from tracr.compiler import rasp_to_graph
 
 from decompile_tracr.sampling import rasp_utils
 from decompile_tracr.tokenizing import tokenizer
@@ -39,20 +41,26 @@ def test_sop_names(tokens: list):
         if tok in ["Map", "SequenceMap", "LinearSequenceMap", 
                    "Aggregate", "SelectorWidth"]:
             assert decoded[idx-1] in ["numerical", "categorical"], (
-                f"SOp {tok} preceded by {decoded[idx-1]} instead of "
+                f"SOp {tok} preceded by '{decoded[idx-1]}' instead of "
                 "numerical or categorical."
             )
 
-            assert decoded[idx-2].startswith("SOp_"), (
-                f"SOp {tok} named {decoded[idx-1]} instead of "
-                "SOp_n."
+            assert decoded[idx-2].startswith("sop_"), (
+                f"SOp {tok} named '{decoded[idx-2]}' instead of "
+                "sop_n."
             )
+    
+    # todo: test that variable names are assigned correctly
+#    program = tokenizer.detokenize(tokens)
+#    graph = rasp_to_graph.extract_rasp_graph(program)
+#    sop_names_sorted = list(nx.topological_sort(graph.graph))
+
+
 
 
 @pytest.mark.parametrize("tokens", SAMPLE_PROGRAMS_TOKENIZED)
 def test_bos_and_eos(tokens: list):
     """Test that each sequence begins with BOS and ends with EOS"""
-    for layer in tokens:
-        decoded = tokenizer.decode(layer)
-        assert decoded[0] == vocab.BOS, f"Expected BOS, got {decoded[0]}"
-        assert decoded[-1] == vocab.EOS, f"Expected EOS, got {decoded[-1]}"
+    decoded = [tokenizer.decode(t) for t in tokens]
+    assert decoded[0] == vocab.BOS, f"Expected BOS, got {decoded[0]}"
+    assert decoded[-1] == vocab.EOS, f"Expected EOS, got {decoded[-1]}"

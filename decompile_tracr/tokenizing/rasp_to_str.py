@@ -21,9 +21,9 @@ from tracr.compiler import nodes
 from decompile_tracr.tokenizing import vocab
 
 
-def rasp_to_str(program: rasp.SOp) -> list[list[str]]:
-    dummy_vocab = set(range(2))
-    dummy_max_seq_len = 2
+def rasp_to_str(program: rasp.SOp) -> list[str]:
+    dummy_vocab = {0}
+    dummy_max_seq_len = 1
     dummy_bos="bos"
     dummy_mlp_exactness = 1
 
@@ -51,29 +51,24 @@ def rasp_to_str(program: rasp.SOp) -> list[list[str]]:
 def rasp_graph_to_str(
     graph: nx.DiGraph,
     sources,
-) -> list[list[str]]:
-    """Convert a rasp graph to a string representation.
-    Returns a dict that maps every layer to a list of tokens.
+) -> list[str]:
+    """Convert a rasp graph to a representation as list of string tokens.
     """
     layers_to_nodes = get_sops_by_layer(graph, sources)
     graph = add_variable_names_to_graph(graph)
 
-    layerwise_program = []
+    rep = [vocab.BOS]
 
     for node_ids in layers_to_nodes.values():
-        layer = []
-        layer.append(vocab.BOS)
         for node_id in node_ids:
-            if not layer[-1] == vocab.BOS:
-                layer.append(vocab.SEP)
-            layer.append(get_variable_name(graph, node_id))
-            layer.append(get_encoding(graph, node_id))
-            layer.append(get_classname(graph, node_id))
-            layer.extend(get_args(graph, node_id))
-        layer.append(vocab.EOS)
-        layerwise_program.append(layer)
-    
-    return layerwise_program
+            rep.append(get_variable_name(graph, node_id))
+            rep.append(get_encoding(graph, node_id))
+            rep.append(get_classname(graph, node_id))
+            rep.extend(get_args(graph, node_id))
+            rep.append(vocab.EOO)
+        rep.append(vocab.EOL)
+    rep.append(vocab.EOS)
+    return rep
 
 
 def get_sops_by_layer(
@@ -204,34 +199,48 @@ def get_layer_name_from_number(layer_number: int) -> str:
         return f"layer_{new_layer_number}/mlp"
 
 
-def validate_rasp_str(rasp_str: list[list[str]]):
+class InvalidRASPStringError(ValueError):
+    pass
+
+
+def validate_rasp_str(rasp_str: str):
     """Validate a string representation of a RASP program.
     """
     if not isinstance(rasp_str, list):
-        raise ValueError("Input must be a list.")
-    if not all(isinstance(x, list) for x in rasp_str):
-        raise ValueError("Input must be a list of lists.")
-    if not all(isinstance(x, str) for l in rasp_str for x in l):
-        raise ValueError("Input must be a list of lists of strings.")
+        raise InvalidRASPStringError("Input must be a list (of strings).")
+    elif not isinstance(rasp_str[0], str):
+        raise InvalidRASPStringError("Input must be a list of strings.")
     
-    if not len(rasp_str) % 2 == 0:
-        raise ValueError("Input must have an even number of layers.")
+    if not rasp_str.count(vocab.EOL) % 2 == 0:
+        raise InvalidRASPStringError(f"Input must have an even number of "
+                f"layers. Received: {len(rasp_str.count(vocab.EOL))}.")
 
-    for l in rasp_str:
-        if len(l) < 2:
-            raise ValueError("Each layer must include at least EOS and BOS")
-        elif l[0] != vocab.BOS or l[-1] != vocab.EOS:
-            raise ValueError("Each layer must start with BOS and end with EOS.")
+    if len(rasp_str) < 2:
+        raise InvalidRASPStringError("Program must include at least two "
+                                     "tokens: BOS and EOS")
+    elif rasp_str[0] != vocab.BOS:
+        raise InvalidRASPStringError("Program must start with BOS.")
+    elif rasp_str[-1] not in (vocab.EOS, vocab.PAD):
+        raise InvalidRASPStringError("Program must end with EOS or PAD.")
+
+    if rasp_str.count(vocab.BOS) != 1 or rasp_str.count(vocab.EOS) != 1:
+        raise InvalidRASPStringError("Program must have exactly one "
+                                     "BOS and one EOS.")
     
-    flat = [x for l in rasp_str for x in l]
-
-    for x in flat:
+    padding = rasp_str[rasp_str.index(vocab.EOS)+1:]
+    if padding != [vocab.PAD] * len(padding):
+        raise InvalidRASPStringError("Detected non-padding tokens "
+                                     "following EOS.")
+    
+    for x in rasp_str:
         if x not in vocab.vocab:
-            raise ValueError(f"Invalid token: {x}. (Sometimes this happens "
-            "when you hand-craft example programs that are not sampled from the vocab.")
+            raise InvalidRASPStringError(f"Unkown token: {x}. "
+            "(Sometimes this happens when you hand-craft example programs "
+            "that are not sampled using the vocabulary).")
 
-    variable_names = set([x for x in flat if x in vocab.sop_variables])
+    variable_names = set([x for x in rasp_str if x in vocab.sop_variables])
     variable_names_in_vocab_order = vocab.sop_variables[:len(variable_names)]
     if not variable_names == set(variable_names_in_vocab_order):
-        raise ValueError(f"Variable names be assigned from 0 in increasing order: {variable_names_in_vocab_order}. "
-                         f"Found: {variable_names}.")
+        raise InvalidRASPStringError("Variable names be assigned from 0 "
+            "in increasing order: {variable_names_in_vocab_order}. "
+            f"Found: {variable_names}.")

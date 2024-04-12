@@ -3,6 +3,8 @@ os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
+from decompile_tracr.tokenizing.str_to_rasp import split_list
+from decompile_tracr.tokenizing import vocab
 from decompile_tracr.dataset import data_utils
 from decompile_tracr.dataset import config
 
@@ -35,32 +37,21 @@ for d in os.scandir(config.deduped_dir):
 # Preprocessing data for histograms
 n_sops = [x['n_sops'] for x in data]
 n_params = [len([w for layer in x['weights'] for w in layer]) for x in data]
-n_tokens = [len([t for layer in x['tokens'] for t in layer]) for x in data]
-n_layers = [len(x['weights']) for x in data]
+n_tokens = [len(x['tokens']) for x in data]
+n_layers = [len(x['weights'])-1 for x in data]
 
-n_params_per_layer = [len(layer) for x in data for layer in x['weights']]
-n_tokens_per_layer = [len(layer) for x in data for layer in x['tokens']]
-
+n_params_per_layer = [len(layer) for x in data for layer in x['weights'][1:]]
 
 # Statistics
 n_data_deduped = len(deduped_rasp)
-n_layers_deduped = len([layer for x in deduped_rasp for layer in x['tokens']])
 n_data_rasp = len(all_rasp)
-n_layers_rasp = len([layer for x in all_rasp for layer in x['tokens']])
 
 print(f"Total datapoints pre deduping (unprocessed): {n_data_rasp:,}")
-print(f"Total layers pre deduping (unprocessed): {n_layers_rasp:,}")
-print()
-
 print(f"Total datapoints pre compilation (deduped): {n_data_deduped:,}")
-print(f"Total layers pre compilation (deduped): {n_layers_deduped:,}")
-print()
-
 print(f"Total datapoints (compiled): {len(data):,}")
 print(f"Total layers (compiled): {sum(n_layers):,}")
 print()
 assert sum(n_layers) == len(n_params_per_layer)
-assert sum(n_layers) == len(n_tokens_per_layer)
 
 print(f"Min weights per model: {np.min(n_params):,}")
 print(f"Max weights per model: {np.max(n_params):,}")
@@ -89,8 +80,8 @@ if not args.no_plot:
     axs[4].set_title("Parameters per layer")
     axs[4].hist(n_params_per_layer)
 
-    axs[5].set_title("Tokens per layer")
-    axs[5].hist(n_tokens_per_layer, bins=range(2, 20))
+#    axs[5].set_title("Tokens per layer")
+#    axs[5].hist(n_tokens_per_layer, bins=range(2, 20))
 
 
     plt.tight_layout()

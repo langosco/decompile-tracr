@@ -11,11 +11,10 @@ global_disable_tqdm = not interactive
 
 # Set up global constants
 # per layer maximums size of RASP program and weights:
-# MAX_RASP_LENGTH = 128
-# MAX_WEIGHTS_LENGTH = 16_384
 
-MAX_RASP_LENGTH = 32
-MAX_WEIGHTS_LENGTH = 8192
+MAX_RASP_LENGTH = 128
+MAX_WEIGHTS_LENGTH = 16_384
+#MAX_WEIGHTS_LENGTH = 8192
 MAX_WEIGHTS_LAYER_MEAN = 5.0
 
 

@@ -5,7 +5,7 @@ from decompile_tracr.tokenizing import tokenizer
 from decompile_tracr.dataset.logger_config import setup_logger
 from decompile_tracr.dataset import config
 from decompile_tracr.dataset import lib
-from decompile_tracr.dataset.generate import filter
+from decompile_tracr.dataset.generate import to_filter
 from decompile_tracr.dataset.data_utils import save_batch
 
 
@@ -16,8 +16,8 @@ def tokenize_loop():
     data = []
     for program_id, program in enumerate(lib.examples):
         tokens = tokenizer.tokenize(program)
-        if filter(tokens):
-            logger.warning(f"Program {program_id} is too long.")
+        if to_filter(tokens):
+            logger.warning(f"Program {program_id} is too long. (Not skipping).")
 
         data.append({
             "name": "lib",

@@ -55,7 +55,6 @@ def compile_single_batch(
             mem_info = process.memory_full_info()
             logger.info(f"Memory usage: {mem_info.uss / 1024**2:.2f} "
                         f"MB ({i}/{len(data)} programs compiled).")
-        
         i += 1
     
     data = [x for x in data if 'weights' in x]
@@ -87,15 +86,16 @@ def load_next_batch(loaddir: str):
 
 
 def get_weights(tokens: list[int], max_weights_len: int
-) -> list[list[float]]:
+                ) -> list[list[float]]:
     """Get flattened weights for every layer."""
     model = compile_tokens_to_model(tokens)
-    n_layers = len(tokens)
+    n_layers = 2 * max(int(k[18]) + 1 for k in model.params.keys() 
+                       if "layer" in k)
     flat_weights = [
         data_utils.get_params(model.params, layername) 
         for layername in data_utils.layer_names(n_layers)
     ]
-    if any(len(x) > max_weights_len for x in flat_weights):
+    if sum(len(x) for x in flat_weights) > max_weights_len:
         raise DataError(f"Too many params (> {max_weights_len})")
     elif any(x.mean() > config.MAX_WEIGHTS_LAYER_MEAN for x in flat_weights):
         raise DataError("Mean of weights too large")
@@ -146,7 +146,7 @@ def delete_existing(savedir: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Data processing.')
     parser.add_argument('--loadpath', type=str, default=None, 
-                        help="override default load path (data/unprocessed/...)")
+                    help="override default load path (data/unprocessed/...)")
     parser.add_argument('--savepath', type=str, default=None,
                         help="override default save path (data/deduped/...)")
     parser.add_argument('--single_batch_only', action='store_true',
@@ -154,7 +154,7 @@ if __name__ == "__main__":
     parser.add_argument('--delete_existing', action='store_true',
                         help="delete current data on startup.")
     parser.add_argument('--max_batches', type=int, default=None,
-                        help="maximum number of batches to compile. default: None")
+                        help="maximum number of batches to compile.")
     args = parser.parse_args()
 
     if args.loadpath is None:

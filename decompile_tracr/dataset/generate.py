@@ -45,13 +45,14 @@ def sample_rasp(
         program = sampling.sample(rng, program_length)
     except sampling.SamplingError as e:
         logger.warning(f"Received sampling error: {e}.")
-        program = sample_rasp(rng, program_length)
+        return sample_rasp(rng, program_length)
     return program
 
 
-def filter(by_layer: list[dict]):
-    """Filter out bad programs."""
-    return any(len(x) > config.MAX_RASP_LENGTH for x in by_layer)
+def to_filter(tokens: list[int]):
+    """Returns True for programs that are too long."""
+    program_too_long = len(tokens) > config.MAX_RASP_LENGTH
+    return program_too_long
 
 
 def sample_loop(rng, ndata, name: str, program_length: int):
@@ -63,9 +64,10 @@ def sample_loop(rng, ndata, name: str, program_length: int):
             tokens = tokenizer.tokenize(program)
         except (InvalidValueSetError, NoTokensError) as e:
             logger.warning(f"Skipping program {i} ({e}).")
+            continue
 
-        if filter(tokens):
-            logger.warning(f"Skipping program {i} (too large).")
+        if to_filter(tokens):
+            logger.warning(f"Skipping program {i} (too long).")
             continue
 
         data.append({
@@ -82,7 +84,7 @@ def sample_loop(rng, ndata, name: str, program_length: int):
     
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Training run')
+    parser = argparse.ArgumentParser(description='Sample RASP programs.')
     parser.add_argument('--name', type=str, default="train")
     parser.add_argument('--program_length', type=int, default=10, 
                         help='program length (nr of sops)')
@@ -107,10 +109,14 @@ if __name__ == "__main__":
     data = generate(rng, args.ndata, args.name, args.savedir, args.program_length)
 
     lengths = [x["n_sops"] for x in data]
-    n_layers_per = [len(x["tokens"]) for x in data]
+    n_tokens_per_program = [len(x["tokens"]) for x in data]
 
     logger.info(f"Generated {len(data)} programs.")
-    logger.info(f"Min and max program length: {np.min(lengths)}, {np.max(lengths)}")
+    logger.info(f"Min and max program length: {np.min(lengths)}, "
+                f"{np.max(lengths)}")
     logger.info(f"Average program length: {np.mean(lengths)}")
-    logger.info(f"Average number of layers per program: {np.mean(n_layers_per)}")
-    logger.info(f"Min and max number of layers per program: {np.min(n_layers_per)}, {np.max(n_layers_per)}")
+    logger.info(f"Average number of tokens per program: "
+                f"{np.mean(n_tokens_per_program)}")
+    logger.info(f"Min and max number of tokens per program: "
+                f"{np.min(n_tokens_per_program)}, "
+                f"{np.max(n_tokens_per_program)}")

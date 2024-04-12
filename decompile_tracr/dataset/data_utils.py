@@ -3,7 +3,6 @@ import os
 from collections import defaultdict
 from pathlib import Path
 from typing import Generator, Optional
-import ast
 try:
     import ujson as json
 except ImportError:
@@ -27,90 +26,91 @@ logger = setup_logger(__name__)
 NUMPY_DTYPE = np.float16
 
 
-def load_and_process_data(
+def load_dataset_for_model_input(
     rng=None, 
     loaddir=config.full_dataset_dir,
     max_data=None,
     shuffle=False, 
-    name="train",
     d_model=64,
-    max_rasp_len=32,
-    max_weights_len=8192,
-    split_layers=True,
+    max_rasp_len=config.MAX_RASP_LENGTH,
+    max_weights_len=config.MAX_WEIGHTS_LENGTH,
+    split_layers=False,
 ) -> dict[str, np.ndarray]:
-    """Load dataset and process it for model input."""
+    """Load dataset of tracr-compiled base models and process it 
+    for model input. Returns a dict of np.ndarrays with keys 'weights',
+    'tokens', 'n_sops', 'program_id', 'n_layers'.
+    """
     logger.info(f"Loading data from {loaddir}.")
     data = load_batches(loaddir=loaddir, max_data=max_data)
-    data = flatten_data(data, split_layers=split_layers)
+    data = prepare_dataset(data, split_layers=split_layers)
 
     if shuffle:
         rng = np.random.default_rng(rng)
         rng.shuffle(data)
 
-    data = process_data(
+    data = process_dataset(
         data=data, 
         d_model=d_model, 
         max_rasp_len=max_rasp_len,
         max_weights_len=max_weights_len,
-        name=name,
-        filter_large_weights=False,
     )
 
     return data
 
 
-def flatten_data(data: list[dict], split_layers=True) -> list[dict]:
+def prepare_dataset(data: list[dict], split_layers=False) -> list[dict]:
     """
-    Convert the list of models to a list of layers. Throw away
-    model-level information like the rasp program.
+    Format datapoints to include keys "weights", "tokens", "n_sops",
+    "program_id", and "n_layers".
 
     If split_layers is False, datapoints correspond to entire models. If
     True, datapoints correspond to individual layers.
     """
     out = []
     for program_id, program in enumerate(data):
-        n_layers = len(program['weights'])
-        assert len(program['tokens']) == n_layers
+        n_layers = len(program['weights']) - 1 # -1 for the embedding params
 
-        if split_layers:
-            for w, t in zip(program["weights"], program["tokens"]):
+        if not split_layers:
+            out.append({
+                "weights": [w for l in program["weights"] for w in l],
+                "tokens": program["tokens"],
+                "n_sops": program["n_sops"],
+                "program_id": program_id,
+                "n_layers": n_layers,
+            })
+        else:
+            tokens_by_layer = get_tokens_by_layer(program["tokens"])
+            assert len(tokens_by_layer) == n_layers, (
+                f"weights have {n_layers} layers, but tokens have "
+                f"{len(tokens_by_layer)}"
+            )
+            for w, t in zip(program["weights"][1:],  # skip embedding params
+                            tokens_by_layer):
                 out.append({
                     "weights": w,
                     "tokens": t,
-                    "program_id": program_id,
                     "n_sops": program['n_sops'],
+                    "program_id": program_id,
                     "n_layers": n_layers,
                 })
-        else:
-            out.append({
-                "weights": np.concatenate(program["weights"]).astype(NUMPY_DTYPE),
-                "tokens": np.concatenate(program["tokens"]).astype(NUMPY_DTYPE),
-                "program_id": program_id,
-                "n_sops": program['n_sops'],
-                "n_layers": n_layers,
-            })
-    
     return out
 
 
-def process_data(
+def process_dataset(
     data: list[dict],
     d_model: int,
     max_rasp_len: int = 32,
     max_weights_len: int = 8192,
-    name=None,
-    filter_large_weights: bool = False,
 ) -> dict[str, np.ndarray]:
     """Process a list of dicts into a dict of arrays for model input.
     Deletes original datapoints (i.e. elements of data) to free memory.
     """
-    n = len(data)
     out = defaultdict(list)
 
-    # process data from list[dict] to dict of lists
+    # process data from list[dict] to dict[list]
     while data:
         x_proc = process_single_datapoint(data.pop(), 
-            d_model, max_rasp_len, max_weights_len, filter_large_weights)
+            d_model, max_rasp_len, max_weights_len)
 
         if x_proc is None:
             continue
@@ -118,25 +118,18 @@ def process_data(
         for k, v in x_proc.items():
             out[k].append(v)
         
-    # stack to np.arrays & clip
+    # stack to np.arrays
     out = {k: np.stack(v).astype(NUMPY_DTYPE) for k, v in out.items()}
     out = {k: to_int(v) if k in ("tokens", "program_id", "n_sops") else v 
            for k, v in out.items()}
-#    out["weights"] = np.clip(out["weights"], -100, 100)
     
-    # logging & sanity checks
-    if filter_large_weights:
-        if name.startswith("test"):
-            logger.warning(f"Received filter_large_weights=True for "
-                            f"test data. This is probably a mistake.\n") 
-        logger.info(f"Filtered out {n - len(out['tokens'])} datapoints "
-                    f"({round(100 * (n - len(out['tokens'])) / n, 2)}%). "
-                    f"Total remaining: {len(out['tokens'])}. ({name})]\n")
-
+    # asserts
     assert max_weights_len % d_model == 0
     chex.assert_shape(out["tokens"], (None, max_rasp_len))
-    chex.assert_shape(out["weights"], (None, max_weights_len//d_model, d_model))
+    chex.assert_shape(out["weights"], (
+        None, max_weights_len//d_model, d_model))
     assert len(out["tokens"]) == len(out["weights"])
+
     return out
 
 
@@ -145,7 +138,6 @@ def process_single_datapoint(
     d_model: int,
     max_rasp_len: int = 32,
     max_weights_len: int = 8192,
-    filter_weights: bool = False,
 ) -> dict[str, np.ndarray] | None:
     """Process a single datapoint (ie single layer) for model 
     input. Assume x is a dict with keys "tokens", "weights", 
@@ -157,12 +149,8 @@ def process_single_datapoint(
         raise ValueError(f"Program length ({len(x['tokens'])}) exceeds "
                          f"max program length ({max_rasp_len}).")
     elif len(x['weights']) > max_weights_len:
-        raise ValueError(f"Weights length ({len(x['weights'])}) exceeds "
-                         f"max weights length ({max_weights_len}).")
-    
-    w_mean = np.mean(x['weights'], dtype=np.float64)
-    if filter_weights and np.abs(w_mean) > config.MAX_WEIGHTS_LAYER_MEAN:
-        return None
+        raise ValueError(f"Nr of params ({len(x['weights'])}) exceeds "
+                         f"max nr of params ({max_weights_len}).")
     
     weights = np.array(x['weights'], dtype=NUMPY_DTYPE)
     weights = pad_to(weights, max_weights_len, pad_value=0.05)
@@ -173,6 +161,24 @@ def process_single_datapoint(
         "weights": weights,
         **{k: v for k, v in x.items() if k not in ("tokens", "weights")}
     }
+
+
+def get_tokens_by_layer(tokens: list[int]):
+    """Split a list of tokens into a list of layers.
+    """
+    # TODO: optionally we could add info about layer numbering - 
+    # probably in form of extra tokens at the start of each layer.
+    layers = []
+    current = []
+    for t in tokens[1:-1]:  # skip eos and bos
+        current.append(t)
+        if t == vocab.eol_id:
+            layers.append(current)
+            current = []
+    for l in layers:
+        l.insert(0, vocab.bos_id)
+        l[-1] = vocab.eos_id
+    return layers
 
 
 def to_int(array: np.ndarray) -> np.ndarray:
@@ -216,13 +222,14 @@ def load_batches(
         if max_data is not None and len(data) >= max_data:
             logger.info(f"load_batches: Loaded "
                         f"{len(data)} >= {max_data} datapoints. Stopping "
-                        f"and truncating to {max_data}.")
+                        f"and truncating to {max_data} datapoints.")
             break
 
     if len(data) == 0:
         raise ValueError(f"load_batches: No files found in {loaddir}.")
     elif max_data is not None and len(data) < max_data:
-        logger.warning(f"load_batches: Loaded {len(data)} < {max_data} datapoints.")
+        logger.warning(f"load_batches: Loaded {len(data)} < {max_data} "
+                       "datapoints.")
 
     return data[:max_data]
 
@@ -234,15 +241,15 @@ def dedupe(data: list[dict]) -> list[dict]:
 
     Deduplicate by adding the RASP string to a set.
     """
-    reference = set()
-    deduped = []
+    reference: set[list[int]] = set()
+    deduped: list[dict] = []
 
     logger.info(f"Deduplicating {len(data)} programs.")
     for x in data:
-        tuple_tokens = tuple(tuple(t) for t in x['tokens'])
-        if tuple_tokens in reference:
+        tokens = tuple(x['tokens'])
+        if tokens in reference:
             continue
-        reference.add(tuple_tokens)
+        reference.add(tokens)
         deduped.append(x)
 
     logger.info(f"Removed: {len(data) - len(deduped)} programs. "
@@ -309,7 +316,8 @@ def get_params(params: dict, layer_name: str) -> jax.Array:
 
     if layer_name.endswith('attn'):
         layer_params = [
-            params[f"{prefix}/{k}"] for k in ['key', 'query', 'value', 'linear']
+            params[f"{prefix}/{k}"] for k in ['key', 'query', 
+                                              'value', 'linear']
         ]
     elif layer_name.endswith('mlp'):
         layer_params = [

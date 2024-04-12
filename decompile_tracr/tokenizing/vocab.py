@@ -18,9 +18,9 @@ sop_variables = [
     f"sop_{i}" for i in range(25)
 ]
 
-maps = list(set([
+maps = sorted(list(set([
     repr(fn) for fn in map_primitives.ALL_FNS
-]))
+])))
 
 comparisons = [
     comparison.name for comparison in map_primitives.COMPARISONS
@@ -38,11 +38,12 @@ inputs = [
 PAD = "PAD"
 BOS = "BOS"
 EOS = "EOS"
-SEP = "SEP"
+EOO = "EOO"  # end of op
+EOL = "EOL"  # end of layer
 
 
 vocab = (
-    [PAD, BOS, EOS,  SEP] +
+    [PAD, BOS, EOS, EOO, EOL] +
     ops +
     encodings +
     sop_variables +
@@ -59,3 +60,5 @@ size = len(vocab)
 pad_id = vocab.index(PAD)
 bos_id = vocab.index(BOS)
 eos_id = vocab.index(EOS)
+eoo_id = vocab.index(EOO)
+eol_id = vocab.index(EOL)
