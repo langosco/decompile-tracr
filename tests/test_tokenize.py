@@ -36,7 +36,7 @@ def test_sop_names(tokens: list):
     Test that ops are always preceded by an
     encoding and a variable called SOp_{n}
     """
-    decoded = [tokenizer.decode(layer) for layer in tokens]
+    decoded = tokenizer.decode(tokens)
     for idx, tok in enumerate(decoded):
         if tok in ["Map", "SequenceMap", "LinearSequenceMap", 
                    "Aggregate", "SelectorWidth"]:
@@ -61,6 +61,6 @@ def test_sop_names(tokens: list):
 @pytest.mark.parametrize("tokens", SAMPLE_PROGRAMS_TOKENIZED)
 def test_bos_and_eos(tokens: list):
     """Test that each sequence begins with BOS and ends with EOS"""
-    decoded = [tokenizer.decode(t) for t in tokens]
+    decoded = tokenizer.decode(tokens)
     assert decoded[0] == vocab.BOS, f"Expected BOS, got {decoded[0]}"
     assert decoded[-1] == vocab.EOS, f"Expected EOS, got {decoded[-1]}"

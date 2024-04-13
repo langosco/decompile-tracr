@@ -7,7 +7,7 @@ from decompile_tracr.tokenizing import rasp_to_str, str_to_rasp
 import decompile_tracr.tokenizing.vocab as voc
 
 
-def encode(x: str) -> int:
+def encode_token(x: str) -> int:
     try:
         return voc.vocab.index(x)
     except ValueError as e:
@@ -15,8 +15,16 @@ def encode(x: str) -> int:
         raise ValueError(f"Not in vocab: {x}")
 
 
-def decode(x: int) -> str:
+def decode_token(x: int) -> str:
     return voc.vocab[x]
+
+
+def encode(x: list[str]) -> list[int]:
+    return [encode_token(tok) for tok in x]
+
+
+def decode(x: list[int]) -> list[str]:
+    return [decode_token(tok) for tok in x]
 
 
 def tokenize(program: rasp.SOp) -> list[int]:
@@ -25,7 +33,7 @@ def tokenize(program: rasp.SOp) -> list[int]:
         raise ValueError("Input must be a RASP program.")
 
     by_layer = rasp_to_str.rasp_to_str(program)
-    return [encode(l) for l in by_layer]
+    return encode(by_layer)
 
 
 def detokenize(tokens: list[int]) -> rasp.SOp:
@@ -33,5 +41,5 @@ def detokenize(tokens: list[int]) -> rasp.SOp:
         raise ValueError(f"Input elements must be integers. Got "
                          f"{type(tokens[0])}.")
 
-    decoded = [decode(x) for x in tokens]
+    decoded = decode(tokens)
     return str_to_rasp.str_to_rasp(decoded)
