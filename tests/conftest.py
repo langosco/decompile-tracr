@@ -25,7 +25,7 @@ def make_test_data(base_dir):
 
     generate.generate(
         rng, 
-        ndata=5, 
+        ndata=50, 
         name='testing_make_dataset', 
         savedir=base_dir / "unprocessed",
         program_length=10,

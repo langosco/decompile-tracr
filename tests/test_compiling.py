@@ -2,6 +2,7 @@ import os
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 import pytest
 import numpy as np
+import chex
 
 from tracr.rasp import rasp
 from tracr.compiler.compiling import compile_rasp_to_model
@@ -19,19 +20,28 @@ rng = np.random.default_rng(None)
 
 
 TEST_INPUTS = [rasp_utils.sample_test_input(rng) for _ in range(100)]
-LENGTH = 10
+LENGTH = 8
 PROGRAMS = [sampling.sample(rng, program_length=LENGTH) for _ in range(30)]
 
 
 @pytest.mark.parametrize("program", PROGRAMS)
 def test_compile(program: rasp.SOp):
     assert rasp_utils.count_sops(program) == LENGTH, f"Program {program.label} has unexpected length."
-    model = _compile(program)
 
+    model = _compile(program)
     assert _validate_compiled(program, model), (
         f"Compiled program {program.label} does not "
          "match RASP output."
     )
+
+
+    # Compare compile(program) to compile(detokenize(tokenize(program)))
+    tokens = tokenizer.tokenize(program)
+    reconstructed_program = tokenizer.detokenize(tokens)
+    reconstructed_model = _compile(reconstructed_program)
+
+    chex.assert_trees_all_close(model.params, reconstructed_model.params, 
+                                rtol=1e-3, atol=1e-3)
 
 
 def _validate_compiled(program: rasp.SOp, model: assemble.AssembledTransformerModel):
