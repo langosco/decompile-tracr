@@ -8,10 +8,12 @@
 
 
 import networkx as nx
+from typing import Sequence
 
 from tracr.compiler import basis_inference
 from tracr.compiler import expr_to_craft_graph
 from tracr.compiler import rasp_to_graph
+from tracr.compiler import nodes
 from tracr.craft import bases
 
 from tracr.compiler import craft_graph_to_model
@@ -20,8 +22,17 @@ from tracr.compiler import nodes
 
 from decompile_tracr.tokenizing import vocab
 
+Node = nodes.Node
+
 
 def rasp_to_str(program: rasp.SOp) -> list[str]:
+    graph, sources = get_rasp_graph(program)
+    rasp_str = rasp_graph_to_str(graph, sources)
+    validate_rasp_str(rasp_str)
+    return rasp_str
+
+
+def get_rasp_graph(program: rasp.SOp) -> tuple[nx.DiGraph, Sequence[Node]]:
     dummy_vocab = {0}
     dummy_max_seq_len = 1
     dummy_bos="bos"
@@ -42,32 +53,30 @@ def rasp_to_str(program: rasp.SOp) -> list[str]:
         bos_dir=bases.BasisDirection(rasp.tokens.label, dummy_bos),
         mlp_exactness=dummy_mlp_exactness,
     )
-
-    rasp_str = rasp_graph_to_str(graph, sources)
-    validate_rasp_str(rasp_str)
-    return rasp_str
+    return graph, sources
 
 
 def rasp_graph_to_str(
     graph: nx.DiGraph,
-    sources,
+    sources: Sequence[Node],
 ) -> list[str]:
     """Convert a rasp graph to a representation as list of string tokens.
     """
     node_to_layer = craft_graph_to_model._allocate_modules_to_layers(
         graph, sources)
     layers_to_nodes = get_nodes_by_layer(node_to_layer)
-    graph = add_variable_names_to_graph(graph, layers_to_nodes)
+    sop_names = iter(vocab.sop_variables)
 
     rep = [vocab.BOS]
+    for nodes in layers_to_nodes.values():
+        node_reps = [node_to_str(graph, sop) for sop in nodes]
 
-    for node_ids in layers_to_nodes.values():
-        for node_id in node_ids:
-            rep.append(get_variable_name(graph, node_id))
-            rep.append(get_encoding(graph, node_id))
-            rep.append(get_classname(graph, node_id))
-            rep.extend(get_args(graph, node_id))
-            rep.append(vocab.EOO)
+        # assign sop names:
+        for node_rep, node_id in sorted(zip(node_reps, nodes)):
+            varname = next(sop_names)
+            graph.nodes[node_id]["varname"] = varname
+            rep.extend([varname] + node_rep)
+        
         rep.append(vocab.EOL)
     rep.append(vocab.EOS)
     return rep
@@ -77,74 +86,42 @@ def get_nodes_by_layer(node_to_layer: dict[str, int]) -> dict[str, list[str]]:
     """Requires that node_to_layer is a dict that maps 
     node_id -> layer_number, e.g. {"map_1": 1, "map_2": 1}.
     This function returns an inverted mapping, i.e. a dictionary that maps
-    layer -> list of node_ids, e.g. {"layer_0/mlp": ["map_1", "map_2"]}.
+    layer -> set of node_ids, e.g. {"layer_0/mlp": {"map_1", "map_2"}}.
     """
     n_layers = max(node_to_layer.values()) + 1
     if n_layers % 2 != 0:
         n_layers += 1  # must be even
 
-    layers_to_nodes = {get_layer_name_from_number(i): []
+    layers_to_nodes = {get_layer_name_from_number(i): set()
                        for i in range(n_layers)}
 
     for node_id, layer in node_to_layer.items():
         assert isinstance(node_id, str)
         assert isinstance(layer, int)
         layers_to_nodes[get_layer_name_from_number(layer)
-                        ].append(node_id)
+                        ].add(node_id)
     
-    # sort the nodes in each layer by their node_id
-    for layer in layers_to_nodes.values():
-        layer.sort()
-
     return layers_to_nodes
 
 
-def add_variable_names_to_graph(
-    graph: nx.DiGraph, 
-    layers_to_nodes: dict[str, str],
-) -> nx.DiGraph:
-    """Allocate variable names from the tokenizer vocabulary
-    to the nodes in the graph."""
-    sop_labels = []
-    if "tokens" in graph.nodes:
-        sop_labels.append("tokens")
-    if "indices" in graph.nodes:
-        sop_labels.append("indices")
-    sop_labels += [node_id for layer in layers_to_nodes.values() 
-                  for node_id in layer]
-    sop_names = iter(vocab.sop_variables)
-
-    for label in sop_labels:
-        assert 'token' not in graph.nodes[label]
-        assert graph.nodes[label]["EXPR"].label == label
-
-        if isinstance(graph.nodes[label]["EXPR"], rasp.TokensType):
-            graph.nodes[label]["token"] = "tokens"
-        elif isinstance(graph.nodes[label]["EXPR"], rasp.IndicesType):
-            graph.nodes[label]["token"] = "indices"
-        elif label.startswith('select_'):
-            assert isinstance(graph.nodes[label]["EXPR"], rasp.Select)
-        else:
-            assert not isinstance(
-                graph.nodes[label]["EXPR"], rasp.Select)
-            graph.nodes[label]["token"] = next(sop_names)
-    return graph
+def node_to_str(graph: nx.DiGraph, node_id: str) -> list[str]:
+    """Tokenize a single node, eg 
+    'map_1' -> ['numerical', 'Map', 'lambda x: x + 1', 'tokens']."""
+    return [
+        get_encoding(graph, node_id),
+        get_classname(graph, node_id),
+        *get_args(graph, node_id),
+        vocab.EOO,
+    ]
 
 
-def get_variable_name(graph: nx.DiGraph, node_id: int) -> str:
-    """Assumes variable names have been added to the graph.
-    by `add_variable_names_to_graph`."""
-    node = graph.nodes[node_id]
-    return node["token"]
-
-
-def get_encoding(graph: nx.DiGraph, node_id: int) -> str:
+def get_encoding(graph: nx.DiGraph, node_id: str) -> str:
     """Returns encoding ('numerical' or 'categorical')."""
     expr = graph.nodes[node_id]["EXPR"]
     return expr.annotations['encoding'].value
 
 
-def get_classname(graph: nx.DiGraph, node_id: int) -> str:
+def get_classname(graph: nx.DiGraph, node_id: str) -> str:
     """Get name of Op, e.g. 'Map' for rasp.Map, or SelectAggregate
     for rasp.Aggregate."""
     expr = graph.nodes[node_id]["EXPR"]
@@ -159,7 +136,7 @@ def get_classname(graph: nx.DiGraph, node_id: int) -> str:
         return type(expr).__name__
 
 
-def get_args(graph: nx.DiGraph, node_id: int) -> list[str]:
+def get_args(graph: nx.DiGraph, node_id: str) -> list[str]:
     expr = graph.nodes[node_id]["EXPR"]
     assert expr.label == node_id
 
@@ -195,6 +172,18 @@ def get_args(graph: nx.DiGraph, node_id: int) -> list[str]:
         raise ValueError(f"Unknown expression type {type(expr)}.")
 
     return args
+
+
+def get_variable_name(graph: nx.DiGraph, node_id: str) -> str:
+    """Assumes variable names have been added to the graph.
+    by `add_variable_names_to_graph`."""
+    node = graph.nodes[node_id]
+    if isinstance(node["EXPR"], rasp.TokensType):
+        return vocab.inputs[0]
+    elif isinstance(node["EXPR"], rasp.IndicesType):
+        return vocab.inputs[1]
+    else:
+        return node["varname"]
 
 
 def get_layer_name_from_number(layer_number: int) -> str:

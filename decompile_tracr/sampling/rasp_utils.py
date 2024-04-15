@@ -60,12 +60,19 @@ def print_expr(expr: rasp.RASPExpr, test_input=None, full=False):
         args = args + f", {expr.fst_fac}, {expr.snd_fac}"
     elif isinstance(expr, (rasp.Map, rasp.SequenceMap)):
         args = f"{expr.f}, " + args
+        if full and isinstance(expr, rasp.Map):
+            args += ", simplify=False"
 
     print_str = f"{type(expr).__name__}({args})"
 
     if full and not isinstance(expr, rasp.Select):
         enc = expr.annotations["encoding"].value
         print_str = f"rasp.{enc}({print_str})"
+    
+    if (full and isinstance(expr, rasp.Aggregate) 
+        and rasp.is_numerical(expr)):
+        args += ", default=0"
+
 
     print_str = f"{expr.label} = {print_str}"
 
@@ -84,7 +91,7 @@ def print_expr(expr: rasp.RASPExpr, test_input=None, full=False):
 
 
 def print_program(program: rasp.SOp, test_input=None,
-                  full=False):
+                  full=False, include_input=False):
     """Sort the nodes in a program topologically and 
     print them in order. if full, print the full program
     in valid RASP syntax."""
@@ -92,7 +99,7 @@ def print_program(program: rasp.SOp, test_input=None,
     sorted_nodes = list(nx.topological_sort(graph.graph))
 
     for node_id in sorted_nodes:
-        if node_id in ["tokens", "indices"]:
+        if node_id in ["tokens", "indices"] and not include_input:
             continue
 
         expr = graph.graph.nodes[node_id]["EXPR"]

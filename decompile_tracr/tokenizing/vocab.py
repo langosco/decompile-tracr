@@ -14,10 +14,17 @@ encodings = [
     "numerical"
 ]
 
+MAX_SOP = 12
 sop_variables = [
-    f"sop_{i:02d}" for i in range(10)
+    f"sop_{i:02d}" for i in range(0,MAX_SOP-2)
 ]
-assert sorted(sop_variables) == sop_variables
+
+inputs = [
+    f"sop_{MAX_SOP-2:02d}_tokens",
+    f"sop_{MAX_SOP-1:02d}_indices"
+]
+
+assert sorted(sop_variables + inputs) == sop_variables + inputs
 
 maps = sorted(list(set([
     repr(fn) for fn in map_primitives.ALL_FNS
@@ -29,12 +36,6 @@ comparisons = [
 
 linear_sequence_map_weights = [
     str(x) for x in map_primitives.LINEAR_SEQUENCE_MAP_WEIGHTS]
-
-inputs = [
-    "tokens",
-    "indices",
-]
-
 
 PAD = "PAD"
 BOS = "BOS"

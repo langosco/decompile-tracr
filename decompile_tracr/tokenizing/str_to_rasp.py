@@ -85,9 +85,9 @@ def str_to_rasp_op(op: list[str], sops: dict[str, rasp.SOp]) -> rasp.SOp:
 
 
 def get_sop_from_name(name: str, sops: dict[str, rasp.SOp]) -> rasp.SOp:
-    if name == "tokens":
+    if name == vocab.inputs[0]:
         return rasp.tokens
-    elif name == "indices":
+    elif name == vocab.inputs[1]:
         return rasp.indices
     elif name in sops:
         return sops[name]
