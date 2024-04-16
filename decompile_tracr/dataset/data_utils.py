@@ -7,15 +7,12 @@ try:
     import ujson as json
 except ImportError:
     import json
-
-import chex
 import fcntl
-import jax.flatten_util
-
 import numpy as np
-import chex
+
 import jax
-import jax.numpy as jnp
+import jax.flatten_util
+import chex
 
 from decompile_tracr.tokenizing import vocab
 from decompile_tracr.dataset import config
@@ -23,7 +20,7 @@ from decompile_tracr.dataset.logger_config import setup_logger
 
 
 logger = setup_logger(__name__)
-NUMPY_DTYPE = np.float16
+NUMPY_DTYPE = np.float32
 
 
 def load_dataset_for_model_input(
@@ -109,11 +106,8 @@ def process_dataset(
 
     # process data from list[dict] to dict[list]
     while data:
-        x_proc = process_single_datapoint(data.pop(), 
+        x_proc = process_single_datapoint(data.pop(0), 
             d_model, max_rasp_len, max_weights_len)
-
-        if x_proc is None:
-            continue
 
         for k, v in x_proc.items():
             out[k].append(v)
@@ -129,6 +123,8 @@ def process_dataset(
     chex.assert_shape(out["weights"], (
         None, max_weights_len//d_model, d_model))
     assert len(out["tokens"]) == len(out["weights"])
+    assert np.all(
+        sorted(out["program_id"]) == np.arange(len(out["program_id"])))
 
     return out
 
@@ -156,11 +152,9 @@ def process_single_datapoint(
     weights = pad_to(weights, max_weights_len, pad_value=0.05)
     weights = pad_and_chunk(weights, d_model)  # (n_chunks, d_model)
     tokens = np.array(x['tokens'])
-    return {
-        "tokens": pad_to(tokens, max_rasp_len, pad_value=vocab.pad_id),
-        "weights": weights,
-        **{k: v for k, v in x.items() if k not in ("tokens", "weights")}
-    }
+    x["tokens"] = pad_to(tokens, max_rasp_len, pad_value=vocab.pad_id)
+    x["weights"] = weights
+    return x
 
 
 def get_tokens_by_layer(tokens: list[int]):
@@ -190,7 +184,7 @@ def to_int(array: np.ndarray) -> np.ndarray:
 
 def pad_and_chunk(arr: chex.Array, chunk_size: int) -> chex.Array:
     pad_size = -len(arr) % chunk_size
-    padded = jnp.pad(arr, (0, pad_size))
+    padded = np.pad(arr, (0, pad_size))
     chunks = padded.reshape(-1, chunk_size)
     return chunks
 
