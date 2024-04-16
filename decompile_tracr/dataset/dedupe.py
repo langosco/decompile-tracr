@@ -29,18 +29,11 @@ def save_deduped(
 ) -> None:
     """Split data by name and save to data/deduped/{name}."""
     savedir = Path(savedir)
-    if savedir.exists():
-        logger.info(f"Deleting existing data at {savedir}.")
-        shutil.rmtree(savedir, ignore_errors=True)
-        os.makedirs(savedir)
-
-    logger.info("Begin loading data and deduping.")
     deduped_by_name = defaultdict(list)
     for x in deduped:
         deduped_by_name[x['name']].append(x)
     
     logger.info(f"Splitting data by name: {list(deduped_by_name.keys())}")
-
     for name, data in deduped_by_name.items():
         for batch in data_utils.batched(data, batchsize):
             data_utils.save_batch(
@@ -52,8 +45,14 @@ def save_deduped(
 def dedupe(loaddir: str | Path, savedir: str | Path,
            batchsize: int) -> list[dict]:
     """Load, dedupe, and save data."""
+    logger.info("Begin loading data and deduping.")
     data = data_utils.load_batches(loaddir)
-    deduped = data_utils.dedupe(data)
+    previously_deduped = data_utils.load_batches_from_subdirs(savedir)
+    prev_len = len(previously_deduped)
+    if prev_len > 0:
+        logger.info(f"(dedupe.py) Found existing data in {savedir}. "
+                    f"Loaded {prev_len} existing programs.")
+    deduped = data_utils.dedupe(data, reference=previously_deduped)
     save_deduped(deduped, savedir, batchsize)
     return deduped
 

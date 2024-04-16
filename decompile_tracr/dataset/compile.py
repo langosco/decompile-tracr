@@ -26,7 +26,7 @@ def compile_all(loaddir: str, savedir: str, max_batches=None):
     Load and compile rasp programs in batches.
     Save compiled programs to savedir.
     """
-    logger.info(f"Compiling all RASP programs found in {loaddir}.")
+    logger.info(f"Compiling RASP programs found in {loaddir}.")
     for _ in range(max_batches or 10**8):
         if compile_single_batch(loaddir, savedir) is None:
             break
@@ -82,6 +82,7 @@ def load_next_batch(loaddir: str):
                     f"All filenames present in {LOCKFILE}")
         return None
     else:
+        logger.info(f"Loading next batch: {path}.")
         return data_utils.load_json(path)
 
 
@@ -107,20 +108,20 @@ class DataError(Exception):
 
 
 def get_next_filename(file_list: list[str], loaddir: Path):
-    """given a list of filenames, return the next filename to load"""
-    total = 0
+    """Return the next filename of a json file in loaddir. 
+    Recursively search subdirectories.
+    Args:
+        file_list: list of filenames already loaded (to avoid).
+        loaddir: directory to search.
+    """
     for entry in os.scandir(loaddir):
+        if entry.path.endswith(".json") and entry.path not in file_list:
+            return entry.path
+
         if entry.is_dir():
             out = get_next_filename(file_list, entry.path)
             if out != "":
                 return out
-
-        if not entry.path.endswith(".json"):
-            continue
-
-        if entry.path not in file_list:
-            total += 1
-            return entry.path
     
     return ""
 
@@ -149,8 +150,6 @@ if __name__ == "__main__":
                     help="override default load path (data/unprocessed/...)")
     parser.add_argument('--savepath', type=str, default=None,
                         help="override default save path (data/deduped/...)")
-    parser.add_argument('--single_batch_only', action='store_true',
-                        help="compile a single batch (file) and then stop.")
     parser.add_argument('--delete_existing', action='store_true',
                         help="delete current data on startup.")
     parser.add_argument('--max_batches', type=int, default=None,
@@ -166,15 +165,8 @@ if __name__ == "__main__":
     if args.delete_existing:
         delete_existing(args.savepath)
     
-    if args.single_batch_only:
-        logger.info("Compile one batch of programs.")
-        compile_single_batch(
-            loaddir=args.loadpath,
-            savedir=args.savepath,
-        )
-    else:
-        compile_all(
-            loaddir=args.loadpath,
-            savedir=args.savepath,
-            max_batches=args.max_batches,
-        )
+    compile_all(
+        loaddir=args.loadpath,
+        savedir=args.savepath,
+        max_batches=args.max_batches,
+    )

@@ -111,7 +111,6 @@ if __name__ == "__main__":
     lengths = [x["n_sops"] for x in data]
     n_tokens_per_program = [len(x["tokens"]) for x in data]
 
-    logger.info(f"Generated {len(data)} programs.")
     logger.info(f"Min and max program length: {np.min(lengths)}, "
                 f"{np.max(lengths)}")
     logger.info(f"Average program length: {np.mean(lengths)}")

@@ -229,17 +229,37 @@ def load_batches(
     return data[:max_data]
 
 
-def dedupe(data: list[dict]) -> list[dict]:
+def load_batches_from_subdirs(
+    loaddir: Path,
+    max_data_per_subdir: Optional[int] = None,
+) -> list[dict]:
+    """Load all json files in loaddir/subdirs and merge into a single list."""
+    subdirs = list(loaddir.iterdir())
+    subdirs = [x for x in subdirs if x.is_dir()]
+    data = [load_batches(d, max_data=max_data_per_subdir) for d in subdirs]
+    data = [x for ds in data for x in ds]
+    return data
+
+
+def dedupe(data: list[dict], reference: Optional[list[dict]] = None,
+) -> list[dict]:
     """Deduplicate programs by RASP string.
     Assume data is a list of dicts that include the 
     key "tokens", as returned by load_batches().
 
-    Deduplicate by adding the RASP string to a set.
+    Args:
+    - data: list of dicts with keys "tokens".
+    - reference: list of dicts with keys "tokens". If provided,
+    treat examples in data that match elements of reference as duplicates.
     """
-    reference: set[list[int]] = set()
+    if reference is None:
+        reference: set[list[int]] = set()
+    else:
+        reference = set([tuple(x['tokens']) for x in reference])
     deduped: list[dict] = []
 
     logger.info(f"Deduplicating {len(data)} programs.")
+    logger.info(f"Reference set size: {len(reference)}")
     for x in data:
         tokens = tuple(x['tokens'])
         if tokens in reference:
