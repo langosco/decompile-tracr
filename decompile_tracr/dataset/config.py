@@ -10,12 +10,15 @@ global_disable_tqdm = not interactive
 
 
 # Set up global constants
-# per layer maximums size of RASP program and weights:
+# per layer maximum size of RASP program and weights:
 
+# program len 5:
 MAX_RASP_LENGTH = 128
 MAX_WEIGHTS_LENGTH = 16_384
-#MAX_WEIGHTS_LENGTH = 8192
-MAX_WEIGHTS_LAYER_MEAN = 5.0
+
+# program len 10:
+# MAX_RASP_LENGTH = 256
+# MAX_WEIGHTS_LENGTH = 65_536
 
 
 def set_data_dir():

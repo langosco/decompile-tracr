@@ -47,11 +47,14 @@ def dedupe(loaddir: str | Path, savedir: str | Path,
     """Load, dedupe, and save data."""
     logger.info("Begin loading data and deduping.")
     data = data_utils.load_batches(loaddir)
-    previously_deduped = data_utils.load_batches_from_subdirs(savedir)
-    prev_len = len(previously_deduped)
-    if prev_len > 0:
-        logger.info(f"(dedupe.py) Found existing data in {savedir}. "
-                    f"Loaded {prev_len} existing programs.")
+    if savedir.exists():
+        previously_deduped = data_utils.load_batches_from_subdirs(savedir)
+        prev_len = len(previously_deduped)
+        if prev_len > 0:
+            logger.info(f"(dedupe.py) Found existing data in {savedir}. "
+                        f"Loaded {prev_len} existing programs.")
+    else:
+        previously_deduped = None
     deduped = data_utils.dedupe(data, reference=previously_deduped)
     save_deduped(deduped, savedir, batchsize)
     return deduped

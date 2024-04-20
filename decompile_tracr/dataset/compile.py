@@ -98,8 +98,6 @@ def get_weights(tokens: list[int], max_weights_len: int
     ]
     if sum(len(x) for x in flat_weights) > max_weights_len:
         raise DataError(f"Too many params (> {max_weights_len})")
-    elif any(x.mean() > config.MAX_WEIGHTS_LAYER_MEAN for x in flat_weights):
-        raise DataError("Mean of weights too large")
     return [x.tolist() for x in flat_weights]
 
 

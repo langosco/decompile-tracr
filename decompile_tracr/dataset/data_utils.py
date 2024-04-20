@@ -269,6 +269,8 @@ def dedupe(data: list[dict], reference: Optional[list[dict]] = None,
 
     logger.info(f"Removed: {len(data) - len(deduped)} programs. "
                 f"({100*(len(data) - len(deduped)) / len(data)}%)")
+    logger.info(f"Remaining new datapoints: {len(deduped)}")
+
     return deduped
 
 
@@ -402,3 +404,15 @@ def layer_names(n_layers: int) -> Generator[str, None, None]:
     for i in range(n_layers // 2):
         yield f"layer_{i}/attn"
         yield f"layer_{i}/mlp"
+
+
+def symlog(x: np.ndarray, linear_thresh: float = 2.) -> np.ndarray:
+    """Symmetric log transform.
+    """
+    assert linear_thresh > 1., "linear_thresh must be > 1."
+    slog = np.sign(x) * np.log(np.abs(x))
+    return np.where(
+        np.abs(x) < linear_thresh, 
+        x * np.log(linear_thresh)/linear_thresh,
+        slog
+    )
