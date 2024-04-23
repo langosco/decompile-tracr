@@ -3,6 +3,7 @@ import os
 from collections import defaultdict
 from pathlib import Path
 from typing import Generator, Optional
+import time
 try:
     import ujson as json
 except ImportError:
@@ -38,6 +39,7 @@ def load_dataset_for_model_input(
     'tokens', 'n_sops', 'program_id', 'n_layers'.
     """
     logger.info(f"Loading data from {loaddir}.")
+    t = time.time()
     data = load_batches(loaddir=loaddir, max_data=max_data)
     data = prepare_dataset(data, split_layers=split_layers)
 
@@ -51,7 +53,8 @@ def load_dataset_for_model_input(
         max_rasp_len=max_rasp_len,
         max_weights_len=max_weights_len,
     )
-
+    logger.info(f"load_dataset_for_model_input: All data loading "
+                f"and processing took {time.time() - t:.2f}s.")
     return data
 
 
@@ -209,6 +212,7 @@ def load_batches(
     """Load all json files in loaddir and merge into a single list. 
     """
     data = []
+    t = time.time()
     for entry in os.scandir(loaddir):
         if entry.name.endswith(".json"):
             batch = load_json(entry.path)
@@ -217,14 +221,14 @@ def load_batches(
         if max_data is not None and len(data) >= max_data:
             logger.info(f"load_batches: Loaded "
                         f"{len(data)} >= {max_data} datapoints. Stopping "
-                        f"and truncating to {max_data} datapoints.")
+                        f"and truncating to {max_data} datapoints. {time.time() - t:.2f}s")
             break
 
     if len(data) == 0:
         raise ValueError(f"load_batches: No files found in {loaddir}.")
     elif max_data is not None and len(data) < max_data:
         logger.warning(f"load_batches: Loaded {len(data)} < {max_data} "
-                       "datapoints.")
+                       f"datapoints. {time.time() - t:.2f}s")
 
     return data[:max_data]
 
