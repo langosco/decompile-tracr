@@ -8,6 +8,7 @@ from decompile_tracr.dataset import generate
 from decompile_tracr.dataset import tokenize_lib
 from decompile_tracr.dataset import dedupe
 from decompile_tracr.dataset import compile
+from decompile_tracr.dataset import data_utils
 
 
 rng = np.random.default_rng(42)
@@ -48,5 +49,13 @@ def make_test_data(base_dir):
         loaddir=base_dir / "deduped",
         savedir=base_dir / "full",
     )
+
+    while True:
+        try:
+            data_utils.load_and_save_to_hdf5(
+                base_dir / "full.h5", max_files=500)
+        except FileNotFoundError:
+            break
+
     return None
 

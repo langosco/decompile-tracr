@@ -13,12 +13,12 @@ global_disable_tqdm = not interactive
 # per layer maximum size of RASP program and weights:
 
 # program len 5:
-MAX_RASP_LENGTH = 128
-MAX_WEIGHTS_LENGTH = 16_384
+# MAX_RASP_LENGTH = 128
+# MAX_WEIGHTS_LENGTH = 16_384
 
 # program len 10:
-# MAX_RASP_LENGTH = 256
-# MAX_WEIGHTS_LENGTH = 65_536
+MAX_RASP_LENGTH = 256
+MAX_WEIGHTS_LENGTH = 65_536
 
 
 def set_data_dir():
@@ -30,6 +30,7 @@ def set_data_dir():
         data_dir = hpc_storage_dir / "lauro/rasp-data/"
     else:
         data_dir = module_path / "data/"
+#        data_dir = module_path / "data-nsops-5/"
     return data_dir, module_path
 
 

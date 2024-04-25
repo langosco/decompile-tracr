@@ -5,23 +5,37 @@
 # single thread.
 
 import numpy as np
+import argparse
 
 from decompile_tracr.dataset import config
 from decompile_tracr.dataset import generate
 from decompile_tracr.dataset import tokenize_lib
 from decompile_tracr.dataset import dedupe
 from decompile_tracr.dataset import compile
+from decompile_tracr.dataset import data_utils
 
-rng = np.random.default_rng(42)
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Sample RASP programs.')
+    parser.add_argument('--name', type=str, default="train")
+    parser.add_argument('--program_length', type=int, default=7,
+                        help='program length (nr of sops)')
+    parser.add_argument('--ndata', type=int, default=50)
+    parser.add_argument('--seed', type=int, default=None)
+    parser.add_argument('--data_dir', type=str, default=None)
+    args = parser.parse_args()
 
 
 if __name__ == "__main__":
+    args = parse_args()
+    rng = np.random.default_rng(args.seed)
+
     generate.generate(
         rng, 
-        ndata=50,
-        name='train', 
-        savedir=config.unprocessed_dir,
-        program_length=7,
+        ndata=args.ndata,
+        name=args.name, 
+        savedir=args.data_dir / "unprocessed",
+        program_length=args.program_length,
     )
 
 #    tokenize_lib.tokenize_lib(savedir=config.unprocessed_dir)
@@ -36,3 +50,11 @@ if __name__ == "__main__":
         loaddir=config.deduped_dir,
         savedir=config.full_dataset_dir,
     )
+
+    savefile = config.data_dir / 'full.hdf5'
+    while True:
+        try:
+            data_utils.load_and_save_to_hdf5(
+                savefile, max_files=500)
+        except FileNotFoundError:
+            break

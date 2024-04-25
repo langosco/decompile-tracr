@@ -9,6 +9,7 @@ try:
 except ImportError:
     import json
 import fcntl
+import h5py
 import numpy as np
 
 import jax
@@ -24,142 +25,125 @@ logger = setup_logger(__name__)
 NUMPY_DTYPE = np.float32
 
 
+# Load entire dataset for model input
 def load_dataset_for_model_input(
-    rng=None, 
-    loaddir=config.full_dataset_dir,
-    max_data=None,
-    shuffle=False, 
-    d_model=64,
-    max_rasp_len=config.MAX_RASP_LENGTH,
-    max_weights_len=config.MAX_WEIGHTS_LENGTH,
-    split_layers=False,
+    loadfile: Path = config.data_dir / "full.h5",
+    ndata: int = -1,
 ) -> dict[str, np.ndarray]:
     """Load dataset of tracr-compiled base models and process it 
     for model input. Returns a dict of np.ndarrays with keys 'weights',
-    'tokens', 'n_sops', 'program_id', 'n_layers'.
+    'tokens', 'n_sops', 'n_layers'.
     """
-    logger.info(f"Loading data from {loaddir}.")
+    logger.info(f"Loading data from {loadfile}.")
+    if not loadfile.exists():
+        raise FileNotFoundError(f"File {loadfile} not found.")
     t = time.time()
-    data = load_batches(loaddir=loaddir, max_data=max_data)
-    data = prepare_dataset(data, split_layers=split_layers)
-
-    if shuffle:
-        rng = np.random.default_rng(rng)
-        rng.shuffle(data)
-
-    data = process_dataset(
-        data=data, 
-        d_model=d_model, 
-        max_rasp_len=max_rasp_len,
-        max_weights_len=max_weights_len,
-    )
+    with h5py.File(loadfile, "r") as f:
+        _check_dataset_shapes(f, ndata)
+        data = {k: v[:ndata] for k, v in f.items()}
     logger.info(f"load_dataset_for_model_input: All data loading "
                 f"and processing took {time.time() - t:.2f}s.")
     return data
 
 
-def prepare_dataset(data: list[dict], split_layers=False) -> list[dict]:
-    """
-    Format datapoints to include keys "weights", "tokens", "n_sops",
-    "program_id", and "n_layers".
+def _check_dataset_shapes(f: h5py.File, ndata: int):
+    n = f["tokens"].shape[0]
+    assert ndata == -1 or n >= ndata, (
+        f"Expected at least {ndata} datapoints, got {n}")
+    for k, v in f.items():
+        assert v.shape[0] == n, (
+            f"len(tokens) = {n}, but len({k}) = {v.shape[0]}")
+        
 
-    If split_layers is False, datapoints correspond to entire models. If
-    True, datapoints correspond to individual layers.
+def load_and_save_to_hdf5(data_dir: Path = config.data_dir, max_files: int = 500):
+    """Convert dataset in data_dir/full to a single HDF5 file.
+    Run multiple times if the dataset is too large to fit in memory.
+    - Load up to max_data datapoints. 
+    - Save as HDF5 (append to existing file if it exists)
+    - Delete original files.
     """
-    out = []
-    for program_id, program in enumerate(data):
-        n_layers = len(program['weights']) - 1 # -1 for the embedding params
+    data, files_loaded = load_batches(
+        data_dir / "full", max_files=max_files, return_filenames=True)
+    data = dataset_to_arrays(
+        data=data,
+        max_rasp_len=config.MAX_RASP_LENGTH,
+        max_weights_len=config.MAX_WEIGHTS_LENGTH,
+        max_n_layers=25,
+    )
 
-        if not split_layers:
-            out.append({
-                "weights": [w for l in program["weights"] for w in l],
-                "tokens": program["tokens"],
-                "n_sops": program["n_sops"],
-                "program_id": program_id,
-                "n_layers": n_layers,
-            })
+    h5path = data_dir / "full.h5"
+    with h5py.File(h5path, "a") as f:
+        if len(f.keys()) == 0:
+            init_h5(f, data)
         else:
-            tokens_by_layer = get_tokens_by_layer(program["tokens"])
-            assert len(tokens_by_layer) == n_layers, (
-                f"weights have {n_layers} layers, but tokens have "
-                f"{len(tokens_by_layer)}"
-            )
-            for w, t in zip(program["weights"][1:],  # skip embedding params
-                            tokens_by_layer):
-                out.append({
-                    "weights": w,
-                    "tokens": t,
-                    "n_sops": program['n_sops'],
-                    "program_id": program_id,
-                    "n_layers": n_layers,
-                })
-    return out
+            append_h5(f, data)
+
+    for filename in files_loaded:
+        os.remove(data_dir / "full" / filename)
 
 
-def process_dataset(
+def init_h5(f: h5py.File, data: dict):
+    for k, v in data.items():
+        f.create_dataset(k, data=v, maxshape=(10**7, *v.shape[1:]))
+
+
+def append_h5(f: h5py.File, data: dict):
+    assert set(f.keys()) == set(data.keys()), (
+        f"Keys in existing HDF5 file {set(f.keys())} do not match "
+        f"keys in data {set(data.keys())}.")
+    for k, v in data.items():
+        f[k].resize((f[k].shape[0] + v.shape[0]), axis=0)
+        f[k][-v.shape[0]:] = v
+
+
+def dataset_to_arrays(
     data: list[dict],
-    d_model: int,
     max_rasp_len: int = 32,
     max_weights_len: int = 8192,
+    max_n_layers: int = 25,
 ) -> dict[str, np.ndarray]:
     """Process a list of dicts into a dict of arrays for model input.
     Deletes original datapoints (i.e. elements of data) to free memory.
     """
     out = defaultdict(list)
 
-    # process data from list[dict] to dict[list]
     while data:
-        x_proc = process_single_datapoint(data.pop(0), 
-            d_model, max_rasp_len, max_weights_len)
-
-        for k, v in x_proc.items():
+        for k, v in datapoint_to_array(data.pop(0), max_rasp_len, max_weights_len,
+                                       max_n_layers).items():
             out[k].append(v)
-        
+
     # stack to np.arrays
-    out = {k: np.stack(v).astype(NUMPY_DTYPE) for k, v in out.items()}
-    out = {k: to_int(v) if k in ("tokens", "program_id", "n_sops") else v 
+    out = {k: np.stack(v) for k, v in out.items()}
+    out = {k: to_int(v) if k in ("tokens", "n_sops", "n_layers") else v 
            for k, v in out.items()}
     
     # asserts
-    assert max_weights_len % d_model == 0
     chex.assert_shape(out["tokens"], (None, max_rasp_len))
-    chex.assert_shape(out["weights"], (
-        None, max_weights_len//d_model, d_model))
+    chex.assert_shape(out["weights"], (None, max_weights_len))
+    chex.assert_shape(out["layer_idx"], (None, max_n_layers))
     assert len(out["tokens"]) == len(out["weights"])
-    assert np.all(
-        sorted(out["program_id"]) == np.arange(len(out["program_id"])))
-
     return out
 
 
-def process_single_datapoint(
-    x: dict[str, tuple],
-    d_model: int,
-    max_rasp_len: int = 32,
-    max_weights_len: int = 8192,
-) -> dict[str, np.ndarray] | None:
-    """Process a single datapoint (ie single layer) for model 
-    input. Assume x is a dict with keys "tokens", "weights", 
-    and "program_id".
-    1) Rasp tokens: pad to max rasp length.
-    2) Weights: pad to max_weights_len, then chunk.
-    """
-    if len(x['tokens']) > max_rasp_len:
-        raise ValueError(f"Program length ({len(x['tokens'])}) exceeds "
-                         f"max program length ({max_rasp_len}).")
-    elif len(x['weights']) > max_weights_len:
-        raise ValueError(f"Nr of params ({len(x['weights'])}) exceeds "
-                         f"max nr of params ({max_weights_len}).")
+def datapoint_to_array(x: dict, max_rasp_len: int, max_weights_len: int,
+                       max_n_layers: int) -> dict:
+    tokens = pad_to(np.array(x['tokens']), 
+                                    max_rasp_len, pad_value=vocab.pad_id)
     
-    weights = np.array(x['weights'], dtype=NUMPY_DTYPE)
+    layer_idx = np.cumsum([len(w) for w in x['weights']])
+    layer_idx = pad_to(layer_idx, max_n_layers, pad_value=0)
+    weights = np.concatenate(x['weights']).astype(NUMPY_DTYPE)
     weights = pad_to(weights, max_weights_len, pad_value=0.05)
-    weights = pad_and_chunk(weights, d_model)  # (n_chunks, d_model)
-    tokens = np.array(x['tokens'])
-    x["tokens"] = pad_to(tokens, max_rasp_len, pad_value=vocab.pad_id)
-    x["weights"] = weights
-    return x
+    return {
+        'tokens': tokens,
+        'weights': weights,
+        'layer_idx': layer_idx,
+        'n_sops': x['n_sops'],
+        'n_layers': len(x["weights"])-1,
+    }
 
 
+# Misc utils
 def get_tokens_by_layer(tokens: list[int]):
     """Split a list of tokens into a list of layers.
     """
@@ -208,29 +192,43 @@ def load_json(filename: str) -> list[dict]:
 def load_batches(
     loaddir: Path,
     max_data: Optional[int] = None,
+    max_files: Optional[int] = None,
+    return_filenames: bool = False,
 ) -> list[dict]:
     """Load all json files in loaddir and merge into a single list. 
     """
     data = []
+    files_loaded = []
     t = time.time()
     for entry in os.scandir(loaddir):
         if entry.name.endswith(".json"):
             batch = load_json(entry.path)
             data.extend(batch)
+            files_loaded.append(entry.name)
         
         if max_data is not None and len(data) >= max_data:
             logger.info(f"load_batches: Loaded "
                         f"{len(data)} >= {max_data} datapoints. Stopping "
-                        f"and truncating to {max_data} datapoints. {time.time() - t:.2f}s")
+                        f"and truncating to {max_data} datapoints. "
+                        f"({time.time() - t:.2f}s)")
+            data = data[:max_data]
+            break
+        
+        if max_files is not None and len(files_loaded) >= max_files:
+            logger.info(f"load_batches: Loaded {len(files_loaded)} files. "
+                        f"Stopping. ({time.time() - t:.2f}s).")
             break
 
     if len(data) == 0:
-        raise ValueError(f"load_batches: No files found in {loaddir}.")
+        raise FileNotFoundError(f"load_batches: No files found in {loaddir}.")
     elif max_data is not None and len(data) < max_data:
         logger.warning(f"load_batches: Loaded {len(data)} < {max_data} "
                        f"datapoints. {time.time() - t:.2f}s")
 
-    return data[:max_data]
+    if return_filenames:
+        return data, files_loaded
+    else:
+        return data
 
 
 def load_batches_from_subdirs(
