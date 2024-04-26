@@ -13,7 +13,7 @@ setuptools.setup(name='decompile-tracr',
             "numpy",
             "setuptools",
             "tqdm",
-            "dill",
+            "h5py",
       ],
 )
 
