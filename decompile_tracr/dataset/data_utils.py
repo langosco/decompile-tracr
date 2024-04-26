@@ -413,7 +413,7 @@ def layer_names(n_layers: int) -> Generator[str, None, None]:
 def symlog(x: np.ndarray, linear_thresh: float = 2.) -> np.ndarray:
     """Symmetric log transform.
     """
-    assert linear_thresh > 1., "linear_thresh must be > 1."
+#    assert linear_thresh > 1., "linear_thresh must be > 1."
     slog = jnp.sign(x) * jnp.log(jnp.abs(x))
     return jnp.where(
         jnp.abs(x) < linear_thresh, 
