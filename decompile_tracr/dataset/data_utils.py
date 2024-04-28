@@ -26,37 +26,33 @@ logger = setup_logger(__name__)
 NUMPY_DTYPE = np.float32
 
 
-# Load entire dataset for model input
-def load_dataset_for_model_input(
-    loadfile: Path = config.data_dir / "full.h5",
-    ndata: int = -1,
-) -> dict[str, np.ndarray]:
-    """Load dataset of tracr-compiled base models and process it 
-    for model input. Returns a dict of np.ndarrays with keys 'weights',
-    'tokens', 'n_sops', 'n_layers'.
-    """
-    logger.info(f"Loading data from {loadfile}.")
-    if not loadfile.exists():
-        raise FileNotFoundError(f"File {loadfile} not found.")
-    t = time.time()
-    with h5py.File(loadfile, "r") as f:
-        _check_dataset_shapes(f, ndata)
-        data = {k: v[:ndata] for k, v in f.items()}
-    logger.info(f"load_dataset_for_model_input: All data loading "
-                f"and processing took {time.time() - t:.2f}s.")
-    return data
+# HDF5 utils
+
+def load_json_and_save_to_hdf5(savefile: Path = config.data_dir / "full.h5"):
+    """Convert dataset in data_dir/full to a single HDF5 file."""
+    batch_size = 500
+    done = False
+    while not done:
+        done = _batch_to_hdf5(savefile, max_files=batch_size)
+    
+    def _save_split_to_new_group(f: h5py.File, n_split: int, group_name: str):
+        split = {}
+        for k, v in f["train"].items():
+            split[k] = v[-n_split:]
+            v.resize((v.shape[0] - n_split), axis=0)
+        f.create_group(group_name)
+        init_h5(f[group_name], split)
+
+    # Split into train / val / test
+    split_frac = 0.03
+    with h5py.File(savefile, "r+") as f:
+        n_split = int(len(f['tokens']) * split_frac)
+        _save_split_to_new_group(f, n_split, "val")
+        _save_split_to_new_group(f, n_split, "test")
+    return None
 
 
-def _check_dataset_shapes(f: h5py.File, ndata: int):
-    n = f["tokens"].shape[0]
-    assert ndata == -1 or n >= ndata, (
-        f"Expected at least {ndata} datapoints, got {n}")
-    for k, v in f.items():
-        assert v.shape[0] == n, (
-            f"len(tokens) = {n}, but len({k}) = {v.shape[0]}")
-        
-
-def load_and_save_to_hdf5(data_dir: Path = config.data_dir, max_files: int = 500):
+def _batch_to_hdf5(data_dir: Path = config.data_dir, max_files: int = 500):
     """Convert dataset in data_dir/full to a single HDF5 file.
     Run multiple times if the dataset is too large to fit in memory.
     - Load up to max_data datapoints. 
@@ -65,6 +61,7 @@ def load_and_save_to_hdf5(data_dir: Path = config.data_dir, max_files: int = 500
     """
     data, files_loaded = load_batches(
         data_dir / "full", max_files=max_files, return_filenames=True)
+
     data = dataset_to_arrays(
         data=data,
         max_rasp_len=config.MAX_RASP_LENGTH,
@@ -73,22 +70,30 @@ def load_and_save_to_hdf5(data_dir: Path = config.data_dir, max_files: int = 500
     )
 
     h5path = data_dir / "full.h5"
-    with h5py.File(h5path, "a") as f:
+    with h5py.File(h5path, "a", libver="latest") as f:
         if len(f.keys()) == 0:
-            init_h5(f, data)
+            f.create_group("train")
+            init_h5(f["train"], data)
         else:
-            append_h5(f, data)
+            append_h5(f["train"], data)
 
     for filename in files_loaded:
         os.remove(data_dir / "full" / filename)
+    
+    remaining = os.scandir(data_dir / "full.5")
+    done = not any(entry.name.endswith(".json") for entry in remaining)
+    return done
 
 
 def init_h5(f: h5py.File, data: dict):
+    """Write dict to HDF5 datasets."""
     for k, v in data.items():
         f.create_dataset(k, data=v, maxshape=(10**7, *v.shape[1:]))
 
 
 def append_h5(f: h5py.File, data: dict):
+    """Write dict to HDF5 datasets. Assume datasets corresponding
+    to the dict keys already exist and append to them."""
     assert set(f.keys()) == set(data.keys()), (
         f"Keys in existing HDF5 file {set(f.keys())} do not match "
         f"keys in data {set(data.keys())}.")
@@ -145,6 +150,7 @@ def datapoint_to_array(x: dict, max_rasp_len: int, max_weights_len: int,
 
 
 # Misc utils
+
 def get_tokens_by_layer(tokens: list[int]):
     """Split a list of tokens into a list of layers.
     """
@@ -185,10 +191,7 @@ def pad_to(x: np.ndarray, max_len: int, pad_value: int = 0):
     return np.pad(x, (0, max_len - len(x)), constant_values=pad_value)
 
 
-def load_json(filename: str) -> list[dict]:
-    with open(filename, "r") as f:
-        return json.load(f)
-
+# Data generation and json utils
 
 def load_batches(
     loaddir: Path,
@@ -230,6 +233,11 @@ def load_batches(
         return data, files_loaded
     else:
         return data
+
+
+def load_json(filename: str) -> list[dict]:
+    with open(filename, "r") as f:
+        return json.load(f)
 
 
 def load_batches_from_subdirs(
@@ -407,16 +415,3 @@ def layer_names(n_layers: int) -> Generator[str, None, None]:
     for i in range(n_layers // 2):
         yield f"layer_{i}/attn"
         yield f"layer_{i}/mlp"
-
-
-@jax.jit
-def symlog(x: np.ndarray, linear_thresh: float = 2.) -> np.ndarray:
-    """Symmetric log transform.
-    """
-#    assert linear_thresh > 1., "linear_thresh must be > 1."
-    slog = jnp.sign(x) * jnp.log(jnp.abs(x))
-    return jnp.where(
-        jnp.abs(x) < linear_thresh, 
-        x * jnp.log(linear_thresh)/linear_thresh,
-        slog
-    )
