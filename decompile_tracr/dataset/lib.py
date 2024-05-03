@@ -163,6 +163,7 @@ def make_shuffle_dyck(pairs: list = [(0,1), (2,3)]) -> rasp.SOp:
 
 examples = [
     length,
+#    make_reverse(),
     sort(),
     make_reverse(rasp.tokens),
     make_pair_balance(),

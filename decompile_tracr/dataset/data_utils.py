@@ -332,7 +332,9 @@ def save_batch(
         json.dump(data, f)
 
 
-def get_params(params: dict, layer_name: str) -> jax.Array:
+def get_params(
+    params: dict, layer_name: str, include_unflatten_fn: bool = False,
+) -> jax.Array:
     """
     params: hk parameters as returned by tracr compiler in model.params.
     layer_name: name of the layer to extract parameters for.
@@ -356,7 +358,8 @@ def get_params(params: dict, layer_name: str) -> jax.Array:
     else:
         raise ValueError(f'Unknown layer name {layer_name}.')
     
-    return jax.flatten_util.ravel_pytree(layer_params)[0]
+    flat, unflatten = jax.flatten_util.ravel_pytree(layer_params)
+    return flat if not include_unflatten_fn else (flat, unflatten)
 
 
 def rw_lockfile(

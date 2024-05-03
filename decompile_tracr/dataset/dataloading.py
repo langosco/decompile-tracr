@@ -41,7 +41,8 @@ class DataLoader:
         # run a dummy `process_fn` to check the output shape
         dummy_data = {k: np.zeros((batch_size, *v[1:]))
                        for k, v in self.shape.items()}
-        dummy_data = process_fn(dummy_data)
+        dummy_data['batch_id'] = np.array(0)
+        dummy_data = self.process_fn(dummy_data)
         out_shapes = {k: v.shape for k, v in dummy_data.items()}
         for k in self.shape.keys():
             self.shape[k] = (self.shape[k][0],) + out_shapes[k][1:]
@@ -60,6 +61,7 @@ class DataLoader:
                     k: v[i:i+self.batch_size] 
                     for k, v in f[self.group].items()
                 }
+                data['batch_id'] = np.array(i)
                 yield self.process_fn(data)
         
         self.epoch_count += 1
