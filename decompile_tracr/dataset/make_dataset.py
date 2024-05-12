@@ -52,9 +52,4 @@ if __name__ == "__main__":
     )
 
     savefile = config.data_dir / 'full.hdf5'
-    while True:
-        try:
-            data_utils.load_and_save_to_hdf5(
-                savefile, max_files=500)
-        except FileNotFoundError:
-            break
+    data_utils.load_json_and_save_to_hdf5(savefile)
