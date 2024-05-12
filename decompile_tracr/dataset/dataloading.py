@@ -43,9 +43,10 @@ class DataLoader:
                        for k, v in self.shape.items()}
         dummy_data['batch_id'] = np.array(0)
         dummy_data = self.process_fn(dummy_data)
-        out_shapes = {k: v.shape for k, v in dummy_data.items()}
-        for k in self.shape.keys():
-            self.shape[k] = (self.shape[k][0],) + out_shapes[k][1:]
+        self.batch_shape = {
+            k: v.shape for k, v in dummy_data.items()}
+        self.shape = {
+            k: (n,) + v[1:] for k, v in self.batch_shape.items()}
 
     def __iter__(self):
         """Load data from an HDF5 file and yield it in batches."""
