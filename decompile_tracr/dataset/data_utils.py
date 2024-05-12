@@ -28,12 +28,15 @@ NUMPY_DTYPE = np.float32
 
 # HDF5 utils
 
-def load_json_and_save_to_hdf5(savefile: Path = config.data_dir / "full.h5"):
+def load_json_and_save_to_hdf5(
+    savedir: Path = config.data_dir,
+    make_val_and_test: bool = False,
+) -> None:
     """Convert dataset in data_dir/full to a single HDF5 file."""
     batch_size = 500
     done = False
     while not done:
-        done = _batch_to_hdf5(savefile, max_files=batch_size)
+        done = _batch_to_hdf5(savedir, max_files=batch_size)
     
     def _save_split_to_new_group(f: h5py.File, n_split: int, group_name: str):
         split = {}
@@ -44,11 +47,13 @@ def load_json_and_save_to_hdf5(savefile: Path = config.data_dir / "full.h5"):
         init_h5(f[group_name], split)
 
     # Split into train / val / test
-    split_frac = 0.03
-    with h5py.File(savefile, "r+") as f:
-        n_split = int(len(f['tokens']) * split_frac)
-        _save_split_to_new_group(f, n_split, "val")
-        _save_split_to_new_group(f, n_split, "test")
+    savefile = savedir / "full.h5"
+    if make_val_and_test:
+        split_frac = 0.03
+        with h5py.File(savefile, "r+") as f:
+            n_split = int(len(f['tokens']) * split_frac)
+            _save_split_to_new_group(f, n_split, "val")
+            _save_split_to_new_group(f, n_split, "test")
     return None
 
 
@@ -80,7 +85,7 @@ def _batch_to_hdf5(data_dir: Path = config.data_dir, max_files: int = 500):
     for filename in files_loaded:
         os.remove(data_dir / "full" / filename)
     
-    remaining = os.scandir(data_dir / "full.5")
+    remaining = os.scandir(data_dir / "full")
     done = not any(entry.name.endswith(".json") for entry in remaining)
     return done
 
