@@ -2,58 +2,52 @@ import os
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 
 import jax
-import chex
-from jaxtyping import ArrayLike
 import numpy as np
-import jax.numpy as jnp
-
-from tracr.compiler.assemble import AssembledTransformerModel
 
 from decompile_tracr.tokenizing import tokenizer
 from decompile_tracr.sampling import sampling
 from decompile_tracr.dataset import compile
+from decompile_tracr.dataset.logger_config import setup_logger
 from decompile_tracr.training import autoencoder
 from decompile_tracr.training import transformer
 
-from metamodels_for_rasp.train import Updater
+if __name__ == "__main__":
+    logger = setup_logger(__name__)
+    rng = np.random.default_rng(0)
+    key = jax.random.key(0)
 
 
-rng = np.random.default_rng(0)
-key = jax.random.key(0)
+    program_toks = tokenizer.tokenize(sampling.sample(rng, program_length=5))
+    assembled_model = compile.compile_tokens_to_model(program_toks)
 
-# assume a tokenized rasp program is given
-# - compile it to a model
-# - train autoencoder on residuals
-# - train transformer on encoded residuals
 
-def train_autoencoder(key: jax.random.PRNGKey,
-                      assembled_model: AssembledTransformerModel):
+    logger.info("Training autoencoder to compress residual stream...")
     key, subkey = jax.random.split(key)
-    updater, state = autoencoder.init_autoencoder(subkey, assembled_model)
-    get_residuals = autoencoder.get_residuals_sampler(
-        assembled_model, seq_len=5, batch_size=10)
-    log = []
-
-    for _ in range(100000):
-        key, subkey = jax.random.split(key)
-        batch = get_residuals(subkey)
-        state, aux = updater.update(state, batch)
-        log.append(aux)
-    
-    return state, log
+    ae_state, _, ae_model = autoencoder.train_autoencoder(
+        subkey, assembled_model, nsteps=10)
 
 
-program_toks = tokenizer.tokenizer(sampling.sample(rng, program_length=5))
-assembled_model = compile.compile_tokens_to_model(program_toks)
-
-autoencoder_state, _ = train_autoencoder(key, assembled_model)
+    def encode(x):
+        return ae_model.apply({'params': ae_state.params}, x, method=ae_model.encode)
 
 
-# train transformer on encoded residuals
-key, subkey = jax.random.split(key)
-model, updater, state = transformer.init_transformer(subkey, assembled_model)
+    get_batch = transformer.DataGenerator(
+        assembled_model=assembled_model,
+        encode=encode,
+        batch_size=32,
+        seq_len=6,
+    )
 
 
+    logger.info(
+        "Training transformer to match the compiled model layer-by-layer...")
+    model, state, log = transformer.train_transformer(
+        subkey, 
+        get_batch=get_batch, 
+        args=transformer.TransformerTrainingArgs(
+            nsteps=1000,
+            learning_rate=1e-3,
+        ),
+    )
 
-
-
+    logger.info(f"Final loss: {log[-1]['train/loss']}")
