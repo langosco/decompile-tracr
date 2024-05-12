@@ -29,29 +29,32 @@ from metamodels_for_rasp.train import Updater, TrainState
 
 class Encoder(nn.Module):
     hidden_size: int
+    dtype: Optional[jnp.dtype] = jnp.float32
 
     @nn.compact
     def __call__(self, x):
-        x = nn.Dense(self.hidden_size)(x)
+        x = nn.Dense(self.hidden_size, dtype=self.dtype)(x)
         return x
 
 
 class Decoder(nn.Module):
     output_size: int
+    dtype: Optional[jnp.dtype] = jnp.float32
 
     @nn.compact
     def __call__(self, x):
-        x = nn.Dense(self.output_size)(x)
+        x = nn.Dense(self.output_size, dtype=self.dtype)(x)
         return x
 
 
 class Autoencoder(nn.Module):
     hidden_size: int
     output_size: int
+    dtype: Optional[jnp.dtype] = jnp.float32
 
     def setup(self):
-        self.encoder = Encoder(self.hidden_size)
-        self.decoder = Decoder(self.output_size)
+        self.encoder = Encoder(self.hidden_size, dtype=self.dtype)
+        self.decoder = Decoder(self.output_size, dtype=self.dtype)
 
     @nn.compact
     def __call__(self, x, is_training=False):
@@ -141,11 +144,16 @@ def init_autoencoder(
     key: jax.random.PRNGKey, 
     model: AssembledTransformerModel,
     hidden_size: Optional[int] = None,
+    dtype: Optional[jnp.dtype] = jnp.bfloat16,
 ) -> tuple[Updater, TrainState]:
     d_model = model.params['token_embed']['embeddings'].shape[-1]
     if hidden_size is None:
         hidden_size = int(d_model // 1.5)
-    ae = Autoencoder(hidden_size=hidden_size, output_size=d_model)
+    ae = Autoencoder(
+        hidden_size=hidden_size, 
+        output_size=d_model,
+        dtype=dtype,
+    )
     loss_fn = get_loss_fn(ae.apply)
     optimizer = optax.adam(3e-3)
     updater = Updater(

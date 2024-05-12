@@ -24,7 +24,7 @@ from metamodels_for_rasp.train import TrainState
 class TransformerConfig:
     vocab_size: int
 #    output_vocab_size: int
-    dtype: Any = jnp.float32  # TODO: change to jnp.bfloat16?
+    dtype: Any = jnp.bfloat16
     emb_dim: int = 512
     num_heads: int = 8
     num_layers: int = 6
