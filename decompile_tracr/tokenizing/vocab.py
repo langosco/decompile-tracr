@@ -24,6 +24,7 @@ inputs = [
     f"sop_{MAX_SOP-1:02d}_indices"
 ]
 
+# assert inputs come after sop_variables
 assert sorted(sop_variables + inputs) == sop_variables + inputs
 
 maps = sorted(list(set([

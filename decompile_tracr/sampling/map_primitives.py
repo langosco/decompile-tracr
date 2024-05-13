@@ -177,11 +177,11 @@ FUNCTIONS_BY_SIGNATURE = {
 }
 
 
-def get_map_fn(rng, input_type: str) -> tuple[callable, str]:
+def get_map_fn(rng, input_type: str, output_types=TYPES) -> tuple[callable, str]:
     """
     Randomly determine an output domain (ie type), then sample a function
     from the set of functions that map from input_type --> output_type.
     """
-    output_type = rng.choice(TYPES)
+    output_type = rng.choice(output_types)
     fn_scope = FUNCTIONS_BY_SIGNATURE[f"{input_type} --> {output_type}"]
     return rng.choice(fn_scope), output_type
