@@ -101,37 +101,21 @@ def get_residuals_sampler(
     batch_size: int,
     flatten_leading_axes: bool = True,
 ) -> callable:
-    @hk.without_apply_rng
-    @hk.transform
-    def embed(tokens):
-        compiled_model = model.get_compiled_model()
-        return compiled_model.embed(tokens)
-
-    @hk.without_apply_rng
-    @hk.transform
-    def transformer(embeddings: ArrayLike):
-        """embeddings must be float arrays 
-        of shape (batch_size, seq_len, d_model)
-        """
-        compiled_model = model.get_compiled_model()
-        return compiled_model.transformer(
-            embeddings, jnp.ones(embeddings.shape[:-1]), use_dropout=False)
-
-    def sample_embeddings(key: jax.random.PRNGKey):
-        """Utility function to sample embeddings for 
-        a random sequence of input tokens.
+    def sample_tokens(key: jax.random.PRNGKey):
+        """Utility function to sample a sequence of input tokens.
         """
         bos: int = model.input_encoder.bos_encoding
         inputs = jax.random.randint(key, (batch_size, seq_len-1), 0, 5)
         inputs = jnp.concatenate(
             [bos * jnp.ones((batch_size, 1), dtype=int), inputs], axis=1)
-        return embed.apply(model.params, inputs), inputs
+        return inputs
 
     @jax.jit
     def get_residuals(key: jax.random.PRNGKey) -> Residuals:
-        embeddings, inputs = sample_embeddings(key)
-        out = transformer.apply(model.params, embeddings)
-        res = out.residuals
+        inputs = sample_tokens(key)
+        out = model.forward(model.params, inputs)
+        res = out.transformer_output.residuals
+        embeddings = out.transformer_output.input_embeddings
         res = einops.rearrange([embeddings, *res], 'l b s d -> b l s d')
         if flatten_leading_axes:
             res = einops.rearrange(res, 'b l s d -> (b l s) d')
@@ -175,7 +159,7 @@ def train_autoencoder(
     assembled_model: AssembledTransformerModel,
     nsteps: int = 100
 ):
-    BATCH_SIZE = 128
+    BATCH_SIZE = 256
     seq_len = assembled_model.input_encoder._max_seq_len
     key, subkey = jax.random.split(key)
     updater, state = init_autoencoder(subkey, assembled_model)
