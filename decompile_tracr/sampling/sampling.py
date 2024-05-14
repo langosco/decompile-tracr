@@ -59,13 +59,18 @@ class Sampler:
     - self.past is a list of sets that keeps track of the indices of the SOps
         that make up the past of each sampled SOp.
     """
-    def __init__(self, rng: np.random.Generator):
+    def __init__(
+        self, 
+        rng: np.random.Generator,
+        only_categorical: bool = False,
+    ):
         self.rng = rng
         self.scope = [
             rasp_utils.annotate_type(rasp.tokens, "categorical"),
             rasp_utils.annotate_type(rasp.indices, "categorical"),
         ]
         self.past = [{0}, {1}]
+        self.only_categorical = only_categorical
 #        self.value_set = []  # dynamically infer value set TODO
     
     def sample_from_scope(
@@ -121,7 +126,10 @@ class Sampler:
         input_type = sop_in.annotations["type"]
         if input_type == "float" and isinstance(sop_in, rasp.Aggregate):
             input_type = "freq"  # hack to accomodate outputs from numerical Aggregates, which are always between 0 and 1
-        fn, output_type = map_primitives.get_map_fn(self.rng, input_type)
+        output_types = (["categorical"] if self.only_categorical 
+                        else map_primitives.TYPES)
+        fn, output_type = map_primitives.get_map_fn(
+            self.rng, input_type, output_types)
         sop_out = rasp.Map(fn, sop_in, simplify=False)
         self.scope.append(rasp_utils.annotate_type(sop_out, type=output_type))
 
@@ -249,6 +257,9 @@ class Sampler:
             "categorical_aggregate": 1,
             "selector_width": 0.05,
         }
+        if self.only_categorical:
+            weights["linear_sequence_map"] = 0
+            weights["numerical_aggregate"] = 0
 
         sop_classes = list(set(add_functions.keys()) - set(avoid_types))
         weights = np.array([weights[c] for c in sop_classes]); weights /= weights.sum()
@@ -279,13 +290,14 @@ class Sampler:
 def sample(
     rng: np.random.Generator,
     program_length: int,
+    **sampler_kwargs,
 ) -> rasp.SOp:
     """Sample a RASP program.
     Args:
         rng: numpy random number generator
         program_length: length of the program in SOps
     """
-    sampler = Sampler(rng)
+    sampler = Sampler(rng, **sampler_kwargs)
     avoid = set()
     while sampler.current_length() != program_length:
         avoid = sampler.try_to_add_sop(avoid)
