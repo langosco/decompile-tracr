@@ -171,7 +171,7 @@ class Transformer(nn.Module):
             x += MLPBlock(config)(x, deterministic=not is_training)
             activations[f'MLPBlock_{layer}'] = x
 
-        return x, activations 
+        return x, dict(activations)
 
 
 def get_loss_fn(apply_fn):
@@ -192,7 +192,7 @@ def get_loss_fn(apply_fn):
         loss = jnp.mean(jnp.square(
             activations[layer_name] - batch.residuals
         ))
-        aux = {'loss': loss}
+        aux = {f'loss/{layer_name}': loss}
         return loss, aux
     return loss_fn
 
@@ -266,8 +266,8 @@ class DataGenerator:
 
     def __post_init__(self):
         assert self.seq_len <= self.assembled_model.input_encoder._max_seq_len
-        self._get_residuals = autoencoder.get_residuals_sampler(
-            self.assembled_model, 
+        self._residuals_sampler = autoencoder.ResidualsSampler(
+            model=self.assembled_model, 
             seq_len=self.seq_len, 
             batch_size=self.batch_size,
             flatten_leading_axes=False,
@@ -275,19 +275,12 @@ class DataGenerator:
 
     def __call__(self, key: jax.random.PRNGKey):
         """Return dict of residuals for each layer. Keys are layer names."""
-        res = self._get_residuals(key)
+        res = self._residuals_sampler.sample_residuals(key)
         res.residuals = self.encode(res.residuals)
         x = einops.rearrange(res.residuals, 'b l s d -> l b s d')
         return {k: Residuals(inputs=res.inputs, residuals=v) 
-            for k, v in zip(self._layer_names(), x)}
+            for k, v in zip(layer_names(), x)}
 
-    def _layer_names(self):
-        yield 'Embed_0'
-        for i in range(30):
-            yield f'AttentionBlock_{i}'
-            yield f'MLPBlock_{i}'
-        raise NotImplementedError(
-            f"Maximum number of layers ({i}) exceeded.")
 
 
 @chex.dataclass
@@ -331,7 +324,7 @@ def train_transformer(
         updates, state.opt_state = opt.update(
             grads, state.opt_state, state.params)
         state.params = optax.apply_updates(state.params, updates)
-        aux['train/loss'] = aux['loss']; del aux['loss']
+        aux = {f'train/{k}': v for k, v in aux.items()}
         return state, aux
 
     log = []
@@ -340,3 +333,12 @@ def train_transformer(
         log.append(aux)
     
     return model, state, log
+
+
+def layer_names():
+    yield 'Embed_0'
+    for i in range(30):
+        yield f'AttentionBlock_{i}'
+        yield f'MLPBlock_{i}'
+    raise NotImplementedError(
+        f"Maximum number of layers ({i}) exceeded.")
