@@ -37,7 +37,11 @@ def load_json_and_save_to_hdf5(
     done = False
     while not done:
         done = _batch_to_hdf5(savedir, max_files=batch_size)
-    
+
+
+def make_test_splits(
+    savedir: Path = config.data_dir,
+) -> None:
     def _save_split_to_new_group(f: h5py.File, n_split: int, group_name: str):
         split = {}
         for k, v in f["train"].items():
@@ -48,13 +52,11 @@ def load_json_and_save_to_hdf5(
 
     # Split into train / val / test
     savefile = savedir / "full.h5"
-    if make_val_and_test:
-        split_frac = 0.03
-        with h5py.File(savefile, "r+") as f:
-            n_split = int(len(f['tokens']) * split_frac)
-            _save_split_to_new_group(f, n_split, "val")
-            _save_split_to_new_group(f, n_split, "test")
-    return None
+    split_frac = 0.03
+    with h5py.File(savefile, "r+") as f:
+        n_split = int(len(f['train/tokens']) * split_frac)
+        _save_split_to_new_group(f, n_split, "val")
+        _save_split_to_new_group(f, n_split, "test")
 
 
 def _batch_to_hdf5(data_dir: Path = config.data_dir, max_files: int = 500):

@@ -121,7 +121,6 @@ FLOAT_TO_CAT = [
 
 FREQ_TO_BOOL = [  # freq = outputs from numerical Aggregate
     FunctionWithRepr(f"lambda x: x > 0.5"),
-    FunctionWithRepr(f"lambda x: bool(x)"),
 ]
 
 

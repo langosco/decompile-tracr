@@ -3,48 +3,69 @@ os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 import pytest
 import numpy as np
 from collections import Counter
+from jaxtyping import ArrayLike
+import chex
 
 from tracr.rasp import rasp
+from tracr.compiler import validating
 
 from decompile_tracr.sampling import rasp_utils
+from decompile_tracr.sampling.rasp_utils import SamplingError
 from decompile_tracr.sampling import sampling
-from decompile_tracr.sampling.validate import is_valid
+from decompile_tracr.sampling.validate import perform_checks
 from decompile_tracr.tokenizing import tokenizer
 from decompile_tracr.tokenizing import vocab
 from decompile_tracr.dataset import lib
 
 rng = np.random.default_rng(None)
 
-TEST_INPUTS = [rasp_utils.sample_test_input(rng, max_seq_len=5, min_seq_len=5) 
-               for _ in range(100)]
 LENGTH = 10
-PROGRAMS = [sampling.sample(rng, program_length=LENGTH) for _ in range(30)]
-OUTPUTS = [[p(x) for x in TEST_INPUTS] for p in PROGRAMS]
-# replace None with 0s:
-OUTPUTS = [tuple(0 if x is None else x for x in o) for p_outs in OUTPUTS for o in p_outs]
+INPUTS = [rasp_utils.sample_test_input(rng, max_seq_len=5, min_seq_len=5) 
+               for _ in range(1000)]
+
+try:
+    PROGRAMS = [sampling.sample(rng, program_length=LENGTH) for _ in range(100)]
+except ValueError as e:
+    if e.args[0] in ["key is None!", "query is None!"]:
+        # resample
+        PROGRAMS = [sampling.sample(rng, program_length=LENGTH) for _ in range(100)]
+    else:
+        raise
+        
+OUTPUTS_UNSANITIZED = [[p(x) for x in INPUTS] for p in PROGRAMS]
+OUTPUTS_UNSANITIZED = np.array(OUTPUTS_UNSANITIZED, dtype=float)
+OUTPUTS = np.nan_to_num(OUTPUTS_UNSANITIZED, nan=0)  # (programs, inputs, seq)
 
 
-def test_sample():
+def test_length():
     for p in PROGRAMS:
         assert rasp_utils.count_sops(p) == LENGTH
 
 
-def test_validity_without_compiling():
-    """Test that sampled programs are valid."""
-    valid = [
-        all(is_valid(p, x) for x in TEST_INPUTS) for p in PROGRAMS
-    ]
-    n_programs_valid = sum(valid)
-    assert n_programs_valid / len(PROGRAMS) > 0.95, (
-        f"Only {n_programs_valid} / {len(PROGRAMS) * 100}\% of programs are valid.")
+def test_static_validate():
+    errs = [validating.validate(p) for p in PROGRAMS]
+    num_invalid = sum([len(e) > 0 for e in errs])
+    assert num_invalid == 0, (
+        f"{num_invalid}/{len(PROGRAMS)} programs "
+        f"failed static validation.")
+
+
+def test_dynamic_validate():
+    invalid = [_is_invalid_according_to_dynamic_validator(p, INPUTS) 
+               for p in PROGRAMS]
+    num_invalid = sum(invalid)
+    assert num_invalid == 0, (
+        f"{num_invalid}/{len(PROGRAMS)} programs "
+        f"failed dynamic validation.")
 
 
 def test_constant_wrt_input():
     """Test that sampled programs are not constant wrt input."""
-    are_constant = [_constant_wrt_input(o) for o in OUTPUTS]
+    are_constant = [_mostly_constant_wrt_input(o) for o in OUTPUTS]
     frac_constant = sum(are_constant) / len(OUTPUTS)
     assert frac_constant < 0.05, (
-        f"{frac_constant*100}% of programs produce the same output for > 80% of test inputs."
+        f"{frac_constant*100}% of programs produce exactly "
+        f"the same output for > 80% of test inputs."
     )
 
 
@@ -67,16 +88,49 @@ def test_outputs_within_range(magnitude=1e4):
     )
 
 
-def _constant_wrt_input(outputs: list[tuple]) -> bool:
+def test_no_nones():
+    """Test that programs do not return None too often."""
+    too_many_nones = [
+        _contains_too_many_nones(o) for o in OUTPUTS_UNSANITIZED]
+    frac_nones = sum(too_many_nones) / len(OUTPUTS_UNSANITIZED)
+    assert frac_nones < 0.05, (
+        f"{frac_nones*100}% of programs return None too often."
+    )
+
+
+def _mostly_constant_wrt_input(outputs: ArrayLike) -> bool:
     """Check if program is constant wrt input. 
     Returns True if >80% of inputs produce exactly the same output.
     """
+    chex.assert_shape(outputs, (len(INPUTS), 5))
+    outputs = [tuple(x) for x in outputs]  # need hashable type
     counts = Counter(outputs)
     return counts.most_common(1)[0][1] / len(outputs) > 0.8
 
 
-def _low_var(outputs: list[tuple], threshold=0.01) -> bool:
+def _low_var(outputs: ArrayLike, threshold=0.01) -> bool:
     """Check if program has low variance wrt input. 
     Returns True if stddev of outputs is below the threshold.
     """
-    return np.std(outputs) < 0.1
+    chex.assert_shape(outputs, (len(INPUTS), 5))
+    return np.all(np.std(outputs, axis=0) < threshold)
+
+
+def _contains_too_many_nones(outputs: ArrayLike) -> bool:
+    """Check if program returns None too often."""
+    chex.assert_shape(outputs, (len(INPUTS), 5))
+    nones = np.isnan(outputs)
+    more_than_a_fifth_none = nones.mean() > 0.2
+    any_more_than_half_none = (nones.mean(axis=1) > 0.5).any()
+    return more_than_a_fifth_none or any_more_than_half_none
+
+
+def _is_invalid_according_to_dynamic_validator(
+        program, inputs: list[list]) -> bool:
+    """Check if program passes dynamic validation."""
+    seq = len(inputs[0])
+    lens = [len(x) for x in inputs]
+    assert seq == 5 and all(l == seq for l in lens), (
+        "Test assumes input sequences of constant length 5."
+        f"Received: {lens}")
+    return any(len(validating.validate(program, x)) > 0 for x in inputs)

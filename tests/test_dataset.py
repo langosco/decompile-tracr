@@ -23,7 +23,7 @@ rng = np.random.default_rng()
 def tokens():
     NDATA = 1000
     with h5py.File(config.data_dir / "full.h5", "r") as f:
-        return f['tokens'][:NDATA]
+        return f['train/tokens'][:NDATA]
 
 
 def test_sampling():

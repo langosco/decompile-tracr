@@ -22,29 +22,25 @@ from tracr.rasp import rasp
 from tracr.compiler import validating
 from decompile_tracr.sampling import map_primitives
 from decompile_tracr.sampling import rasp_utils
-from decompile_tracr.sampling.validate import is_valid
+from decompile_tracr.sampling.rasp_utils import SamplingError
+from decompile_tracr.sampling.validate import perform_checks
 from decompile_tracr.dataset.logger_config import setup_logger
 
 logger = setup_logger(__name__)
 
 
-rng = np.random.default_rng(42)
-TEST_INPUTS = [rasp_utils.sample_test_input(rng) 
-               for _ in range(5)]
+const_rng = np.random.default_rng(42)
+TEST_INPUTS = [rasp_utils.sample_test_input(const_rng) 
+               for _ in range(15)]
 TEST_INPUTS += [[0], [0,0,0,0,0], [1,2,3,4]]
 TEST_INPUTS = set([tuple(x) for x in TEST_INPUTS])
 
-EXTRA_TEST_INPUTS = [rasp_utils.sample_test_input(rng)
+EXTRA_TEST_INPUTS = [rasp_utils.sample_test_input(const_rng)
                         for _ in range(50)]
-
-
-class SamplingError(Exception):
-    """Raised when the sampler fails to sample a program
-    satisfying the given constraints.
-    This error is raises stochastically, so it's (usually) 
-    not indicative of a bug.
-    """
-    pass
+EXTRA_TEST_INPUTS += [
+    rasp_utils.sample_test_input(const_rng, max_seq_len=5, min_seq_len=5)
+    for _ in range(50)]
+EXTRA_TEST_INPUTS = set([tuple(x) for x in EXTRA_TEST_INPUTS])
 
 
 def get_recency_bias_weights(n: int, alpha: float = 0.3) -> np.ndarray:
@@ -269,7 +265,8 @@ class Sampler:
         try:
             add()
             if any(rasp_utils.fraction_none(self.run(x)) > 0.5 for x in TEST_INPUTS):
-                raise SamplingError(f"Sampled SOp {self.scope[-1]} has too many None values.")
+                del self.scope[-1]
+                raise SamplingError(f"Sampled SOp has too many None values.")
             logger.debug(f"Sampled: {sop_class}")
             avoid_types.clear()
         except (rasp_utils.EmptyScopeError, SamplingError):
@@ -304,14 +301,11 @@ def sample(
     program = sampler.scope[-1]
     program = rasp.annotate(program, length=sampler.current_length())
 
-    valid = True
-    for x in EXTRA_TEST_INPUTS:
-        if not is_valid(program, x):
-            valid = False
-            break
-    if not valid:
-        # resample
-        return sample(rng, program_length=program_length)
+    try:
+        perform_checks(program, EXTRA_TEST_INPUTS)
+    except SamplingError as e:
+        logger.info(f"Failed checks, resampling. {e}")
+        return sample(rng, program_length=program_length, **sampler_kwargs)
 
     logger.debug(f"(sample) Size of scope: {len(sampler.scope)}")
     return program

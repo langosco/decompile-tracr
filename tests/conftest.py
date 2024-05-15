@@ -50,12 +50,13 @@ def make_test_data(base_dir):
         savedir=base_dir / "full",
     )
 
-    while True:
-        try:
-            data_utils.load_and_save_to_hdf5(
-                base_dir / "full.h5", max_files=500)
-        except FileNotFoundError:
-            break
+    data_utils.load_json_and_save_to_hdf5(
+        savedir=base_dir,
+    )
+
+    data_utils.make_test_splits(
+        savedir=base_dir,
+    )
 
     return None
 

@@ -9,6 +9,14 @@ class EmptyScopeError(Exception):
     pass
 
 
+class SamplingError(Exception):
+    """Raised when the sampler fails to sample a program
+    satisfying the given constraints.
+    This error is (usually) not indicative of a bug.
+    """
+    pass
+
+
 def annotate_type(sop: rasp.SOp, type: str):
     """Annotate a SOp with a type."""
     # important for compiler:
