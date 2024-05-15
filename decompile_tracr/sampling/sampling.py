@@ -269,8 +269,11 @@ class Sampler:
                 raise SamplingError(f"Sampled SOp has too many None values.")
             logger.debug(f"Sampled: {sop_class}")
             avoid_types.clear()
-        except (rasp_utils.EmptyScopeError, SamplingError):
-            logger.debug(f"Failed to sample: {sop_class}")
+        except (rasp_utils.EmptyScopeError, SamplingError, ValueError) as e:
+            if isinstance(e, ValueError) and not e.args[0] in ["key is None!", "query is None!"]:
+                raise # reraise other ValueErrors
+
+            logger.debug(f"Failed to sample {sop_class}, retrying. {e}")
             # TODO: maybe I should return the error type and message to
             # collect stats on most common errors
             avoid_types.add(sop_class)

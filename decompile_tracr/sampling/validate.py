@@ -113,5 +113,4 @@ def is_constant(values: list[list[int | float]]) -> bool:
     else:
         values = [[0 if x is None else x for x in v] for v in values]
         values = np.array(values)
-        print(values.shape)
         return values.std(axis=0).sum() < 0.5

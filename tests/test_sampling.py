@@ -1,6 +1,7 @@
 import os
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 import pytest
+import time
 import numpy as np
 from collections import Counter
 from jaxtyping import ArrayLike
@@ -23,18 +24,18 @@ LENGTH = 10
 INPUTS = [rasp_utils.sample_test_input(rng, max_seq_len=5, min_seq_len=5) 
                for _ in range(1000)]
 
-try:
-    PROGRAMS = [sampling.sample(rng, program_length=LENGTH) for _ in range(100)]
-except ValueError as e:
-    if e.args[0] in ["key is None!", "query is None!"]:
-        # resample
-        PROGRAMS = [sampling.sample(rng, program_length=LENGTH) for _ in range(100)]
-    else:
-        raise
-        
-OUTPUTS_UNSANITIZED = [[p(x) for x in INPUTS] for p in PROGRAMS]
+t = time.time()
+PROGRAMS = [sampling.sample(rng, program_length=LENGTH) for _ in range(100)]
+total_time = time.time() - t
+OUTPUTS_UNSANITIZED = [[p(x) for x in INPUTS] for p in PROGRAMS]  # can sometimes throw ValueError('key/tokens is None')
 OUTPUTS_UNSANITIZED = np.array(OUTPUTS_UNSANITIZED, dtype=float)
 OUTPUTS = np.nan_to_num(OUTPUTS_UNSANITIZED, nan=0)  # (programs, inputs, seq)
+
+
+def test_timing():
+    time_per_program = total_time / len(PROGRAMS)
+    assert time_per_program < 0.5, (
+        f"Sampling took {time_per_program:.3f} seconds per program.")
 
 
 def test_length():
