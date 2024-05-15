@@ -129,9 +129,4 @@ def _contains_too_many_nones(outputs: ArrayLike) -> bool:
 def _is_invalid_according_to_dynamic_validator(
         program, inputs: list[list]) -> bool:
     """Check if program passes dynamic validation."""
-    seq = len(inputs[0])
-    lens = [len(x) for x in inputs]
-    assert seq == 5 and all(l == seq for l in lens), (
-        "Test assumes input sequences of constant length 5."
-        f"Received: {lens}")
     return any(len(validating.validate(program, x)) > 0 for x in inputs)
