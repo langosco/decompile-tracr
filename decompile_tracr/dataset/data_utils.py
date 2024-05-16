@@ -18,30 +18,27 @@ from jax import numpy as jnp
 import chex
 
 from decompile_tracr.tokenizing import vocab
-from decompile_tracr.dataset import config
 from decompile_tracr.dataset.logger_config import setup_logger
+from decompile_tracr.dataset.config import DatasetConfig
 
 
 logger = setup_logger(__name__)
 NUMPY_DTYPE = np.float32
+default_config = DatasetConfig()
+default_datadir = default_config.paths.data_dir
 
 
 # HDF5 utils
 
-def load_json_and_save_to_hdf5(
-    savedir: Path = config.data_dir,
-    make_val_and_test: bool = False,
-) -> None:
+def load_json_and_save_to_hdf5(config: DatasetConfig) -> None:
     """Convert dataset in data_dir/full to a single HDF5 file."""
     batch_size = 500
     done = False
     while not done:
-        done = _batch_to_hdf5(savedir, max_files=batch_size)
+        done = _batch_to_hdf5(config=config, max_files=batch_size)
 
 
-def make_test_splits(
-    savedir: Path = config.data_dir,
-) -> None:
+def make_test_splits(dataset: Path) -> None:
     def _save_split_to_new_group(f: h5py.File, n_split: int, group_name: str):
         split = {}
         for k, v in f["train"].items():
@@ -50,34 +47,27 @@ def make_test_splits(
         f.create_group(group_name)
         init_h5(f[group_name], split)
 
-    # Split into train / val / test
-    savefile = savedir / "full.h5"
     split_frac = 0.03
-    with h5py.File(savefile, "r+") as f:
+    with h5py.File(dataset, "r+") as f:
         n_split = int(len(f['train/tokens']) * split_frac)
         _save_split_to_new_group(f, n_split, "val")
         _save_split_to_new_group(f, n_split, "test")
 
 
-def _batch_to_hdf5(data_dir: Path = config.data_dir, max_files: int = 500):
+def _batch_to_hdf5(config: DatasetConfig, max_files: int = 500):
     """Convert dataset in data_dir/full to a single HDF5 file.
     Run multiple times if the dataset is too large to fit in memory.
     - Load up to max_data datapoints. 
     - Save as HDF5 (append to existing file if it exists)
     - Delete original files.
     """
+    loaddir = config.paths.compiled_cache
+
     data, files_loaded = load_batches(
-        data_dir / "full", max_files=max_files, return_filenames=True)
+        loaddir, max_files=max_files, return_filenames=True)
+    data = dataset_to_arrays(data=data, config=config)
 
-    data = dataset_to_arrays(
-        data=data,
-        max_rasp_len=config.MAX_RASP_LENGTH,
-        max_weights_len=config.MAX_WEIGHTS_LENGTH,
-        max_n_layers=25,
-    )
-
-    h5path = data_dir / "full.h5"
-    with h5py.File(h5path, "a", libver="latest") as f:
+    with h5py.File(config.paths.dataset, "a", libver="latest") as f:
         if len(f.keys()) == 0:
             f.create_group("train")
             init_h5(f["train"], data)
@@ -85,9 +75,9 @@ def _batch_to_hdf5(data_dir: Path = config.data_dir, max_files: int = 500):
             append_h5(f["train"], data)
 
     for filename in files_loaded:
-        os.remove(data_dir / "full" / filename)
+        os.remove(loaddir / filename)
     
-    remaining = os.scandir(data_dir / "full")
+    remaining = os.scandir(loaddir)
     done = not any(entry.name.endswith(".json") for entry in remaining)
     return done
 
@@ -111,9 +101,7 @@ def append_h5(f: h5py.File, data: dict):
 
 def dataset_to_arrays(
     data: list[dict],
-    max_rasp_len: int = 32,
-    max_weights_len: int = 8192,
-    max_n_layers: int = 25,
+    config: DatasetConfig,
 ) -> dict[str, np.ndarray]:
     """Process a list of dicts into a dict of arrays for model input.
     Deletes original datapoints (i.e. elements of data) to free memory.
@@ -121,8 +109,7 @@ def dataset_to_arrays(
     out = defaultdict(list)
 
     while data:
-        for k, v in datapoint_to_array(data.pop(0), max_rasp_len, max_weights_len,
-                                       max_n_layers).items():
+        for k, v in datapoint_to_array(data.pop(0), config).items():
             out[k].append(v)
 
     # stack to np.arrays
@@ -131,22 +118,23 @@ def dataset_to_arrays(
            for k, v in out.items()}
     
     # asserts
-    chex.assert_shape(out["tokens"], (None, max_rasp_len))
-    chex.assert_shape(out["weights"], (None, max_weights_len))
-    chex.assert_shape(out["layer_idx"], (None, max_n_layers))
+    chex.assert_shape(out["tokens"], (None, config.max_rasp_length))
+    chex.assert_shape(out["weights"], (None, config.max_weights_length))
+    chex.assert_shape(out["layer_idx"], (None, config.max_layers))
     assert len(out["tokens"]) == len(out["weights"])
     return out
 
 
-def datapoint_to_array(x: dict, max_rasp_len: int, max_weights_len: int,
-                       max_n_layers: int) -> dict:
-    tokens = pad_to(np.array(x['tokens']), 
-                                    max_rasp_len, pad_value=vocab.pad_id)
-    
+def datapoint_to_array(x: dict, config: DatasetConfig) -> dict[str, np.ndarray]:
+    tokens = pad_to(
+        np.array(x['tokens']), 
+        config.max_rasp_length, 
+        pad_value=vocab.pad_id
+    )
     layer_idx = np.cumsum([len(w) for w in x['weights']])
-    layer_idx = pad_to(layer_idx, max_n_layers, pad_value=0)
+    layer_idx = pad_to(layer_idx, config.max_layers, pad_value=0)
     weights = np.concatenate(x['weights']).astype(NUMPY_DTYPE)
-    weights = pad_to(weights, max_weights_len, pad_value=0.05)
+    weights = pad_to(weights, config.max_weights_length, pad_value=0.05)
     return {
         'tokens': tokens,
         'weights': weights,
@@ -315,7 +303,7 @@ def split_dict_data(data: dict, val_ratio: float = 0.1):
 
 def save_batch(
     data: list,
-    savedir: Path = config.unprocessed_dir,
+    savedir: Path | str,
     overwrite = False,
     filename = None,
 ) -> None:
@@ -323,6 +311,7 @@ def save_batch(
     If filename is not set, use a counter to generate a new 
     filename.
     """
+    savedir = Path(savedir)
     os.makedirs(savedir, exist_ok=True)
 
     if filename is None:

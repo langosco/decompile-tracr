@@ -1,49 +1,50 @@
-import os
-import sys
+from typing import Optional
 from pathlib import Path
+import chex
+from decompile_tracr.globals import on_cluster
+from decompile_tracr.globals import hpc_storage_dir
+from decompile_tracr.globals import module_path
 
-# Set up global variables
-on_cluster = "SCRATCH" in os.environ or "SLURM_CONF" in os.environ
-interactive = os.isatty(sys.stdout.fileno())
-hpc_storage_dir = Path("/rds/project/rds-eWkDxBhxBrQ")
-global_disable_tqdm = not interactive
-
-
-# Set up global constants
-# per layer maximum size of RASP program and weights:
 
 # program len 5:
 # MAX_RASP_LENGTH = 128
 # MAX_WEIGHTS_LENGTH = 16_384
 
-# program len 10:
-MAX_RASP_LENGTH = 256
-MAX_WEIGHTS_LENGTH = 65_536
 
-
-def set_data_dir():
-    module_path = os.path.abspath(os.path.join(
-        os.path.dirname(__file__), '../..'))
-    module_path = Path(module_path)
-
+def default_data_dir() -> Path:
     if on_cluster:
         data_dir = hpc_storage_dir / "lauro/rasp-data/"
     else:
         data_dir = module_path / "data/"
-#        data_dir = module_path / "data-nsops-5/"
-    return data_dir, module_path
+    return data_dir
 
 
-data_dir, module_path = set_data_dir()
+class DatasetPaths:
+    """Set up paths for the dataset and cache.
+    Pipeline: .cache/programs -> programs -> .cache/compiled -> dataset.h5
+    """
+    def __init__(self, data_dir: Optional[str | Path] = None):
+        if data_dir is None:
+            data_dir = default_data_dir()
+        self.data_dir = Path(data_dir)
+        self.programs_cache  = data_dir / ".cache/programs"
+        self.compiled_cache  = data_dir / ".cache/compiled"
+        self.programs        = data_dir / "programs"  # for deduped programs
+        self.dataset         = data_dir / "dataset.h5"
 
-# Set up global default paths
-# 1) data/unprocessed contains the output of the program
-# sampler, i.e. tokenized RASP programs.
-# 2) sampler output (and maybe other data such as example
-# programs) is deduped and stored in data/deduped.
-# 3) the programs in deduped are then compiled. We store
-# rasp tokens + weights in data/full.
 
-unprocessed_dir = data_dir / "unprocessed"
-deduped_dir = data_dir / "deduped"
-full_dataset_dir = data_dir / "full"
+@chex.dataclass
+class DatasetConfig:
+    ndata: int = 100
+    program_length: Optional[int] = 10
+    max_rasp_length: Optional[int] = 256
+    max_weights_length: Optional[int] = 65_536
+    max_layers: Optional[int] = 25
+    data_dir: Optional[Path] = None
+    name: Optional[str] = "default"
+    compiling_batchsize: Optional[int] = 180  # constrained by cpu mem
+
+    def __post_init__(self):
+        if self.data_dir is None:
+            self.data_dir = default_data_dir()
+        self.paths = DatasetPaths(self.data_dir)

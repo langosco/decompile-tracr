@@ -1,9 +1,8 @@
-import os
-os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+from pathlib import Path
 
 from decompile_tracr.tokenizing import tokenizer
 from decompile_tracr.dataset.logger_config import setup_logger
-from decompile_tracr.dataset import config
+from decompile_tracr.dataset.config import DatasetConfig
 from decompile_tracr.dataset import lib
 from decompile_tracr.dataset.generate import to_filter
 from decompile_tracr.dataset.data_utils import save_batch
@@ -12,11 +11,11 @@ from decompile_tracr.dataset.data_utils import save_batch
 logger = setup_logger(__name__)
 
 
-def tokenize_loop():
+def tokenize_loop(config: DatasetConfig):
     data = []
     for program_id, program in enumerate(lib.examples):
         tokens = tokenizer.tokenize(program)
-        if to_filter(tokens):
+        if to_filter(tokens, config.max_rasp_length):
             logger.warning(f"Program {program_id} is too long. (Not skipping).")
 
         data.append({
@@ -27,17 +26,18 @@ def tokenize_loop():
     return data
 
 
-def tokenize_lib(savedir=config.unprocessed_dir):
+def tokenize_lib(config: DatasetConfig):
     logger.info("Begin tokenizing example programs.")
-    data = tokenize_loop()
+    data = tokenize_loop(config)
     logger.info(f"Done tokenizing {len(data)} example programs.")
     save_batch(
         data=data, 
-        savedir=savedir,
+        savedir=config.paths.programs_cache,
         overwrite=True,
         filename="lib",
     )
 
 
 if __name__ == "__main__":
-    tokenize_lib()
+    config = DatasetConfig()
+    tokenize_lib(config.paths.programs_cache)

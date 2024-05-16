@@ -7,7 +7,11 @@ import jax
 import jax.flatten_util
 from jax import numpy as jnp
 
-from decompile_tracr.dataset import config
+from decompile_tracr.dataset.config import DatasetConfig
+
+
+default_config = DatasetConfig()
+default_dataset: Path = default_config.paths.dataset
 
 
 class DataLoader:
@@ -16,7 +20,7 @@ class DataLoader:
     """
     def __init__(
         self,
-        loadfile: Path = config.data_dir / "full.h5",
+        loadfile: Path = default_dataset,
         group: str = "train",
         batch_size: int = 32,
         process_fn: Optional[callable] = None,
@@ -72,7 +76,7 @@ class DataLoader:
 
 
 def load_dataset_for_model_input(
-    loadfile: Path = config.data_dir / "full.h5",
+    loadfile: Path = default_dataset,
     ndata: int = -1,
     group: str = "train",
 ) -> dict[str, np.ndarray]:

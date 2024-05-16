@@ -7,11 +7,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import jax.numpy as jnp
 
-from decompile_tracr.tokenizing.str_to_rasp import split_list
 from decompile_tracr.tokenizing import vocab
-from decompile_tracr.dataset import data_utils
 from decompile_tracr.dataset import dataloading
-from decompile_tracr.dataset import config
 
 
 # script currently broken after refactoring
@@ -42,8 +39,6 @@ def get_stats(x: dict):
 
 
 train_loader = dataloading.DataLoader(
-    loadfile=config.data_dir / "full.h5",
-    group="train",
     batch_size=BS,
     process_fn=get_stats,
     max_datapoints=args.max_datapoints,

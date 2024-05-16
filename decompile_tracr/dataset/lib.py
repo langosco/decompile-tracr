@@ -16,9 +16,6 @@ def make_length():
     return rasp.SelectorWidth(all_true_selector)
 
 
-length = make_length()
-
-
 def sort():
     smaller = Select(tokens, tokens, LT)
     target = SelectorWidth(smaller)
@@ -28,6 +25,7 @@ def sort():
 
 
 def make_reverse(sop: rasp.SOp) -> rasp.SOp:
+    length = make_length()
     opp_idx = rasp.SequenceMap(
        FunctionWithRepr("lambda x, y: x - y"), length, rasp.indices)
     opp_idx = rasp.Map(
@@ -68,10 +66,23 @@ def make_pair_balance():
     return _pair_balance(rasp.tokens, 0, 1)
 
 
+def make_count(sop: rasp.SOp, to_count: int) -> rasp.SOp:
+    """Count the number of times to_count appears in sop.
+    """
+    bools = rasp.numerical(
+       rasp.Map(FunctionWithRepr(f"lambda x: x == {to_count}"), sop, simplify=False))
+    return rasp.numerical(rasp.Aggregate(rasp.indices, bools, default=0))
+
+
+
+
+
 def make_shuffle_dyck(pairs: list = [(0,1), (2,3)]) -> rasp.SOp:
     """Returns 1 if a set of parentheses are balanced, 0 else.
     """
     assert len(pairs) >= 1
+
+    length = make_length()
 
     # Compute running balance of each type of parenthesis
     balances = []
@@ -161,13 +172,25 @@ def make_shuffle_dyck(pairs: list = [(0,1), (2,3)]) -> rasp.SOp:
     )
 
 
+def make_count_token(token=0):
+    bools = rasp.numerical(rasp.Map(
+        FunctionWithRepr(
+            f"lambda x: int(x == {token})"), rasp.tokens, simplify=False))
+    before = rasp.Select(rasp.indices, rasp.indices, rasp.Comparison.LEQ)
+    freqs = rasp.numerical(rasp.Aggregate(before, bools, default=0))
+    idx_plus_one = rasp.categorical(rasp.Map(
+        FunctionWithRepr("lambda x: x + 1"), rasp.indices))
+    out = rasp.SequenceMap(
+        FunctionWithRepr("lambda x, y: x * y"), freqs, idx_plus_one)
+    return out
+
+
 examples = [
-    length,
-#    make_reverse(),
+    make_length(),
     sort(),
     make_reverse(rasp.tokens),
     make_pair_balance(),
-#    make_shuffle_dyck([(0, 1)]),
+#    make_shuffle_dyck([(0, 1)]),  # length 16
 ]
 
 examples = [rasp.annotate(x, length=count_sops(x)) for x in examples]

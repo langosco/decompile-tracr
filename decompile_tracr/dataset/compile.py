@@ -13,41 +13,38 @@ from tracr.compiler.craft_model_to_transformer import NoTokensError
 
 from decompile_tracr.tokenizing import tokenizer
 from decompile_tracr.dataset import data_utils
-from decompile_tracr.dataset import config
+from decompile_tracr.dataset.config import DatasetConfig
 from decompile_tracr.dataset.logger_config import setup_logger
+from decompile_tracr.globals import disable_tqdm
 
 
 logger = setup_logger(__name__)
 process = psutil.Process()
 
 
-def compile_all(loaddir: str, savedir: str, max_batches=None):
+def compile_all(config: DatasetConfig, max_batches=None):
     """
     Load and compile rasp programs in batches.
     Save compiled programs to savedir.
     """
-    logger.info(f"Compiling RASP programs found in {loaddir}.")
+    logger.info(f"Compiling RASP programs found in {config.paths.programs}.")
     for _ in range(max_batches or 10**8):
-        if compile_single_batch(loaddir, savedir) is None:
+        if compile_single_batch(config) is None:
             break
         jax.clear_caches()
 
 
-def compile_single_batch(
-    loaddir: str, 
-    savedir: str,
-    max_weights_len: int = config.MAX_WEIGHTS_LENGTH
-) -> list[dict]:
+def compile_single_batch(config: DatasetConfig) -> list[dict]:
     """Load and compile the next batch of rasp programs."""
-    data = load_next_batch(loaddir)
+    data = load_next_batch(config.paths.programs)
     if data is None:
         return None
 
     i = 0
-    for x in tqdm(data, disable=config.global_disable_tqdm, 
-                    desc="Compiling"):
+    for x in tqdm(data, disable=disable_tqdm, desc="Compiling"):
         try:
-            x['weights'] = get_weights(x['tokens'], max_weights_len)
+            x['weights'] = get_weights(
+                x['tokens'], config.max_weights_length)
         except (InvalidValueSetError, NoTokensError, DataError) as e:
             logger.warning(f"Skipping program ({e}).")
 
@@ -58,7 +55,7 @@ def compile_single_batch(
         i += 1
     
     data = [x for x in data if 'weights' in x]
-    data_utils.save_batch(data, savedir)
+    data_utils.save_batch(data, config.paths.compiled_cache)
     return data
 
 
@@ -144,27 +141,17 @@ def delete_existing(savedir: str):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Data processing.')
-    parser.add_argument('--loadpath', type=str, default=None, 
-                    help="override default load path (data/unprocessed/...)")
-    parser.add_argument('--savepath', type=str, default=None,
-                        help="override default save path (data/deduped/...)")
     parser.add_argument('--delete_existing', action='store_true',
                         help="delete current data on startup.")
     parser.add_argument('--max_batches', type=int, default=None,
                         help="maximum number of batches to compile.")
     args = parser.parse_args()
-
-    if args.loadpath is None:
-        args.loadpath = config.deduped_dir
-    
-    if args.savepath is None:
-        args.savepath = config.full_dataset_dir
     
     if args.delete_existing:
         delete_existing(args.savepath)
     
+    config = DatasetConfig()
     compile_all(
-        loaddir=args.loadpath,
-        savedir=args.savepath,
+        config=config,
         max_batches=args.max_batches,
     )
