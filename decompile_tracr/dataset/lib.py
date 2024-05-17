@@ -175,7 +175,7 @@ def make_shuffle_dyck(pairs: list = [(0,1), (2,3)]) -> rasp.SOp:
 def make_count_token(token=0):
     bools = rasp.numerical(rasp.Map(
         FunctionWithRepr(
-            f"lambda x: int(x == {token})"), rasp.tokens, simplify=False))
+            f"lambda x: x == {token}"), rasp.tokens, simplify=False))
     before = rasp.Select(rasp.indices, rasp.indices, rasp.Comparison.LEQ)
     freqs = rasp.numerical(rasp.Aggregate(before, bools, default=0))
     idx_plus_one = rasp.categorical(rasp.Map(
