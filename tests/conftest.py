@@ -3,7 +3,7 @@ import pytest
 import numpy as np
 import shutil
 
-from decompile_tracr.dataset.make_dataset import make_dataset
+from decompile_tracr.dataset.make_dataset import make_dataset, to_h5
 from decompile_tracr.dataset.config import DatasetConfig
 from decompile_tracr.dataset.config import default_data_dir
 
@@ -30,6 +30,7 @@ def make_test_data(dataset_config):
     os.makedirs(base_dir)
 
     make_dataset(rng, config=dataset_config)
+    to_h5(dataset_config, make_test_splits=False)
 
     return None
 

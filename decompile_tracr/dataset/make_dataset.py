@@ -24,6 +24,8 @@ def parse_args():
     parser.add_argument('--ndata', type=int, default=50)
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--data_dir', type=str, default=None)
+    parser.add_argument('--make_test_splits', action='store_true')
+    parser.add_argument('--only_to_h5', action='store_true')
     return parser.parse_args()
 
 
@@ -32,8 +34,12 @@ def make_dataset(rng: np.random.Generator, config: DatasetConfig):
     tokenize_lib.tokenize_lib(config)
     dedupe.dedupe(config)
     compile.compile_all(config)
+
+
+def to_h5(config: DatasetConfig, make_test_splits: bool = False):
     data_utils.load_json_and_save_to_hdf5(config)
-    data_utils.make_test_splits(dataset=config.paths.dataset),
+    if make_test_splits:
+        data_utils.make_test_splits(dataset=config.paths.dataset),
 
 
 if __name__ == "__main__":
@@ -45,4 +51,6 @@ if __name__ == "__main__":
         data_dir=args.data_dir,
         name=args.name,
     )
-    make_dataset(rng, config)
+    if not args.only_to_hdf5:
+        make_dataset(rng, config)
+    to_h5(config, make_test_splits=args.make_test_splits)
