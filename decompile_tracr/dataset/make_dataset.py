@@ -51,6 +51,6 @@ if __name__ == "__main__":
         data_dir=args.data_dir,
         name=args.name,
     )
-    if not args.only_to_hdf5:
+    if not args.only_to_h5:
         make_dataset(rng, config)
     to_h5(config, make_test_splits=args.make_test_splits)
