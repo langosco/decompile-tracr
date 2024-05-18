@@ -12,7 +12,7 @@ import jax.numpy as jnp
 from decompile_tracr.tokenizing import vocab
 from decompile_tracr.tokenizing import tokenizer
 from decompile_tracr.dataset import dataloading
-from decompile_tracr.dataset.config import DatasetConfig
+from decompile_tracr.dataset.config import load_config
 
 
 def parse_args():
@@ -22,13 +22,15 @@ def parse_args():
     parser.add_argument('--no_plot', action='store_true', help="Don't plot histograms")
     parser.add_argument('--max_datapoints', type=int, default=30_000, 
                         help="Limit number of datapoints")
+    parser.add_argument('--config', type=str, default=None,
+                        help="Name of config file.")
     args = parser.parse_args()
     return args
 
 
 
 def stats_that_require_loading_tokens():
-    config = DatasetConfig()
+    config = load_config(args.config)
     file = config.paths.dataset
     with h5py.File(file, 'r') as f:
         split = "train"

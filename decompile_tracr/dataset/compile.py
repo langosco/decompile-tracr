@@ -13,7 +13,7 @@ from tracr.compiler.craft_model_to_transformer import NoTokensError
 
 from decompile_tracr.tokenizing import tokenizer
 from decompile_tracr.dataset import data_utils
-from decompile_tracr.dataset.config import DatasetConfig
+from decompile_tracr.dataset.config import DatasetConfig, load_config
 from decompile_tracr.dataset.logger_config import setup_logger
 from decompile_tracr.globals import disable_tqdm
 
@@ -27,6 +27,7 @@ def compile_all(config: DatasetConfig, max_batches=None):
     Load and compile rasp programs in batches.
     Save compiled programs to savedir.
     """
+    assert not config.compress
     logger.info(f"Compiling RASP programs found in {config.paths.programs}.")
     for _ in range(max_batches or 10**8):
         if compile_single_batch(config) is None:
@@ -36,6 +37,7 @@ def compile_all(config: DatasetConfig, max_batches=None):
 
 def compile_single_batch(config: DatasetConfig) -> list[dict]:
     """Load and compile the next batch of rasp programs."""
+    assert not config.compress
     data = load_next_batch(config.paths.programs)
     if data is None:
         return None
@@ -145,12 +147,14 @@ if __name__ == "__main__":
                         help="delete current data on startup.")
     parser.add_argument('--max_batches', type=int, default=None,
                         help="maximum number of batches to compile.")
+    parser.add_argument('--config', type=str, default=None,
+                        help="Name of config file.")
     args = parser.parse_args()
     
     if args.delete_existing:
         delete_existing(args.savepath)
     
-    config = DatasetConfig()
+    config = load_config(args.config)
     compile_all(
         config=config,
         max_batches=args.max_batches,

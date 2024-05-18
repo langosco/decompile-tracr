@@ -1,16 +1,11 @@
 import os
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
-import shutil
 import argparse
 from collections import defaultdict
-from pathlib import Path
-
-import jax
 
 from decompile_tracr.dataset import data_utils
 from decompile_tracr.dataset import logger_config
-from decompile_tracr.dataset import config
-from decompile_tracr.dataset.config import DatasetConfig
+from decompile_tracr.dataset.config import DatasetConfig, load_config
 
 logger = logger_config.setup_logger(__name__)
 
@@ -57,9 +52,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Data processing.')
     parser.add_argument('--batchsize', type=int, default=180,
                         help="batch size for saving deduped data.")
+    parser.add_argument('--config', type=str, default=None,
+                        help="Name of config file.")
     args = parser.parse_args()
 
-    config = DatasetConfig(
-        compiling_batchsize=args.batchsize
-    )
+    config = load_config(args.config)
+    config.compiling_batchsize = args.batchsize
     dedupe(config)

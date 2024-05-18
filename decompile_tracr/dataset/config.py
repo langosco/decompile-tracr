@@ -6,11 +6,6 @@ from decompile_tracr.globals import hpc_storage_dir
 from decompile_tracr.globals import module_path
 
 
-# program len 5:
-# MAX_RASP_LENGTH = 128
-# MAX_WEIGHTS_LENGTH = 16_384
-
-
 def default_data_dir() -> Path:
     if on_cluster:
         data_dir = hpc_storage_dir / "lauro/rasp-data/"
@@ -43,8 +38,33 @@ class DatasetConfig:
     data_dir: Optional[Path] = None
     name: Optional[str] = "default"
     compiling_batchsize: Optional[int] = 180  # constrained by cpu mem
+    compress: Optional[bool] = False
 
     def __post_init__(self):
         if self.data_dir is None:
             self.data_dir = default_data_dir()
         self.paths = DatasetPaths(self.data_dir)
+
+
+# Presets
+def load_config(name: Optional[str] = None) -> DatasetConfig:
+    if name is None:
+        name = "default"
+    return _presets[name]
+
+
+_presets = {
+    "default": DatasetConfig(),
+    "small_compressed": DatasetConfig(
+        ndata=10_000,
+        program_length=5,
+        max_rasp_length=128,
+        max_weights_length=16_384,
+        max_layers=15,
+        compiling_batchsize=300,
+        name="small",
+        compress=True,
+    ),
+
+}
+

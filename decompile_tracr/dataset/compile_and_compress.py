@@ -16,7 +16,7 @@ from tracr.compiler.craft_model_to_transformer import NoTokensError
 
 from decompile_tracr.tokenizing import tokenizer
 from decompile_tracr.dataset import data_utils
-from decompile_tracr.dataset.config import DatasetConfig
+from decompile_tracr.dataset.config import DatasetConfig, load_config
 from decompile_tracr.dataset.logger_config import setup_logger
 from decompile_tracr.globals import disable_tqdm
 from decompile_tracr.dataset.compile import compile_tokens_to_model, delete_existing, DataError, get_next_filename, load_next_batch
@@ -33,6 +33,7 @@ def compile_all(
     Load and compile rasp programs in batches.
     Save compiled programs to savedir.
     """
+    assert config.compress
     logger.info(f"Compiling RASP programs found in {config.paths.programs}.")
     for _ in range(max_batches or 10**8):
         key, subkey = jax.random.split(key)
@@ -44,6 +45,7 @@ def compile_all(
 def compile_single_batch(
         key: jax.random.PRNGKey, config: DatasetConfig) -> list[dict]:
     """Load and compile the next batch of rasp programs."""
+    assert config.compress
     data = load_next_batch(config.paths.programs)
     if data is None:
         return None
@@ -135,13 +137,15 @@ if __name__ == "__main__":
     parser.add_argument('--max_batches', type=int, default=None,
                         help="maximum number of batches to compile.")
     parser.add_argument('--seed', type=int, default=None)
+    parser.add_argument('--config', type=str, default=None,
+                        help="Name of config file.")
     args = parser.parse_args()
 
     if args.seed is None:
         args.seed = np.random.default_rng(None).integers(0, 2**32)
     
+    config = load_config(args.config)
     key = jax.random.key(args.seed)
-    config = DatasetConfig()
     compile_all(
         key=key,
         config=config,

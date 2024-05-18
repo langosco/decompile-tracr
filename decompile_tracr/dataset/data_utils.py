@@ -180,7 +180,7 @@ def pad_and_chunk(arr: chex.Array, chunk_size: int) -> chex.Array:
 
 def pad_to(x: np.ndarray, max_len: int, pad_value: int = 0):
     """Pad a 1D array to a given length. Not jittable."""
-    assert len(x) <= max_len
+    assert len(x) <= max_len, f"Expected len(x) <= {max_len}, got {len(x)}."
     assert isinstance(x, np.ndarray), f"Expected np.ndarray, got {type(x)}."
     chex.assert_rank(x, 1)
     return np.pad(x, (0, max_len - len(x)), constant_values=pad_value)

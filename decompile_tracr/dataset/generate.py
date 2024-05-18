@@ -12,9 +12,10 @@ from tracr.rasp import rasp
 from decompile_tracr.sampling import sampling
 from decompile_tracr.tokenizing import tokenizer
 from decompile_tracr.dataset.logger_config import setup_logger
-from decompile_tracr.dataset.config import DatasetConfig
+from decompile_tracr.dataset.config import DatasetConfig, load_config
 from decompile_tracr.dataset.data_utils import save_batch
 from decompile_tracr.globals import disable_tqdm
+from decompile_tracr.tokenizing import vocab
 
 
 logger = setup_logger(__name__)
@@ -44,7 +45,7 @@ def sample_loop(rng, config: DatasetConfig):
             logger.warning(f"Skipping program {i} ({e}).")
             continue
 
-        if to_filter(tokens, config.max_rasp_length):
+        if to_filter(tokens, config=config):
             logger.warning(f"Skipping program {i} (too long).")
             continue
 
@@ -74,10 +75,11 @@ def sample_rasp(
     return program
 
 
-def to_filter(tokens: list[int], max_length: int):
+def to_filter(tokens: list[int], config: DatasetConfig):
     """Returns True for programs that are too long."""
-    program_too_long = len(tokens) > max_length
-    return program_too_long
+    program_too_long = len(tokens) > config.max_rasp_length
+    too_many_layers = 1 + tokens.count(vocab.eol_id) > config.max_layers
+    return program_too_long or too_many_layers
     
 
 def parse_args():
@@ -89,6 +91,8 @@ def parse_args():
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--dir', type=str, default=None,
                         help="Override default data directory.")
+    parser.add_argument('--config', type=str, default=None,
+                        help="Name of config file.")
     args = parser.parse_args()
     return args
 
@@ -96,13 +100,12 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     rng = np.random.default_rng(args.seed)
+    config = load_config(args.config)
+    config.ndata = args.ndata
+    config.program_length = args.program_length
+    config.name = args.name
+    config.data_dir = args.dir
 
-    config = DatasetConfig(
-        ndata=args.ndata,
-        program_length=args.program_length,
-        data_dir=args.dir,
-        name=args.name,
-    )
     data = generate(rng, config)
 
     lengths = [x["n_sops"] for x in data]

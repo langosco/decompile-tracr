@@ -4,16 +4,16 @@
 # this script is useful for generating a sample dataset using a 
 # single thread.
 
-import numpy as np
 import argparse
+import numpy as np
+import jax
 
-from decompile_tracr.dataset import config
 from decompile_tracr.dataset import generate
 from decompile_tracr.dataset import tokenize_lib
 from decompile_tracr.dataset import dedupe
-from decompile_tracr.dataset import compile
+from decompile_tracr.dataset import compile, compile_and_compress
 from decompile_tracr.dataset import data_utils
-from decompile_tracr.dataset.config import DatasetConfig
+from decompile_tracr.dataset.config import DatasetConfig, load_config
 
 
 def parse_args():
@@ -26,14 +26,20 @@ def parse_args():
     parser.add_argument('--data_dir', type=str, default=None)
     parser.add_argument('--make_test_splits', action='store_true')
     parser.add_argument('--only_to_h5', action='store_true')
+    parser.add_argument('--config', type=str, default=None,
+                        help="Name of config file.")
     return parser.parse_args()
 
 
 def make_dataset(rng: np.random.Generator, config: DatasetConfig):
     generate.generate(rng, config=config)
-    tokenize_lib.tokenize_lib(config)
+#    tokenize_lib.tokenize_lib(config)
     dedupe.dedupe(config)
-    compile.compile_all(config)
+    if config.compress:
+        key = jax.random.key(rng.integers(0, 2**32))
+        compile_and_compress.compile_all(key, config=config)
+    else:
+        compile.compile_all(config)
 
 
 def to_h5(config: DatasetConfig, make_test_splits: bool = False):
@@ -45,12 +51,13 @@ def to_h5(config: DatasetConfig, make_test_splits: bool = False):
 if __name__ == "__main__":
     args = parse_args()
     rng = np.random.default_rng(args.seed)
-    config = DatasetConfig(
-        ndata=args.ndata,
-        program_length=args.program_length,
-        data_dir=args.data_dir,
-        name=args.name,
-    )
+
+    config = load_config(args.config)
+    config.ndata = args.ndata
+    config.program_length = args.program_length
+    config.name = args.name
+    config.data_dir = args.data_dir
+
     if not args.only_to_h5:
         make_dataset(rng, config)
     to_h5(config, make_test_splits=args.make_test_splits)
