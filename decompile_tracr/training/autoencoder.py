@@ -183,6 +183,63 @@ def train_autoencoder(
     return state, log, updater.model
 
 
+def get_autoencoder_params(
+        autoencoder_params: dict, w_orthogonal: Optional[ArrayLike] = None):
+    wenc = autoencoder_params['encoder']['kernel']
+    if 'decoder' in autoencoder_params:
+        wdec = autoencoder_params['decoder']['kernel']
+    else:
+        wdec = wenc.T
+    
+    if w_orthogonal is not None:
+        wenc = wenc @ w_orthogonal
+        wdec = w_orthogonal.T @ wdec
+
+    return wenc, wdec
+
+
+@jax.jit
+def update_params(
+        model_params: dict, autoencoder_params: dict, w_orth: ArrayLike):
+    """Return new set of transformer params that operates on the 
+    compressed residual stream."""
+    wenc, wdec = get_autoencoder_params(autoencoder_params, w_orth)
+
+    new_params = {k: {kk: None for kk in v.keys()} 
+                  for k, v in model_params.items()}
+
+    for layer in model_params.keys():
+        name = layer.split("/")[-1]
+        if "embed" in layer:
+            assert name in ['pos_embed', 'token_embed'], name
+            new_params[layer]['embeddings'] = (
+                model_params[layer]['embeddings'] @ wenc
+            )
+        elif "attn" in layer and name == "linear":
+            new_params[layer]['w'] = model_params[layer]['w'] @ wenc
+            new_params[layer]['b'] = model_params[layer]['b'] @ wenc
+        elif "attn" in layer:
+            assert name in ['query', 'key', 'value']
+            new_params[layer]['w'] = wdec @ model_params[layer]['w']
+            new_params[layer]['b'] = model_params[layer]['b']
+        elif layer.endswith("mlp/linear_1"):
+            new_params[layer]['w'] = wdec @ model_params[layer]['w']
+            new_params[layer]['b'] = model_params[layer]['b']
+        elif layer.endswith("mlp/linear_2"):
+            new_params[layer]['w'] = model_params[layer]['w'] @ wenc
+            new_params[layer]['b'] = model_params[layer]['b'] @ wenc
+        else:
+            raise ValueError(f"Unknown layer: {layer}")
+    
+    return new_params
+        
+    
+
+
+
+
+
+
 if __name__ == "__main__":
     # Train an autoencoder to compress the residual stream
     # of a Tracr-complied model:
