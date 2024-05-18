@@ -67,7 +67,12 @@ def perform_checks(program, inputs: list[list]):
         outputs = [program(x) for x in inputs]
     except ValueError as e:
         if e.args[0] in ["key is None!", "query is None!"]:
-            raise SamplingError("Program is invalid due to Nones in Select.")
+            raise SamplingError(f"Program {program} is invalid "
+                                "due to Nones in Select.")
+        elif e.args[0].startswith("Only types int, bool, and float "
+                                  "are supported for aggregation."):
+            raise SamplingError(f"Program {program} is invalid "
+                                "due to Nones in Aggregate.")
         else:
             raise
 

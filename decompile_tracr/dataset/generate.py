@@ -85,12 +85,8 @@ def to_filter(tokens: list[int], config: DatasetConfig):
 def parse_args():
     parser = argparse.ArgumentParser(description='Sample RASP programs.')
     parser.add_argument('--name', type=str, default="default")
-    parser.add_argument('--program_length', type=int, default=10, 
-                        help='program length (nr of sops)')
     parser.add_argument('--ndata', type=int, default=10)
     parser.add_argument('--seed', type=int, default=None)
-    parser.add_argument('--dir', type=str, default=None,
-                        help="Override default data directory.")
     parser.add_argument('--config', type=str, default=None,
                         help="Name of config file.")
     args = parser.parse_args()
@@ -102,9 +98,6 @@ if __name__ == "__main__":
     rng = np.random.default_rng(args.seed)
     config = load_config(args.config)
     config.ndata = args.ndata
-    config.program_length = args.program_length
-    config.name = args.name
-    config.data_dir = args.dir
 
     data = generate(rng, config)
 
