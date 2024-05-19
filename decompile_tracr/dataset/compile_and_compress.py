@@ -1,26 +1,22 @@
 import os
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 #os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = 0.1
-from pathlib import Path
-import fcntl
 import argparse
 from tqdm import tqdm
-import shutil
 import psutil
 import jax
 import numpy as np
+from jaxtyping import ArrayLike
 
-from tracr.compiler import compile_rasp_to_model
 from tracr.compiler.basis_inference import InvalidValueSetError
 from tracr.compiler.craft_model_to_transformer import NoTokensError
 
-from decompile_tracr.tokenizing import tokenizer
 from decompile_tracr.dataset import data_utils
 from decompile_tracr.dataset.config import DatasetConfig, load_config
 from decompile_tracr.dataset.logger_config import setup_logger
 from decompile_tracr.globals import disable_tqdm
-from decompile_tracr.dataset.compile import compile_tokens_to_model, delete_existing, DataError, get_next_filename, load_next_batch
-from decompile_tracr.training import autoencoder, metrics
+from decompile_tracr.dataset.compile import compile_tokens_to_model, DataError, load_next_batch
+from decompile_tracr.training import autoencoder
 
 
 logger = setup_logger(__name__)
@@ -33,7 +29,7 @@ def compile_all(
     Load and compile rasp programs in batches.
     Save compiled programs to savedir.
     """
-    assert config.compress
+    assert config.compress is not None
     logger.info(f"Compiling RASP programs found in {config.paths.programs}.")
     for _ in range(max_batches or 10**8):
         key, subkey = jax.random.split(key)
@@ -45,7 +41,7 @@ def compile_all(
 def compile_single_batch(
         key: jax.random.PRNGKey, config: DatasetConfig) -> list[dict]:
     """Load and compile the next batch of rasp programs."""
-    assert config.compress
+    assert config.compress is not None
     data = load_next_batch(config.paths.programs)
     if data is None:
         return None
@@ -54,18 +50,11 @@ def compile_single_batch(
     for x in tqdm(data, disable=disable_tqdm, desc="Compiling"):
         key, subkey = jax.random.split(key)
         try:
-            model_params, aenc_params = get_params(x['tokens'])
-            compressed = get_augmented_compressed_params(
-                key=subkey, 
-                model_params=model_params, 
-                autoencoder_params=aenc_params, 
-                max_weights_len=config.max_weights_length
-            )
+            compressed = process_tokens(subkey, x['tokens'], config)
             to_save = to_datapoints(compressed, x)
             data_utils.save_batch(to_save, config.paths.compiled_cache)
         except (InvalidValueSetError, NoTokensError, DataError) as e:
             logger.warning(f"Skipping program ({e}).")
-
 
         if i % 25 == 0:
             mem_info = process.memory_full_info()
@@ -75,39 +64,73 @@ def compile_single_batch(
     return data
 
 
-def get_params(tokens: list[int]):
-    """Compile model and train autoencoder.
-    Returns params of compiled model and autoencoder.
+def process_tokens(
+        key: jax.random.PRNGKey, tokens: list[int], config: DatasetConfig):
+    """
+    1. Compile tokens to model.
+    2. Apply SVD or train autencoder to compress residual stream.
+    3. Augment encoding with random orthogonal matrices.
+    4. For each encoding, construct a new set of transformer weights.
+    """
+    model_params, wenc, wdec = compile_and_train_encoder(tokens, config)
+    key, subkey = jax.random.split(key)
+    compressed = get_compressed_params(
+        key=subkey, 
+        model_params=model_params, 
+        wenc=wenc,
+        wdec=wdec,
+        max_weights_len=config.max_weights_length,
+        n_augs=50,
+    )
+    return compressed
+
+
+def compile_and_train_encoder(tokens: list[int], config: DatasetConfig):
+    """Compile model and fit weights for encoder/decoder.
     """
     model = compile_tokens_to_model(tokens)
     params = model.params
     d_model = params['token_embed']['embeddings'].shape[-1]
     hidden_size = int(d_model // 1.1)
 
-    # Train autoencoder
     const_key = jax.random.key(123)
-    train_out = autoencoder.train_autoencoder(
-        const_key, model, nsteps=50_000, lr=2e-3, hidden_size=hidden_size)
+    if config.compress == "svd":
+        train_out = autoencoder.train_svd(key, model, hidden_size)
+        wenc, wdec = train_out['wenc'], train_out['wdec']
+    elif config.compress == "autoencoder":
+        train_out = autoencoder.train_autoencoder(
+            const_key, model, nsteps=50_000, lr=2e-3, hidden_size=hidden_size)
+        wenc, wdec = autoencoder.get_wenc_and_wdec(train_out['state'].params)
+    else:
+        raise ValueError(f"Unknown compression method: {config.compress}")
+    
     logger.info(f'Accuracy: {train_out["accuracy"]}')
     logger.info(f'MSE:      {train_out["mse"]}')
-    
-    return model.params, train_out['state'].params
+    return model.params, wenc, wdec
 
 
-def get_augmented_compressed_params(
+def get_compressed_params(
     key: jax.random.PRNGKey, 
     model_params: dict, 
-    autoencoder_params: dict, 
+    wenc: ArrayLike,
+    wdec: ArrayLike,
     max_weights_len: int,
     n_augs: int = 50,
 ) -> list[dict]:
-    hidden_size = autoencoder_params['encoder']['kernel'].shape[-1]
+    """Given the original model parameters and a pair of encoder/decoder
+    matrices, generate a compressed set of parameters by applying the
+    encoder/decoder to the model parameters.
+    If n_augs > 1, generate augmentations by applying random orthogonal
+    transformations to the encoder and decoder matrices.
+    Return flattened weights.
+    """
+    hidden_size = wenc.shape[-1]
     params_batch = []
     for i in range(n_augs):
         key, subkey = jax.random.split(key)
         w_orth = jax.random.orthogonal(subkey, n=hidden_size)
         p = autoencoder.update_params(
-            model_params, autoencoder_params, w_orth)
+            model_params, wenc, wdec, w_orth)
         p = flatten_weights(p, max_weights_len)
         params_batch.append(p)
 

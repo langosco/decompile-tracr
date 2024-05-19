@@ -27,7 +27,7 @@ def compile_all(config: DatasetConfig, max_batches=None):
     Load and compile rasp programs in batches.
     Save compiled programs to savedir.
     """
-    assert not config.compress
+    assert config.compress is None
     logger.info(f"Compiling RASP programs found in {config.paths.programs}.")
     for _ in range(max_batches or 10**8):
         if compile_single_batch(config) is None:
@@ -37,7 +37,7 @@ def compile_all(config: DatasetConfig, max_batches=None):
 
 def compile_single_batch(config: DatasetConfig) -> list[dict]:
     """Load and compile the next batch of rasp programs."""
-    assert not config.compress
+    assert config.compress is None
     data = load_next_batch(config.paths.programs)
     if data is None:
         return None

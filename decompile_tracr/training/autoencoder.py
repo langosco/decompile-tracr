@@ -1,6 +1,7 @@
 from typing import Optional
 import functools
 
+import sklearn.decomposition
 import jax
 import chex
 from jaxtyping import ArrayLike
@@ -9,7 +10,6 @@ import flax.linen as nn
 
 import jax
 import chex
-from jaxtyping import ArrayLike
 import numpy as np
 import matplotlib.pyplot as plt
 import jax.numpy as jnp
@@ -24,6 +24,31 @@ from decompile_tracr.dataset import compile
 from decompile_tracr.training import metrics
 
 from metamodels_for_rasp.train import Updater, TrainState
+
+
+def train_svd(
+    key: jax.random.PRNGKey,
+    assembled_model: AssembledTransformerModel,
+    hidden_size: int,
+):
+    """A cheaper method that is ~equivalent to a linear autoencoder."""
+    N = 2**15
+    d_model = assembled_model.params['token_embed']['embeddings'].shape[-1]
+    seq_len = assembled_model.input_encoder._max_seq_len
+    residuals_sampler = ResidualsSampler(
+        model=assembled_model, seq_len=seq_len, batch_size=N)
+    svd = sklearn.decomposition.TruncatedSVD(n_components=hidden_size)
+    data = residuals_sampler.sample_residuals(key).residuals
+    svd.fit(data)
+    wenc = svd.transform(np.identity(d_model))
+    wdec = svd.inverse_transform(np.identity(hidden_size))
+
+    def apply_fn(x):
+        return x @ wenc @ wdec
+
+    out = dict(wenc=wenc, wdec=wdec, mse=None, accuracy=None)
+    out.update(get_metrics(assembled_model, apply_fn))
+    return out
 
 
 # autoencoder to compress the residual stream
@@ -143,7 +168,7 @@ def init_autoencoder(
         model=ae,
         loss_fn=loss_fn,
     )
-    residuals_sampler = ResidualsSampler(model=model, seq_len=5, batch_size=10)
+    residuals_sampler = ResidualsSampler(model=model, seq_len=5, batch_size=1)
     subkey1, subkey2 = jax.random.split(key)
     train_state = updater.init_train_state(
         rng=subkey1, 
@@ -159,7 +184,7 @@ def train_autoencoder(
     lr: float = 1e-3,
     hidden_size: Optional[int] = None,
 ) -> dict:
-    BATCH_SIZE = 2**11
+    BATCH_SIZE = 2**10
     seq_len = assembled_model.input_encoder._max_seq_len
     key, subkey = jax.random.split(key)
     updater, state = init_autoencoder(
@@ -178,9 +203,20 @@ def train_autoencoder(
     for _ in range(nsteps):
         state, aux = step(state)
         log.append(aux)
-    
 
-    # metrics
+    def apply_fn(x):
+        return updater.model.apply({'params': state.params}, x)
+    
+    out = dict(state=state, log=log, model=updater.model, 
+               mse=None, accuracy=None)
+    out.update(get_metrics(assembled_model, apply_fn))
+    return out
+
+
+def get_metrics(assembled_model: AssembledTransformerModel, 
+                apply_fn: callable):
+    """apply_fn computes decode(encode(x))."""
+    seq_len = assembled_model.input_encoder._max_seq_len
     try:
         metric_fn = metrics.Accuracy(assembled_model=assembled_model)
         name = "accuracy"
@@ -188,44 +224,40 @@ def train_autoencoder(
         metric_fn = metrics.MSE(assembled_model=assembled_model)
         name = "mse"
 
-    key, subkey = jax.random.split(key)
     residuals_sampler = ResidualsSampler(
-        model=assembled_model, seq_len=seq_len, batch_size=BATCH_SIZE, 
+        model=assembled_model, seq_len=seq_len, batch_size=2**15, 
         flatten_leading_axes=False)
-    test_data = residuals_sampler.sample_residuals(subkey).residuals
-    x = test_data[:, -1]
 
-    metric = metric_fn(
-        x, 
-        updater.model.apply({'params': state.params}, x),
-    )
-    out = dict(state=state, log=log, model=updater.model, accuracy=None, mse=None)
-    out.update({name: metric})
-    return out
+    key = jax.random.key(0)
+    test_data = residuals_sampler.sample_residuals(key).residuals[:, -1]
+    return {name: metric_fn(test_data, apply_fn(test_data))}
 
 
 
-def get_autoencoder_params(
-        autoencoder_params: dict, w_orthogonal: Optional[ArrayLike] = None):
+def get_wenc_and_wdec(autoencoder_params: dict
+                      ) -> tuple[ArrayLike, ArrayLike]:
+    """Extract encoder and decoder weights from autoencoder params.
+    """
     wenc = autoencoder_params['encoder']['kernel']
     if 'decoder' in autoencoder_params:
         wdec = autoencoder_params['decoder']['kernel']
     else:
         wdec = wenc.T
-    
-    if w_orthogonal is not None:
-        wenc = wenc @ w_orthogonal
-        wdec = w_orthogonal.T @ wdec
-
     return wenc, wdec
 
 
 @jax.jit
 def update_params(
-        model_params: dict, autoencoder_params: dict, w_orth: ArrayLike):
+    model_params: dict, 
+    wenc: ArrayLike, 
+    wdec: ArrayLike, 
+    w_orth: ArrayLike,
+):
     """Return new set of transformer params that operates on the 
     compressed residual stream."""
-    wenc, wdec = get_autoencoder_params(autoencoder_params, w_orth)
+    if w_orth is not None:
+        wenc = wenc @ w_orth
+        wdec = w_orth.T @ wdec
 
     new_params = {k: {kk: None for kk in v.keys()} 
                   for k, v in model_params.items()}

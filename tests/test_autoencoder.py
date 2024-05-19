@@ -19,5 +19,8 @@ def test_autoencoder():
 
         # Train autoencoder to compress residual stream
         key, subkey = jax.random.split(key)
-        ae_state, log, ae_model = autoencoder.train_autoencoder(
+        train_out = autoencoder.train_autoencoder(
             subkey, assembled_model, nsteps=10)
+        ae_state, log, ae_model = (
+            train_out['state'], train_out['log'], train_out['model'],
+        )

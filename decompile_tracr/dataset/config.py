@@ -38,7 +38,7 @@ class DatasetConfig:
     data_dir: Optional[Path] = None
     name: Optional[str] = "default"
     compiling_batchsize: Optional[int] = 180  # constrained by cpu mem
-    compress: Optional[bool] = False
+    compress: Optional[str] = None  # "svd" or "autoencoder"
 
     def __post_init__(self):
         if self.data_dir is None:
@@ -63,7 +63,7 @@ _presets = {
         max_layers=15,
         compiling_batchsize=300,
         name="small",
-        compress=True,
+        compress="autoencoder",
     ),
 
 }
