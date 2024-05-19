@@ -32,7 +32,7 @@ default_datadir = default_config.paths.data_dir
 
 def load_json_and_save_to_hdf5(config: DatasetConfig) -> None:
     """Convert dataset in data_dir/full to a single HDF5 file."""
-    batch_size = 500
+    batch_size = 50
     done = False
     while not done:
         done = _batch_to_hdf5(config=config, max_files=batch_size)
