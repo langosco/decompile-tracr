@@ -69,6 +69,22 @@ class Accuracy:
 
 
 @chex.dataclass
+class MSE:
+    assembled_model: AssembledTransformerModel
+
+    def __post_init__(self):
+        self.unembed = Unembed(assembled_model=self.assembled_model)
+        assert not isinstance(
+            self.assembled_model.output_encoder, CategoricalEncoder)
+        assert not self.unembed.use_unembed_argmax
+
+    def __call__(self, x, y):
+        x, y = self.unembed(x), self.unembed(y)
+        x, y = x[1:], y[1:]  # ignore compiler_bos
+        return jnp.mean((x - y)**2)
+
+
+@chex.dataclass
 class Decode:
     assembled_model: AssembledTransformerModel
 

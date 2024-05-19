@@ -13,7 +13,6 @@ from jaxtyping import ArrayLike
 import numpy as np
 import matplotlib.pyplot as plt
 import jax.numpy as jnp
-import haiku as hk
 import optax
 import einops
 
@@ -159,7 +158,7 @@ def train_autoencoder(
     nsteps: int = 100,
     lr: float = 1e-3,
     hidden_size: Optional[int] = None,
-):
+) -> dict:
     BATCH_SIZE = 2**11
     seq_len = assembled_model.input_encoder._max_seq_len
     key, subkey = jax.random.split(key)
@@ -180,7 +179,25 @@ def train_autoencoder(
         state, aux = step(state)
         log.append(aux)
     
-    return state, log, updater.model
+
+    # metrics
+    key, subkey = jax.random.split(key)
+    test_data = residuals_sampler.sample_residuals(subkey).residuals
+    try:
+        metric_fn = metrics.Accuracy(assembled_model=assembled_model)
+        name = "accuracy"
+    except AssertionError:
+        metric_fn = metrics.MSE(assembled_model=assembled_model)
+        name = "mse"
+
+    metric = metric_fn(
+        test_data[:, -1], 
+        updater.model.apply({'params': state.params}, test_data[:, -1])
+    )
+    out = dict(state=state, log=log, model=updater.model, accuracy=None, mse=None)
+    out.update({name: metric})
+    return out
+
 
 
 def get_autoencoder_params(
@@ -258,8 +275,10 @@ if __name__ == "__main__":
 
     # train autoencoder
     key, subkey = jax.random.split(key)
-    state, log, model = train_autoencoder(
+    train_out = train_autoencoder(
         subkey, m, nsteps=50_000, lr=2e-3, hidden_size=hidden_size)
+    state, log, model = (
+        train_out['state'], train_out['log'], train_out['model'])
 
     plt.plot([l["train/loss"] for l in log])
     plt.yscale('log')

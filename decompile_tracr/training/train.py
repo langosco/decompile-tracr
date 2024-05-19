@@ -23,8 +23,9 @@ if __name__ == "__main__":
 
     logger.info("Training autoencoder to compress residual stream...")
     key, subkey = jax.random.split(key)
-    ae_state, _, ae_model = autoencoder.train_autoencoder(
+    train_out = autoencoder.train_autoencoder(
         subkey, assembled_model, nsteps=10)
+    ae_state, ae_model = train_out['state'], train_out['model']
 
 
     def encode(x):

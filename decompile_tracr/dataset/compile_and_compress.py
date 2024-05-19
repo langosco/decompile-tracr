@@ -76,7 +76,9 @@ def compile_single_batch(
 
 
 def get_params(tokens: list[int]):
-    """Get params of compiled model and autoencoder."""
+    """Compile model and train autoencoder.
+    Returns params of compiled model and autoencoder.
+    """
     model = compile_tokens_to_model(tokens)
     params = model.params
     d_model = params['token_embed']['embeddings'].shape[-1]
@@ -84,10 +86,12 @@ def get_params(tokens: list[int]):
 
     # Train autoencoder
     const_key = jax.random.key(123)
-    state, log, aenc = autoencoder.train_autoencoder(
+    train_out = autoencoder.train_autoencoder(
         const_key, model, nsteps=50_000, lr=2e-3, hidden_size=hidden_size)
+    logger.info(f'Accuracy: {train_out["accuracy"]}')
+    logger.info(f'MSE:      {train_out["mse"]}')
     
-    return model.params, state.params
+    return model.params, train_out['state'].params
 
 
 def get_augmented_compressed_params(
@@ -139,15 +143,25 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--config', type=str, default=None,
                         help="Name of config file.")
+    parser.add_argument('--device', type=str, default=None,
+                        help="Device to use.")
     args = parser.parse_args()
 
     if args.seed is None:
         args.seed = np.random.default_rng(None).integers(0, 2**32)
     
-    config = load_config(args.config)
-    key = jax.random.key(args.seed)
-    compile_all(
-        key=key,
-        config=config,
-        max_batches=args.max_batches,
-    )
+    if args.device == "cpu":
+        device = jax.devices("cpu")[0]
+    elif args.device is None:
+        device = None
+    else:
+        device = jax.devices()[int(args.device)]
+    
+    with jax.default_device(device):
+        config = load_config(args.config)
+        key = jax.random.key(args.seed)
+        compile_all(
+            key=key,
+            config=config,
+            max_batches=args.max_batches,
+        )
