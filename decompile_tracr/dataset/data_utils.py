@@ -268,10 +268,10 @@ def dedupe(data: list[dict], reference: Optional[list[dict]] = None,
     logger.info(f"Reference set size: {len(reference)}")
     for x in data:
         tokens = tuple(x['tokens'])
-        if tokens in reference:
-            continue
-        reference.add(tokens)
-        deduped.append(x)
+        if tokens not in reference:
+            reference.add(tokens)
+            deduped.append(x)
+        
 
     logger.info(f"Removed: {len(data) - len(deduped)} programs. "
                 f"({100*(len(data) - len(deduped)) / len(data)}%)")

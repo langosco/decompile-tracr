@@ -27,16 +27,18 @@ def tokenize_loop(config: DatasetConfig):
     return data
 
 
-def tokenize_lib(config: DatasetConfig):
+def tokenize_lib(config: DatasetConfig, save=True):
     logger.info("Begin tokenizing example programs.")
     data = tokenize_loop(config)
     logger.info(f"Done tokenizing {len(data)} example programs.")
-    save_batch(
-        data=data, 
-        savedir=config.paths.programs_cache,
-        overwrite=True,
-        filename="lib",
-    )
+    if save:
+        save_batch(
+            data=data, 
+            savedir=config.paths.programs_cache,
+            overwrite=True,
+            filename="lib",
+        )
+    return data
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ from collections import defaultdict
 
 from decompile_tracr.dataset import data_utils
 from decompile_tracr.dataset import logger_config
+from decompile_tracr.dataset.tokenize_lib import tokenize_lib
 from decompile_tracr.dataset.config import DatasetConfig, load_config
 
 logger = logger_config.setup_logger(__name__)
@@ -19,6 +20,7 @@ def dedupe(config: DatasetConfig) -> list[dict]:
     data = data_utils.load_batches(config.paths.programs_cache)
     if savedir.exists():
         previously_deduped = data_utils.load_batches_from_subdirs(savedir)
+        previously_deduped.extend(tokenize_lib(config, save=False))
         prev_len = len(previously_deduped)
         if prev_len > 0:
             logger.info(f"(dedupe.py) Found existing data in {savedir}. "
