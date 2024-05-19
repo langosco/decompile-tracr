@@ -181,8 +181,6 @@ def train_autoencoder(
     
 
     # metrics
-    key, subkey = jax.random.split(key)
-    test_data = residuals_sampler.sample_residuals(subkey).residuals
     try:
         metric_fn = metrics.Accuracy(assembled_model=assembled_model)
         name = "accuracy"
@@ -190,9 +188,16 @@ def train_autoencoder(
         metric_fn = metrics.MSE(assembled_model=assembled_model)
         name = "mse"
 
+    key, subkey = jax.random.split(key)
+    residuals_sampler = ResidualsSampler(
+        model=assembled_model, seq_len=seq_len, batch_size=BATCH_SIZE, 
+        flatten_leading_axes=False)
+    test_data = residuals_sampler.sample_residuals(subkey).residuals
+    x = test_data[:, -1]
+
     metric = metric_fn(
-        test_data[:, -1], 
-        updater.model.apply({'params': state.params}, test_data[:, -1])
+        x, 
+        updater.model.apply({'params': state.params}, x),
     )
     out = dict(state=state, log=log, model=updater.model, accuracy=None, mse=None)
     out.update({name: metric})
