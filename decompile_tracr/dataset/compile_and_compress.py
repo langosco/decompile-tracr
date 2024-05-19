@@ -95,7 +95,7 @@ def compile_and_train_encoder(tokens: list[int], config: DatasetConfig):
 
     const_key = jax.random.key(123)
     if config.compress == "svd":
-        train_out = autoencoder.train_svd(key, model, hidden_size)
+        train_out = autoencoder.train_svd(const_key, model, hidden_size)
         wenc, wdec = train_out['wenc'], train_out['wdec']
     elif config.compress == "autoencoder":
         train_out = autoencoder.train_autoencoder(

@@ -53,8 +53,11 @@ def load_config(name: Optional[str] = None) -> DatasetConfig:
     return _presets[name]
 
 
+base_data_dir = default_data_dir()
+
 _presets = {
     "default": DatasetConfig(),
+
     "small_compressed": DatasetConfig(
         ndata=10_000,
         program_length=5,
@@ -63,7 +66,20 @@ _presets = {
         max_layers=15,
         compiling_batchsize=300,
         name="small",
-        compress="autoencoder",
+        compress="svd",
+        data_dir=base_data_dir / "small_compressed",
+    ),
+
+    "range": DatasetConfig(
+        ndata=1_000,
+        program_length=[4,5,6,7,8],
+        max_rasp_length=128,
+        max_weights_length=65_536,
+        max_layers=25,
+        compiling_batchsize=180,
+        name="range_4_8",
+        compress=None,
+        data_dir=base_data_dir / "range",
     ),
 
 }

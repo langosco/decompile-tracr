@@ -64,9 +64,14 @@ def sample_loop(rng, config: DatasetConfig):
 
 def sample_rasp(
     rng: np.random.Generator,
-    program_length: int,
+    program_length: int | list[int],
 ) -> rasp.SOp:
     """Sample a program while catching and logging errors."""
+    try:
+        program_length = int(program_length)
+    except TypeError:
+        program_length = rng.choice(list(program_length))
+
     try:
         program = sampling.sample(rng, program_length)
     except sampling.SamplingError as e:

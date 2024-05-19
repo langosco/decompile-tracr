@@ -18,12 +18,8 @@ from decompile_tracr.dataset.config import DatasetConfig, load_config
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Sample RASP programs.')
-    parser.add_argument('--name', type=str, default="train")
-    parser.add_argument('--program_length', type=int, default=7,
-                        help='program length (nr of sops)')
-    parser.add_argument('--ndata', type=int, default=50)
+    parser.add_argument('--ndata', type=int, default=None)
     parser.add_argument('--seed', type=int, default=None)
-    parser.add_argument('--data_dir', type=str, default=None)
     parser.add_argument('--make_test_splits', action='store_true')
     parser.add_argument('--only_to_h5', action='store_true')
     parser.add_argument('--config', type=str, default=None,
@@ -53,10 +49,8 @@ if __name__ == "__main__":
     rng = np.random.default_rng(args.seed)
 
     config = load_config(args.config)
-    config.ndata = args.ndata
-    config.program_length = args.program_length
-    config.name = args.name
-    config.data_dir = args.data_dir
+    if args.ndata is not None:
+        config.ndata = args.ndata
 
     if not args.only_to_h5:
         make_dataset(rng, config)

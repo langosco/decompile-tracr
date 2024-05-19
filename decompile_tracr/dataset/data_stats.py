@@ -29,7 +29,7 @@ def parse_args():
 
 
 
-def stats_that_require_loading_tokens():
+def stats_that_require_loading_tokens(args):
     config = load_config(args.config)
     file = config.paths.dataset
     with h5py.File(file, 'r') as f:
@@ -45,23 +45,26 @@ def stats_that_require_loading_tokens():
     x = np.arange(len(counts))
     fig, axs = plt.subplots(2, figsize=(12, 15))
     ax = axs[0]
-    ax.set_title("SOp counts")
     ax.bar(x, counts.values())
     ax.set_xticks(x)
     ax.set_xticklabels(counts.keys(), rotation=45)
+    ax.set_xlabel("SOp counts")
     ax.set_ylabel("Count")
 
 
     counts = _get_encoding_counts(tokens)
     x = np.arange(len(counts))
     ax = axs[1]
-    ax.set_title("Encoding counts")
     ax.bar(x, counts.values())
     ax.set_xticks(x)
     ax.set_xticklabels(counts.keys(), rotation=45)
+    ax.set_xlabel("Encoding counts")
     ax.set_ylabel("Count")
 
     plt.tight_layout()
+    plt.show()
+
+    return None
 
 
 
@@ -79,7 +82,7 @@ def _get_encoding_counts(tokens: np.ndarray[int]):
 
 
 def stats_that_require_loading_weights(args: argparse.Namespace):
-    BS = 1000
+    BS = 32
 
 
     def get_stats(x: dict):
@@ -91,7 +94,9 @@ def stats_that_require_loading_weights(args: argparse.Namespace):
         return out
 
 
+    config = load_config(args.config)
     train_loader = dataloading.DataLoader(
+        loadfile=config.paths.dataset,
         batch_size=BS,
         process_fn=get_stats,
         max_datapoints=args.max_datapoints,
@@ -102,7 +107,6 @@ def stats_that_require_loading_weights(args: argparse.Namespace):
     for x in train_loader:
         for k, v in x.items():
             stats[k].extend(v.tolist())
-
 
     print(f"Total training datapoints (compiled): {train_loader.ndata:,}")
     # print(f"Total datapoints pre deduping (unprocessed): {n_data_rasp:,}")
@@ -118,17 +122,17 @@ def stats_that_require_loading_weights(args: argparse.Namespace):
         fig, axs = plt.subplots(2, 2, figsize=(12, 15))
         axs = axs.flatten()
 
-        axs[0].set_title("Program length (# SOps per program)")
+        axs[0].set_xlabel("Program length (# SOps per program)")
         axs[0].hist(stats['n_sops'], bins=range(0, 15))
         axs[0].set_xticks(range(0, 15))
 
-        axs[1].set_title("Layers per model")
+        axs[1].set_xlabel("Layers per model")
         axs[1].hist(stats['n_layers'])
 
-        axs[2].set_title("Parameters per model")
+        axs[2].set_xlabel("Parameters per model")
         axs[2].hist(stats['n_params'])
 
-        axs[3].set_title("Tokens per model")
+        axs[3].set_xlabel("Tokens per model")
         axs[3].hist(stats['n_tokens'])
 
         plt.tight_layout()
@@ -139,5 +143,5 @@ def stats_that_require_loading_weights(args: argparse.Namespace):
 
 if __name__ == "__main__":
     args = parse_args()
-    stats_that_require_loading_tokens()
+    stats_that_require_loading_tokens(args)
     stats_that_require_loading_weights(args)

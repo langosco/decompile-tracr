@@ -32,6 +32,15 @@ class DataLoader:
             _check_dataset_shapes(f[group], n)
 
         n = n if max_datapoints == -1 else min(n, max_datapoints)
+
+        if n == 0:
+            raise ValueError(f"Dataset {loadfile} is empty.")
+        elif n < batch_size:
+            raise ValueError(
+                f"Dataset {loadfile} has fewer datapoints ({n}) "
+                f"than batch_size ({batch_size})."
+            )
+
         self.length = n // batch_size
         self.ndata = n // batch_size * batch_size  # skip last incomplete batch
         self.epoch_count = 0
