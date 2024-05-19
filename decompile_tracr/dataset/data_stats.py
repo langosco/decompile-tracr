@@ -42,27 +42,28 @@ def stats_that_require_loading_tokens(args):
     counts = {tokenizer.decode_token(k): v for k, v in counts.items()}
 
     # plot
-    x = np.arange(len(counts))
-    fig, axs = plt.subplots(2, figsize=(12, 15))
-    ax = axs[0]
-    ax.bar(x, counts.values())
-    ax.set_xticks(x)
-    ax.set_xticklabels(counts.keys(), rotation=45)
-    ax.set_xlabel("SOp counts")
-    ax.set_ylabel("Count")
+    if not args.no_plot:
+        x = np.arange(len(counts))
+        fig, axs = plt.subplots(2, figsize=(12, 15))
+        ax = axs[0]
+        ax.bar(x, counts.values())
+        ax.set_xticks(x)
+        ax.set_xticklabels(counts.keys(), rotation=45)
+        ax.set_xlabel("SOp counts")
+        ax.set_ylabel("Count")
 
 
-    counts = _get_encoding_counts(tokens)
-    x = np.arange(len(counts))
-    ax = axs[1]
-    ax.bar(x, counts.values())
-    ax.set_xticks(x)
-    ax.set_xticklabels(counts.keys(), rotation=45)
-    ax.set_xlabel("Encoding counts")
-    ax.set_ylabel("Count")
+        counts = _get_encoding_counts(tokens)
+        x = np.arange(len(counts))
+        ax = axs[1]
+        ax.bar(x, counts.values())
+        ax.set_xticks(x)
+        ax.set_xticklabels(counts.keys(), rotation=45)
+        ax.set_xlabel("Encoding counts")
+        ax.set_ylabel("Count")
 
-    plt.tight_layout()
-    plt.show()
+        plt.tight_layout()
+        plt.show()
 
     return None
 

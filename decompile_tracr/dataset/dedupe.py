@@ -50,12 +50,13 @@ def save_deduped(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Data processing.')
-    parser.add_argument('--batchsize', type=int, default=180,
+    parser.add_argument('--batchsize', type=int, default=None,
                         help="batch size for saving deduped data.")
     parser.add_argument('--config', type=str, default=None,
                         help="Name of config file.")
     args = parser.parse_args()
 
     config = load_config(args.config)
-    config.compiling_batchsize = args.batchsize
+    if args.batchsize is not None:
+        config.compiling_batchsize = args.batchsize
     dedupe(config)

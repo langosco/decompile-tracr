@@ -50,7 +50,7 @@ def sample_loop(rng, config: DatasetConfig):
             continue
 
         data.append({
-            "name": config.name,  # eg "train" or "test"
+            "name": config.name,
             "n_sops": program.annotations['length'],  # nr of sops
             "tokens": tokens,
         })
@@ -89,8 +89,7 @@ def to_filter(tokens: list[int], config: DatasetConfig):
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Sample RASP programs.')
-    parser.add_argument('--name', type=str, default="default")
-    parser.add_argument('--ndata', type=int, default=10)
+    parser.add_argument('--ndata', type=int, default=None)
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--config', type=str, default=None,
                         help="Name of config file.")
@@ -102,7 +101,8 @@ if __name__ == "__main__":
     args = parse_args()
     rng = np.random.default_rng(args.seed)
     config = load_config(args.config)
-    config.ndata = args.ndata
+    if args.ndata is not None:
+        config.ndata = args.ndata
 
     data = generate(rng, config)
 
