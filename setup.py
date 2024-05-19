@@ -14,6 +14,8 @@ setuptools.setup(name='decompile-tracr',
             "setuptools",
             "tqdm",
             "h5py",
+            "matplotlib",
+            "psutil",
       ],
 )
 
