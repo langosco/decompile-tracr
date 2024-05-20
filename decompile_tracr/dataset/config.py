@@ -56,7 +56,9 @@ def load_config(name: Optional[str] = None) -> DatasetConfig:
 base_data_dir = default_data_dir()
 
 _presets = {
-    "default": DatasetConfig(),
+    "default": DatasetConfig(
+        data_dir=base_data_dir / "default",
+    ),
 
     "small_compressed": DatasetConfig(
         ndata=10_000,

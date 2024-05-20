@@ -26,15 +26,16 @@ VERBOSE = False
 def generate(
     rng: np.random.Generator, 
     config: DatasetConfig,
+    disable_tqdm: bool = False,
 ) -> list[dict]:
     logger.info("Begin sampling RASP programs.")
-    data = sample_loop(rng, config)
+    data = sample_loop(rng, config, disable_tqdm=disable_tqdm)
     logger.info(f"Done sampling {len(data)} RASP programs.")
     save_batch(data, config.paths.programs_cache)
     return data
 
 
-def sample_loop(rng, config: DatasetConfig):
+def sample_loop(rng, config: DatasetConfig, disable_tqdm=False):
     data = []
     for i in tqdm(range(config.ndata), disable=disable_tqdm, 
                   desc="Sampling"):
@@ -91,9 +92,12 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Sample RASP programs.')
     parser.add_argument('--ndata', type=int, default=None)
     parser.add_argument('--seed', type=int, default=None)
+    parser.add_argument('--disable_tqdm', action='store_true')
     parser.add_argument('--config', type=str, default=None,
                         help="Name of config file.")
     args = parser.parse_args()
+    if disable_tqdm:
+        args.disable_tqdm = True
     return args
 
 
@@ -104,7 +108,7 @@ if __name__ == "__main__":
     if args.ndata is not None:
         config.ndata = args.ndata
 
-    data = generate(rng, config)
+    data = generate(rng, config, disable_tqdm=args.disable_tqdm)
 
     lengths = [x["n_sops"] for x in data]
     n_tokens_per_program = [len(x["tokens"]) for x in data]
