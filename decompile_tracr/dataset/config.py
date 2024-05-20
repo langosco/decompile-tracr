@@ -31,7 +31,7 @@ class DatasetPaths:
 @chex.dataclass
 class DatasetConfig:
     ndata: int = 100
-    program_length: Optional[int] = 10
+    program_length: Optional[int] = 8
     max_rasp_length: Optional[int] = 256
     max_weights_length: Optional[int] = 65_536
     max_layers: Optional[int] = 25
@@ -76,7 +76,7 @@ _presets = {
         max_rasp_length=128,
         max_weights_length=32_768,
         max_layers=15,
-        compiling_batchsize=300,
+        compiling_batchsize=200,
         name="small",
         compress="svd",
         n_augs=20,
