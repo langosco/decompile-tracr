@@ -2,9 +2,10 @@
 
 trap "kill 0" SIGINT
 set -o errexit
-CONFIG_NAME="default"
+CONFIG_NAME="range"
 N_PARALLEL=20
-
+export CUDA_VISIBLE_DEVICES=""
+export JAX_PLATFORMS=cpu
 
 for i in $(seq 1 $N_PARALLEL)
 do
