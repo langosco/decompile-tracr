@@ -15,6 +15,7 @@
 # - it uses comparisons when appropriate (eg don't < compare two strings)
 
 
+from time import time
 from typing import Optional
 from dataclasses import dataclass
 import numpy as np
@@ -297,10 +298,14 @@ def sample(
         rng: numpy random number generator
         program_length: length of the program in SOps
     """
+    start = time()
     sampler = Sampler(rng, **sampler_kwargs)
     avoid = set()
     while sampler.current_length() != program_length:
         avoid = sampler.try_to_add_sop(avoid)
+        if time() - start > 30:
+            logger.info("Sampling took too long, resampling.")
+            return sample(rng, program_length=program_length, **sampler_kwargs)
     program = sampler.scope[-1]
     program = rasp.annotate(program, length=sampler.current_length())
 
