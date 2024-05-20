@@ -18,16 +18,15 @@ def dedupe(config: DatasetConfig) -> list[dict]:
     savedir = config.paths.programs
     logger.info("Begin loading data and deduping.")
     data = data_utils.load_batches(config.paths.programs_cache)
+    reference = tokenize_lib(config, save=False)
     if savedir.exists():
         previously_deduped = data_utils.load_batches_from_subdirs(savedir)
-        previously_deduped.extend(tokenize_lib(config, save=False))
+        reference.extend(previously_deduped)
         prev_len = len(previously_deduped)
         if prev_len > 0:
             logger.info(f"(dedupe.py) Found existing data in {savedir}. "
                         f"Loaded {prev_len} existing programs.")
-    else:
-        previously_deduped = None
-    deduped = data_utils.dedupe(data, reference=previously_deduped)
+    deduped = data_utils.dedupe(data, reference=reference)
     save_deduped(deduped, config)
     return deduped
 
