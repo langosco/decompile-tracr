@@ -39,11 +39,21 @@ class DatasetConfig:
     name: Optional[str] = "default"
     compiling_batchsize: Optional[int] = 180  # constrained by cpu mem
     compress: Optional[str] = None  # "svd" or "autoencoder"
+    n_augs: Optional[int] = None  # number of augmentations
 
     def __post_init__(self):
         if self.data_dir is None:
             self.data_dir = default_data_dir()
         self.paths = DatasetPaths(self.data_dir)
+
+        if self.compress is not None:
+            assert self.compress in ["svd", "autoencoder"]
+            assert self.n_augs is not None, "Number of augmentations must be set."
+        else:
+            assert self.n_augs is None, ("Augmentations are only possible "
+                                          "when compressing.")
+        
+
 
 
 # Presets
@@ -69,6 +79,7 @@ _presets = {
         compiling_batchsize=300,
         name="small",
         compress="svd",
+        n_augs=20,
         data_dir=base_data_dir / "small_compressed",
     ),
 
@@ -80,7 +91,6 @@ _presets = {
         max_layers=25,
         compiling_batchsize=180,
         name="range_4_8",
-        compress=None,
         data_dir=base_data_dir / "range",
     ),
 

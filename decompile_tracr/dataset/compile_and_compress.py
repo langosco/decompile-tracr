@@ -80,7 +80,7 @@ def process_tokens(
         wenc=wenc,
         wdec=wdec,
         max_weights_len=config.max_weights_length,
-        n_augs=50,
+        n_augs=config.n_augs,
     )
     return compressed
 
