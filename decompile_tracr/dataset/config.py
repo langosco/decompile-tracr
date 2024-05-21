@@ -94,5 +94,19 @@ _presets = {
         data_dir=base_data_dir / "range",
     ),
 
+
+    "small_compressed_no_augs": DatasetConfig(
+        ndata=10_000,
+        program_length=5,
+        max_rasp_length=128,
+        max_weights_length=32_768,
+        max_layers=15,
+        compiling_batchsize=200,
+        name="small",
+        compress="svd",
+        n_augs=0,
+        data_dir=base_data_dir / "small_compressed_no_augs",
+    ),
+
 }
 

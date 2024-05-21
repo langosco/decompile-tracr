@@ -16,6 +16,7 @@ from decompile_tracr.dataset.config import DatasetConfig, load_config
 from decompile_tracr.dataset.data_utils import save_batch
 from decompile_tracr.globals import disable_tqdm
 from decompile_tracr.tokenizing import vocab
+from decompile_tracr.tokenizing.str_to_rasp import split_list
 
 
 logger = setup_logger(__name__)
@@ -85,7 +86,18 @@ def to_filter(tokens: list[int], config: DatasetConfig):
     """Returns True for programs that are too long."""
     program_too_long = len(tokens) > config.max_rasp_length
     too_many_layers = 1 + tokens.count(vocab.eol_id) > config.max_layers
-    return program_too_long or too_many_layers
+    too_many_ops_in_layer = config.compress and multiple_ops_in_one_layer(tokens)
+    return program_too_long or too_many_layers or too_many_ops_in_layer
+
+
+def multiple_ops_in_one_layer(tokens: list[int]):
+    return any(n > 1 for n in ops_per_layer(tokens))
+
+
+def ops_per_layer(tokens: list[int]):
+    layers = split_list(tokens, vocab.eol_id)
+    return [l.count(vocab.eoo_id) for l in layers]
+
     
 
 def parse_args():

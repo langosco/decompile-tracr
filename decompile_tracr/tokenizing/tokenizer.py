@@ -32,8 +32,7 @@ def tokenize(program: rasp.SOp) -> list[int]:
     if not isinstance(program, rasp.SOp):
         raise ValueError("Input must be a RASP program.")
 
-    by_layer = rasp_to_str.rasp_to_str(program)
-    return encode(by_layer)
+    return encode(rasp_to_str.rasp_to_str(program))
 
 
 def detokenize(tokens: list[int]) -> rasp.SOp:
@@ -41,5 +40,4 @@ def detokenize(tokens: list[int]) -> rasp.SOp:
         raise ValueError(f"Input elements must be integers. Got "
                          f"{type(tokens[0])}.")
 
-    decoded = decode(tokens)
-    return str_to_rasp.str_to_rasp(decoded)
+    return str_to_rasp.str_to_rasp(decode(tokens))
