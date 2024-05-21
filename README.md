@@ -1,97 +1,90 @@
 # Program Generator for RASP
 ## Installation
+First install 
+[Jax](https://github.com/google/jax) and
+[Tracr](https://github.com/google-deepmind/tracr).
 
-Clone this repo, install [tracr](https://github.com/google-deepmind/tracr)
-and dependancies, then pip install:
+Then pip install this repository:
 
 ```
 pip install -e .
 ```
+# Overview
+* `decompile_tracr/sampling`: code for generating random RASP programs.
+* `decompile_tracr/tokenizing`: code for mapping to and from a token representation for RASP programs.
+* `decompile_tracr/dataset`: code for generating a full dataset to train a meta-model.
 
-To install GPU support for Jax, first update [CUDA toolkit](https://developer.nvidia.com/cuda-downloads),
-then install Jax with CUDA support:
-```
-pip install -U "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+To build a dataset of sampled programs + compiled weights, run
+```bash
+N_DATAPOINTS=1000
+python -m decompile_tracr.dataset.make_dataset --ndata $N_DATAPOINTS --config range
 ```
 
-## Generating Programs
+The `--config` argument refers to one of the DatasetConfig presets
+in `decompile_tracr/dataset/config.py`.
+
+
+
+# Usage
+## Sample RASP Program
 
 ```python
 import numpy as np
-from rasp_generator import sampling, utils
+from decompile_tracr.sampling import sampling, rasp_utils
 
-rng = np.random.default_rng(0)
+rng = np.random.default_rng()
+program = sampling.sample(rng=rng, program_length=5)
 
-sampler = sampling.ProgramSampler(rng=rng)
-program, errs = sampler.sample(min_length=3, max_length=7)
-
-# run the program
+# Run the program
 print(program([1,2,3,4]))
 
-# print the program
-utils.print_program(program)
+# Print the program:
+rasp_utils.print_program(program)
 
-# print the program, tracking SOp values at every step
-utils.print_program(program, test_input=[1,2,3,4])
-
-# validate correctness
-sampler.validate(program, val_compile=True)
+# Trace values given a test input:
+rasp_utils.print_program(program, test_input=[1,2,3,4])
 ```
 
-## Compiling and Tokenizing
+## Tokenize RASP Program
 ```python
-from rasp_generator import sampling, utils
-from tokenizer import compile_and_tokenize
+from decompile_tracr.tokenizing import tokenizer
 
-sampler = sampling.ProgramSampler()
-program, _ = sampler.sample()
-model, tokens = compile_and_tokenize.compile_and_tokenize(program)
+tokens: list[int] = tokenizer.tokenize(program)
+decoded: list[str] = tokenizer.decode(tokens)
+
+print("Tokens:", tokens)
+print("Named tokens:", decoded)
+
+# Recover program from tokens
+detokenized_program = tokenizer.detokenize(tokens)
 ```
-The tokens are returned as a dictionary indexed by layer.
 
-Under the hood, a RASP program is tokenized by first compiling it, then representing it as a dictionary with one RASP sub-program per layer of the compiled transformer.
+## Compile RASP Program
+To compile RASP programs to transformer weights, we use [Tracr](https://github.com/google-deepmind/tracr).
 
-A program is represented as a sequence of vocabulary elements (see `tokenizer/vocab.py`), for example
 ```python
-sop_1 = rasp.Map("lambda x: x + 1", rasp.tokens)
-sel_2 = rasp.Select(sop_1, rasp.tokens, rasp.Comparison.EQ)
-sop_3 = rasp.Aggregate(sel_2, sop_1)
+from tracr.compiler import compiling
+assembled_model = compiling.compile_rasp_to_model(
+    program,
+    vocab=set(range(5)),
+    max_seq_len=5,
+)
+
+print(assembled_model.apply(['compiler_bos', 1, 2, 3, 4]).decoded)
 ```
-becomes the dictionary
-```
-{0: [],
- 1: ['SOp_1', 'categorical', 'Map', 'lambda x: x + 1', 'tokens', 'SEP'],
- 2: ['Selector_0',
-  'Select',
-  'EQ',
-  'SOp_1',
-  'tokens',
-  'SEP',
-  'SOp_0',
-  'categorical',
-  'Aggregate',
-  'Selector_0',
-  'SOp_1',
-  'SEP'],
- 3: []}
-```
+Note that not all RASP programs are not supported by Tracr.
 
 
 ## Status
-### Remaining problems
-- sometimes categorical Aggregate is hard to sample (reaches max retries)
-- sometimes a sampled program doesn't depend on rasp.tokens
-
-
-### TODOS
-- [ ] add tests for compiling
+### Enhancements
+- [x] add tests for compiling
 - [x] remove SOps that are all (or mostly) None
 - [x] use multiple test inputs; 
-- [ ] decide whether to remove / downweight constant SOps if frequent
+- [x] decide whether to remove / downweight constant SOps if frequent
 - [x] send PR for tracr allowing floats in rasp.Aggregate
 - [x] allow for floats in categorical SOps (after PR is accepted)
 - [x] collect statistics on generated SOps
-- [ ] set up profiling for sampler
+- [x] set up profiling for sampler
 - [x] upweight rasp.tokens to avoid sampling programs that don't depend on rasp.tokens
 - [x] figure out design for setting weights for sampling
 - [x] sanity check rasp.Map simplifications (and maybe fix repr)
@@ -108,9 +101,10 @@ becomes the dictionary
 
 
 Tests for sampled programs
-- [ ] compiled model valid on test inputs
-- [ ] outputs are not constant in input
-- [ ] outputs are within a reasonable range, eg [-1e6, 1e6]
+- [x] compiled model valid on test inputs
+- [x] outputs are not constant in input
+- [x] program is not the identity
+- [x] outputs are within a reasonable range, eg [-1e6, 1e6]
 - [ ] good distribution between SOp types and classes (see section 'Biasing the sampler')
 - [ ] variable names in tokenized program have same order as sop names
 - [ ] order in residual stream compiled model is the same as variable names
