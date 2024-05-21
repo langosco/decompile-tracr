@@ -57,27 +57,29 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     config = load_config(args.config)
-    examples = tokenize_lib(config.paths.programs_cache, save=not args.dont_save_tokenized)
+    examples = tokenize_lib(config, save=not args.dont_save_tokenized)
     rng = np.random.default_rng()
     key = jax.random.key(rng.integers(0, 2**32))
 
+    data = []
     if args.compile:
         for x in examples:
             if not config.compress:
                 x['weights'] = compile.get_weights(
                     x['tokens'], config.max_weights_length)
+                data.append(x)
             else:
                 key, subkey = jax.random.split(key)
                 compressed = compile_and_compress.process_tokens(
                     subkey, x['tokens'], config)
-                to_save = compile_and_compress.to_datapoints(
-                    compressed, x)
+                data.extend(compile_and_compress.to_datapoints(
+                    compressed, x))
 
-        data = data_utils.dataset_to_arrays(data=examples, config=config)
+
+        data = data_utils.dataset_to_arrays(data=data, config=config)
         with h5py.File(config.paths.dataset, 'a') as f:
             f.create_group("lib")
             data_utils.init_h5(f["lib"], data, maxn=100)
-
 
         if config.compress is not None:
             key = jax.random.key(rng.integers(0, 2**32))
