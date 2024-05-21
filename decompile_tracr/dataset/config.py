@@ -70,18 +70,20 @@ _presets = {
         data_dir=base_data_dir / "default",
     ),
 
+
     "small_compressed": DatasetConfig(
         ndata=10_000,
         program_length=5,
         max_rasp_length=128,
         max_weights_length=32_768,
         max_layers=15,
-        compiling_batchsize=50,
+        compiling_batchsize=30,
         name="small",
         compress="svd",
-        n_augs=10,
+        n_augs=30,
         data_dir=base_data_dir / "small_compressed",
     ),
+
 
     "range": DatasetConfig(
         ndata=1_000,
@@ -101,7 +103,7 @@ _presets = {
         max_rasp_length=128,
         max_weights_length=32_768,
         max_layers=15,
-        compiling_batchsize=200,
+        compiling_batchsize=100,
         name="small",
         compress="svd",
         n_augs=0,
