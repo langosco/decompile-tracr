@@ -47,12 +47,16 @@ def compile_single_batch(
         return None
 
     i = 0
+    batch = []
     for x in tqdm(data, disable=disable_tqdm, desc="Compiling"):
         key, subkey = jax.random.split(key)
         try:
             compressed = process_tokens(subkey, x['tokens'], config)
             to_save = to_datapoints(compressed, x)
-            data_utils.save_batch(to_save, config.paths.compiled_cache)
+            if config.n_augs > 0:
+                data_utils.save_batch(to_save, config.paths.compiled_cache)
+            else:
+                batch.extend(to_save)
         except (InvalidValueSetError, NoTokensError, DataError) as e:
             logger.warning(f"Skipping program ({e}).")
 
@@ -61,6 +65,8 @@ def compile_single_batch(
             logger.info(f"Memory usage: {mem_info.uss / 1024**2:.2f} "
                         f"MB ({i}/{len(data)} programs compiled).")
         i += 1
+    if config.n_augs == 0:
+        data_utils.save_batch(batch, config.paths.compiled_cache)
     return data
 
 

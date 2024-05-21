@@ -83,10 +83,10 @@ def _batch_to_hdf5(config: DatasetConfig, max_files: int = 500):
     return done
 
 
-def init_h5(f: h5py.File, data: dict):
+def init_h5(f: h5py.File, data: dict, maxn: int = 10**7):
     """Write dict to HDF5 datasets."""
     for k, v in data.items():
-        f.create_dataset(k, data=v, maxshape=(10**7, *v.shape[1:]))
+        f.create_dataset(k, data=v, maxshape=(maxn, *v.shape[1:]))
 
 
 def append_h5(f: h5py.File, data: dict):
