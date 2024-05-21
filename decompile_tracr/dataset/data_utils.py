@@ -135,7 +135,8 @@ def datapoint_to_array(x: dict, config: DatasetConfig) -> dict[str, np.ndarray]:
     layer_idx = np.cumsum([len(w) for w in x['weights']])
     layer_idx = pad_to(layer_idx, config.max_layers, pad_value=0)
     weights = np.concatenate(x['weights']).astype(NUMPY_DTYPE)
-    weights = pad_to(weights, config.max_weights_length, pad_value=0.05)
+    pad_value = 0.05 if not config.compress else 0
+    weights = pad_to(weights, config.max_weights_length, pad_value=pad_value)
     return {
         'tokens': tokens,
         'weights': weights,

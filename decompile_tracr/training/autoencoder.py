@@ -32,7 +32,7 @@ def train_svd(
     hidden_size: int,
 ):
     """A cheaper method that is ~equivalent to a linear autoencoder."""
-    N = 2**15
+    N = 2**7
     d_model = assembled_model.params['token_embed']['embeddings'].shape[-1]
     seq_len = assembled_model.input_encoder._max_seq_len
     residuals_sampler = ResidualsSampler(

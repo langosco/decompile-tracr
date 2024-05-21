@@ -85,8 +85,7 @@ def process_tokens(
         model_params=model_params, 
         wenc=wenc,
         wdec=wdec,
-        max_weights_len=config.max_weights_length,
-        n_augs=config.n_augs,
+        config=config,
     )
     return compressed
 
@@ -98,6 +97,10 @@ def compile_and_train_encoder(tokens: list[int], config: DatasetConfig):
     params = model.params
     d_model = params['token_embed']['embeddings'].shape[-1]
     hidden_size = int(d_model // 1.1)
+
+    flat = flatten_weights(params)
+    if sum(len(x) for x in flat) > config.max_weights_length:
+        raise DataError(f"Too many params (> {config.max_weights_length})")
 
     const_key = jax.random.key(123)
     if config.compress == "svd":
@@ -120,8 +123,7 @@ def get_compressed_params(
     model_params: dict, 
     wenc: ArrayLike,
     wdec: ArrayLike,
-    max_weights_len: int,
-    n_augs: int = 50,
+    config: DatasetConfig,
 ) -> list[dict]:
     """Given the original model parameters and a pair of encoder/decoder
     matrices, generate a compressed set of parameters by applying the
@@ -135,7 +137,8 @@ def get_compressed_params(
         flatten_weights(autoencoder.update_params(
             model_params, wenc, wdec, w_orth=None))
     ]
-    for i in range(n_augs):
+
+    for i in range(config.n_augs):
         key, subkey = jax.random.split(key)
         w_orth = jax.random.orthogonal(subkey, n=hidden_size)
         p = autoencoder.update_params(
@@ -143,8 +146,8 @@ def get_compressed_params(
         p = flatten_weights(p)
         params_batch.append(p)
 
-        if i == 0 and sum(len(x) for x in p) > max_weights_len:
-            raise DataError(f"Too many params (> {max_weights_len})")
+        if i == 0 and sum(len(x) for x in p) > config.max_weights_length:
+            raise DataError(f"Too many params (> {config.max_weights_length})")
 
     return params_batch
 
