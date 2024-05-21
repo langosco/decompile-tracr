@@ -120,18 +120,21 @@ def get_compressed_params(
     """Given the original model parameters and a pair of encoder/decoder
     matrices, generate a compressed set of parameters by applying the
     encoder/decoder to the model parameters.
-    If n_augs > 1, generate augmentations by applying random orthogonal
+    If n_augs > 0, generate augmentations by applying random orthogonal
     transformations to the encoder and decoder matrices.
     Return flattened weights.
     """
     hidden_size = wenc.shape[-1]
-    params_batch = []
+    params_batch = [
+        flatten_weights(autoencoder.update_params(
+            model_params, wenc, wdec, w_orth=None))
+    ]
     for i in range(n_augs):
         key, subkey = jax.random.split(key)
         w_orth = jax.random.orthogonal(subkey, n=hidden_size)
         p = autoencoder.update_params(
             model_params, wenc, wdec, w_orth)
-        p = flatten_weights(p, max_weights_len)
+        p = flatten_weights(p)
         params_batch.append(p)
 
         if i == 0 and sum(len(x) for x in p) > max_weights_len:
@@ -140,7 +143,7 @@ def get_compressed_params(
     return params_batch
 
 
-def flatten_weights(params: dict, max_weights_len: int):
+def flatten_weights(params: dict):
     n_layers = 2 * max(int(k[18]) + 1 for k in params.keys() 
                        if "layer" in k)
     flat_weights = [

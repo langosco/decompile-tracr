@@ -29,7 +29,6 @@ def parse_args():
 
 def make_dataset(rng: np.random.Generator, config: DatasetConfig):
     generate.generate(rng, config=config)
-#    tokenize_lib.tokenize_lib(config)
     dedupe.dedupe(config)
     if config.compress is not None:
         key = jax.random.key(rng.integers(0, 2**32))
