@@ -1,5 +1,5 @@
 import os
-os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+os.environ["JAX_PLATFORMS"] = "cpu"
 import argparse
 from collections import defaultdict
 from collections import Counter
@@ -8,6 +8,7 @@ import h5py
 import numpy as np
 import matplotlib.pyplot as plt
 import jax.numpy as jnp
+import seaborn as sns
 
 from decompile_tracr.tokenizing import vocab
 from decompile_tracr.tokenizing import tokenizer
@@ -44,11 +45,12 @@ def stats_that_require_loading_tokens(args):
     # plot
     if not args.no_plot:
         x = np.arange(len(counts))
-        fig, axs = plt.subplots(2, figsize=(12, 15))
+        fig, axs = plt.subplots(1, 2, figsize=(8, 4))
+        axs = axs.flatten()
         ax = axs[0]
         ax.bar(x, counts.values())
         ax.set_xticks(x)
-        ax.set_xticklabels(counts.keys(), rotation=45)
+        ax.set_xticklabels(counts.keys(), rotation=25)
         ax.set_xlabel("SOp counts")
         ax.set_ylabel("Count")
 
@@ -58,7 +60,7 @@ def stats_that_require_loading_tokens(args):
         ax = axs[1]
         ax.bar(x, counts.values())
         ax.set_xticks(x)
-        ax.set_xticklabels(counts.keys(), rotation=45)
+        ax.set_xticklabels(counts.keys())
         ax.set_xlabel("Encoding counts")
         ax.set_ylabel("Count")
 
@@ -120,7 +122,7 @@ def stats_that_require_loading_weights(args: argparse.Namespace):
 
     if not args.no_plot:
         # Plotting
-        fig, axs = plt.subplots(2, 2, figsize=(12, 15))
+        fig, axs = plt.subplots(2, 2, figsize=(6, 5))
         axs = axs.flatten()
 
         axs[0].set_xlabel("Program length (# SOps per program)")

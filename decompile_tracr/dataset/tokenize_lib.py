@@ -47,6 +47,31 @@ def tokenize_lib(config: DatasetConfig, save=True):
     return data
 
 
+def compile_and_save_to_h5(examples: list[dict], config: DatasetConfig):
+    logger.info("Compiling examples.")
+    data = []
+    for x in examples:
+        if not config.compress:
+            x['weights'] = compile.get_weights(
+                x['tokens'], config.max_weights_length)
+            data.append(x)
+        else:
+            key, subkey = jax.random.split(key)
+            compressed = compile_and_compress.process_tokens(
+                subkey, x['tokens'], config)
+            data.extend(compile_and_compress.to_datapoints(
+                compressed, x))
+
+    logger.info("Saving to h5.")
+    data = data_utils.dataset_to_arrays(data=data, config=config)
+    with h5py.File(config.paths.dataset, 'a') as f:
+        f.create_group("lib")
+        data_utils.init_h5(f["lib"], data, maxn=100)
+    
+    return None
+
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Data processing.')
     parser.add_argument('--config', type=str, default=None,
@@ -57,32 +82,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     config = load_config(args.config)
-    examples = tokenize_lib(config, save=not args.dont_save_tokenized)
-    rng = np.random.default_rng()
-    key = jax.random.key(rng.integers(0, 2**32))
+    with jax.default_device(jax.devices('cpu')[0]):
+        examples = tokenize_lib(config, save=not args.dont_save_tokenized)
+        rng = np.random.default_rng()
+        key = jax.random.key(rng.integers(0, 2**32))
 
-    data = []
-    if args.compile:
-        for x in examples:
-            if not config.compress:
-                x['weights'] = compile.get_weights(
-                    x['tokens'], config.max_weights_length)
-                data.append(x)
-            else:
-                key, subkey = jax.random.split(key)
-                compressed = compile_and_compress.process_tokens(
-                    subkey, x['tokens'], config)
-                data.extend(compile_and_compress.to_datapoints(
-                    compressed, x))
-
-
-        data = data_utils.dataset_to_arrays(data=data, config=config)
-        with h5py.File(config.paths.dataset, 'a') as f:
-            f.create_group("lib")
-            data_utils.init_h5(f["lib"], data, maxn=100)
-
-        if config.compress is not None:
-            key = jax.random.key(rng.integers(0, 2**32))
-            compile_and_compress.compile_all(key, config=config)
-        else:
-            compile.compile_all(config)
+        if args.compile:
+            compile_and_save_to_h5(examples, config)

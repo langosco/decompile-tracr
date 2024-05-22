@@ -45,7 +45,6 @@ def _frac_prevs(bools: rasp.SOp) -> rasp.SOp:
     return rasp.numerical(rasp.Aggregate(prevs, bools, default=0))
 
 
-
 def _pair_balance(sop: rasp.SOp, open_token: str,
                       close_token: str) -> rasp.SOp:
     """Return fraction of previous open tokens minus the fraction of close tokens.
