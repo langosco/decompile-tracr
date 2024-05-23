@@ -1,5 +1,6 @@
 import os
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+os.environ["JAX_PLATFORMS"] = "cpu"
 import pytest
 import time
 import numpy as np
@@ -84,7 +85,6 @@ def test_outputs_equal(data):
         f"{invalid}/{len(data['programs'])} compiled models fail "
         "to match the output of the original program."
     )
-
 
 
 def test_recompile(data):

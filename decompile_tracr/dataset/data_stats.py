@@ -20,7 +20,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Data processing.')
     parser.add_argument('--name', type=str, default="train", 
                         help="'train', 'test', 'test_5, 'test_6")
-    parser.add_argument('--no_plot', action='store_true', help="Don't plot histograms")
+    parser.add_argument('--noplot', action='store_true', help="Don't plot histograms")
     parser.add_argument('--max_datapoints', type=int, default=30_000, 
                         help="Limit number of datapoints")
     parser.add_argument('--config', type=str, default=None,
@@ -43,7 +43,7 @@ def stats_that_require_loading_tokens(args):
     counts = {tokenizer.decode_token(k): v for k, v in counts.items()}
 
     # plot
-    if not args.no_plot:
+    if not args.noplot:
         x = np.arange(len(counts))
         fig, axs = plt.subplots(1, 2, figsize=(8, 4))
         axs = axs.flatten()
@@ -118,9 +118,10 @@ def stats_that_require_loading_weights(args: argparse.Namespace):
 
     print(f"Min weights per model: {np.min(stats['n_params']):,}")
     print(f"Max weights per model: {np.max(stats['n_params']):,}")
+    print(f"Mean weights per model: {np.mean(stats['n_params']):,.2f}")
 
 
-    if not args.no_plot:
+    if not args.noplot:
         # Plotting
         fig, axs = plt.subplots(2, 2, figsize=(6, 5))
         axs = axs.flatten()

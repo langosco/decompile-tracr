@@ -1,4 +1,5 @@
 import os
+os.environ["JAX_PLATFORMS"] = "cpu"
 import pytest
 import numpy as np
 import shutil
@@ -19,6 +20,8 @@ def dataset_config():
         program_length=5,
         data_dir=default.parent / ".tests_cache",
         name='testing_make_dataset',
+        compress="svd",
+        n_augs=0,
     )
     return config
 
