@@ -62,23 +62,22 @@ def compile_single_batch(config: DatasetConfig) -> list[dict]:
 
 
 def load_next_batch(loaddir: str):
-    """check lockfile for next batch to load"""
-    LOCKFILE = loaddir / "files_already_loaded.lock"
-    with open(LOCKFILE, "a+") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
+    """Keep  track of files already loaded.
+    Return next batch of data.
+    """
+    history = loaddir / "files_already_loaded.txt"
+    with data_utils.Lock(loaddir / "history.lock"):
+        with open(history, "a+") as f:
+            f.seek(0)
+            file_list = [x.rstrip("\n") for x in f.readlines()]
+            path = get_next_filename(file_list, loaddir)
 
-        f.seek(0)
-        file_list = [x.rstrip("\n") for x in f.readlines()]
-        path = get_next_filename(file_list, loaddir)
+            f.write(path + "\n")
+            f.flush()
 
-        f.write(path + "\n")
-        f.flush()
-
-        fcntl.flock(f, fcntl.LOCK_UN)
-    
     if path == "":
         logger.info("No more files to load. "
-                    f"All filenames present in {LOCKFILE}")
+                    f"All filenames present in {history}")
         return None
     else:
         logger.info(f"Loading next batch: {path}.")

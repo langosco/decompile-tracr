@@ -39,6 +39,7 @@ def tokenize_lib(config: DatasetConfig, save=True):
     logger.info(f"Done tokenizing {len(data)} example programs.")
     if save:
         save_batch(
+            rng=None,
             data=data, 
             savedir=config.paths.programs_cache,
             overwrite=True,

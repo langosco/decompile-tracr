@@ -32,7 +32,7 @@ def generate(
     logger.info("Begin sampling RASP programs.")
     data = sample_loop(rng, config, disable_tqdm=disable_tqdm)
     logger.info(f"Done sampling {len(data)} RASP programs.")
-    save_batch(data, config.paths.programs_cache)
+    save_batch(rng=rng, data=data, savedir=config.paths.programs_cache)
     return data
 
 

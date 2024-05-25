@@ -48,12 +48,11 @@ class DatasetConfig:
 
         if self.compress is not None:
             assert self.compress in ["svd", "autoencoder"]
-            assert self.n_augs is not None, "Number of augmentations must be set."
+            assert self.n_augs is not None, (
+                "Number of augmentations must be set.")
         else:
-            assert self.n_augs is None, ("Augmentations are only possible "
-                                          "when compressing.")
-        
-
+            assert self.n_augs is None, (
+        "Augmentations are only possible when compressing.")
 
 
 # Presets

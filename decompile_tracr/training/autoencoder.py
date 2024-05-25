@@ -30,7 +30,7 @@ def train_svd(
     key: jax.random.PRNGKey,
     assembled_model: AssembledTransformerModel,
     hidden_size: int,
-):
+) -> dict:
     """A cheaper method that is ~equivalent to a linear autoencoder."""
     N = 2**7
     d_model = assembled_model.params['token_embed']['embeddings'].shape[-1]

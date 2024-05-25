@@ -9,13 +9,11 @@ try:
     import ujson as json
 except ImportError:
     import json
-import fcntl
 import h5py
 import numpy as np
 
 import jax
 import jax.flatten_util
-from jax import numpy as jnp
 import chex
 
 from decompile_tracr.tokenizing import vocab
@@ -308,16 +306,18 @@ def save_batch(
     savedir: Path | str,
     overwrite = False,
     filename = None,
+    rng: np.random.Generator = None,
 ) -> None:
     """Save data to a json file.
     If filename is not set, use a counter to generate a new 
     filename.
     """
+    rng = np.random.default_rng(rng)
     savedir = Path(savedir)
     os.makedirs(savedir, exist_ok=True)
 
     if filename is None:
-        idx = sequential_count_via_lockfile(savedir / "count.txt")
+        idx = rng.integers(0, 2**63)  # probability of collision is <1e-8 for 1e5 files.
         filename = f"data_{idx}"
     else:
         filename = Path(filename)
@@ -360,71 +360,6 @@ def get_params(
     return flat if not include_unflatten_fn else (flat, unflatten)
 
 
-def rw_lockfile(
-    lockfile="/tmp/counter.txt", 
-    get_new: callable = lambda x: ""
-) -> tuple[str, str]:
-    """read content of lockfile, then append to it.
-    Use a lockfile to ensure atomicity. If the file doesn't exist, 
-    create it and start the counter at 1.
-    """
-    with open(lockfile, "a+") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
-
-        # read from start of file
-        f.seek(0)
-        content = f.read().strip()
-
-        # write new content
-        write_content = get_new(content)
-        f.write(write_content)
-        f.flush()
-
-        fcntl.flock(f, fcntl.LOCK_UN)
-    return content, write_content
-
-
-def sequential_count_via_lockfile(
-    countfile: str = "/tmp/counter.txt",
-    no_recover: bool = False,
-    start: int = 1,
-    increment: int = 1,
-) -> int:
-    """Increment a counter in a file. 
-    Use a lockfile to ensure atomicity. If the file doesn't exist, 
-    create it and start the counter at 1."""
-#    return rw_lockfile(countfile, lambda x: str(int(x) + 1))
-
-    try:
-        with open(countfile, "a+") as f:
-            fcntl.flock(f, fcntl.LOCK_EX)
-
-            f.seek(0)
-            counter_str = f.read().strip()
-            counter = start if not counter_str else int(counter_str) + increment
-
-            f.seek(0)
-            f.truncate()  # Clear the file content
-            f.write(str(counter))
-            f.flush()
-
-            fcntl.flock(f, fcntl.LOCK_UN)
-
-        return counter
-    except ValueError as e:
-        try:
-            assert not no_recover
-            logger.warning(f"Invalid counter value: {counter_str}. "
-                           f"Received error: {e} "
-                           f"Attempting recovery.")
-            attempt_recovery_in_case_of_corrupted_lockfile(countfile)
-            return sequential_count_via_lockfile(countfile)
-        except Exception as second_err:
-            raise ValueError(f"Invalid counter value: {counter_str} in {countfile}. "
-                             f"Received error: {e} "
-                             f"Attempted recovery but failed: {second_err}")
-
-
 def layer_names(n_layers: int) -> Generator[str, None, None]:
     assert n_layers % 2 == 0, "n_layers must be even."
     yield "embed"
@@ -433,17 +368,31 @@ def layer_names(n_layers: int) -> Generator[str, None, None]:
         yield f"layer_{i}/mlp"
 
 
-def attempt_recovery_in_case_of_corrupted_lockfile(countfile: str):
-    """Reinit countfile at 100_000."""
-    recoveryfile = str(countfile) + ".recovery"
-    new_counter = sequential_count_via_lockfile(
-        recoveryfile, no_recover=True, start=100_000, increment=100_000)
+def acquire_lock(lockfile: Path | str) -> None:
+    """Acquire a lockfile. If the lockfile already exists, wait and try again.
+    """
+    try:
+        with open(lockfile, "x") as f:
+            pass
+    except FileExistsError:
+        time.sleep(0.1)
+        return acquire_lock(lockfile)
+    return None
 
-    with open(countfile, "w") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
-        f.seek(0)
-        f.write(str(new_counter))
-        f.flush()
-        fcntl.flock(f, fcntl.LOCK_UN)
-    
-    return sequential_count_via_lockfile(countfile)
+
+def release_lock(lockfile: Path | str) -> None:
+    os.remove(lockfile)
+    return None
+
+
+class Lock:
+    def __init__(self, lockfile: Path | str):
+        self.lockfile = lockfile
+
+    def __enter__(self):
+        acquire_lock(self.lockfile)
+        return None
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        release_lock(self.lockfile)
+        return None
