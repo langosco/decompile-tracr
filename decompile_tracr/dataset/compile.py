@@ -11,7 +11,7 @@ from tracr.compiler import compile_rasp_to_model
 from tracr.compiler.basis_inference import InvalidValueSetError
 from tracr.compiler.craft_model_to_transformer import NoTokensError
 
-from decompile_tracr.tokenizing import tokenizer
+from decompile_tracr.tokenize import tokenizer
 from decompile_tracr.dataset import data_utils
 from decompile_tracr.dataset.config import DatasetConfig, load_config
 from decompile_tracr.dataset.logger_config import setup_logger

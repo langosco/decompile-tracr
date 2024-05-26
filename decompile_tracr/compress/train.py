@@ -4,12 +4,12 @@ os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 import jax
 import numpy as np
 
-from decompile_tracr.tokenizing import tokenizer
-from decompile_tracr.sampling import sampling
+from decompile_tracr.tokenize import tokenizer
+from decompile_tracr.sample import sample
 from decompile_tracr.dataset import compile
 from decompile_tracr.dataset.logger_config import setup_logger
-from decompile_tracr.training import autoencoder
-from decompile_tracr.training import transformer
+from decompile_tracr.compress import autoencoder
+from decompile_tracr.compress import transformer
 
 if __name__ == "__main__":
     logger = setup_logger(__name__)
@@ -17,7 +17,7 @@ if __name__ == "__main__":
     key = jax.random.key(0)
 
 
-    program_toks = tokenizer.tokenize(sampling.sample(rng, program_length=5))
+    program_toks = tokenizer.tokenize(sample.sample(rng, program_length=5))
     assembled_model = compile.compile_tokens_to_model(program_toks)
 
 

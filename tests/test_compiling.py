@@ -13,16 +13,16 @@ from tracr.compiler import validating
 from tracr.compiler.basis_inference import InvalidValueSetError
 from tracr.compiler.craft_model_to_transformer import NoTokensError
 
-from decompile_tracr.sampling import rasp_utils
-from decompile_tracr.sampling import sampling
-from decompile_tracr.tokenizing import tokenizer
+from decompile_tracr.sample import rasp_utils
+from decompile_tracr.sample import sample
+from decompile_tracr.tokenize import tokenizer
 
 rng = np.random.default_rng(None)
 
 
 INPUTS = [rasp_utils.sample_test_input(rng) for _ in range(100)]
 LENGTH = 8
-PROGRAMS = [sampling.sample(rng, program_length=LENGTH) for _ in range(50)]
+PROGRAMS = [sample.sample(rng, program_length=LENGTH) for _ in range(50)]
 
 
 @pytest.fixture(scope="module")

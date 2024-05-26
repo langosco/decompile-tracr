@@ -21,10 +21,10 @@ from dataclasses import dataclass
 import numpy as np
 from tracr.rasp import rasp
 from tracr.compiler import validating
-from decompile_tracr.sampling import map_primitives
-from decompile_tracr.sampling import rasp_utils
-from decompile_tracr.sampling.rasp_utils import SamplingError
-from decompile_tracr.sampling.validate import perform_checks
+from decompile_tracr.sample import map_primitives
+from decompile_tracr.sample import rasp_utils
+from decompile_tracr.sample.rasp_utils import SamplingError
+from decompile_tracr.sample.validate import perform_checks
 from decompile_tracr.dataset.logger_config import setup_logger
 
 logger = setup_logger(__name__)

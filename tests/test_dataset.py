@@ -2,8 +2,8 @@ import pytest
 import numpy as np
 import h5py
 
-from decompile_tracr.tokenizing import tokenizer
-from decompile_tracr.tokenizing import vocab
+from decompile_tracr.tokenize import tokenizer
+from decompile_tracr.tokenize import vocab
 from decompile_tracr.dataset.config import DatasetConfig
 
 

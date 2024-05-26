@@ -16,7 +16,7 @@ from decompile_tracr.dataset.config import DatasetConfig, load_config
 from decompile_tracr.dataset.logger_config import setup_logger
 from decompile_tracr.globals import disable_tqdm
 from decompile_tracr.dataset.compile import compile_tokens_to_model, DataError, load_next_batch
-from decompile_tracr.training import autoencoder
+from decompile_tracr.compress import autoencoder
 
 
 logger = setup_logger(__name__)

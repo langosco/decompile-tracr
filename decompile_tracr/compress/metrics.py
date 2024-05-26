@@ -96,3 +96,4 @@ class Decode:
         unembedded = unembedded.tolist()
         tokens = self.assembled_model.output_encoder.decode(unembedded)
         return ['compiler_bos'] + tokens[1:]
+

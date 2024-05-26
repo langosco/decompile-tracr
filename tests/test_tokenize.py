@@ -6,9 +6,9 @@ import networkx as nx
 from tracr.rasp import rasp
 from tracr.compiler import rasp_to_graph
 
-from decompile_tracr.sampling import rasp_utils
-from decompile_tracr.tokenizing import tokenizer
-from decompile_tracr.tokenizing import vocab
+from decompile_tracr.sample import rasp_utils
+from decompile_tracr.tokenize import tokenizer
+from decompile_tracr.tokenize import vocab
 from decompile_tracr.dataset import lib
 
 

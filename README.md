@@ -10,8 +10,8 @@ Then pip install this repository:
 pip install -e .
 ```
 # Overview
-* `decompile_tracr/sampling`: code for generating random RASP programs.
-* `decompile_tracr/tokenizing`: code for mapping to and from a token representation for RASP programs.
+* `decompile_tracr/sample`: code for generating random RASP programs.
+* `decompile_tracr/tokenize`: code for mapping to and from a token representation for RASP programs.
 * `decompile_tracr/dataset`: code for generating a full dataset to train a meta-model.
 
 To build a dataset of sampled programs + compiled weights, run
@@ -30,10 +30,10 @@ in `decompile_tracr/dataset/config.py`.
 
 ```python
 import numpy as np
-from decompile_tracr.sampling import sampling, rasp_utils
+from decompile_tracr.sample import sample, rasp_utils
 
 rng = np.random.default_rng()
-program = sampling.sample(rng=rng, program_length=5)
+program = sample.sample(rng=rng, program_length=5)
 
 # Run the program
 print(program([1,2,3,4]))

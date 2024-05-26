@@ -5,7 +5,7 @@ import h5py
 import numpy as np
 import jax
 
-from decompile_tracr.tokenizing import tokenizer
+from decompile_tracr.tokenize import tokenizer
 from decompile_tracr.dataset.logger_config import setup_logger
 from decompile_tracr.dataset.config import DatasetConfig, load_config
 from decompile_tracr.dataset import lib

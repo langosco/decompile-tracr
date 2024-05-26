@@ -9,14 +9,14 @@ from tracr.compiler.basis_inference import InvalidValueSetError
 from tracr.compiler.craft_model_to_transformer import NoTokensError
 from tracr.rasp import rasp
 
-from decompile_tracr.sampling import sampling
-from decompile_tracr.tokenizing import tokenizer
+from decompile_tracr.sample import sample
+from decompile_tracr.tokenize import tokenizer
 from decompile_tracr.dataset.logger_config import setup_logger
 from decompile_tracr.dataset.config import DatasetConfig, load_config
 from decompile_tracr.dataset.data_utils import save_batch
 from decompile_tracr.globals import disable_tqdm
-from decompile_tracr.tokenizing import vocab
-from decompile_tracr.tokenizing.str_to_rasp import split_list
+from decompile_tracr.tokenize import vocab
+from decompile_tracr.tokenize.str_to_rasp import split_list
 
 
 logger = setup_logger(__name__)
@@ -75,8 +75,8 @@ def sample_rasp(
         program_length = rng.choice(list(program_length))
 
     try:
-        program = sampling.sample(rng, program_length)
-    except sampling.SamplingError as e:
+        program = sample.sample(rng, program_length)
+    except sample.SamplingError as e:
         logger.warning(f"Received sampling error: {e}.")
         return sample_rasp(rng, program_length)
     return program

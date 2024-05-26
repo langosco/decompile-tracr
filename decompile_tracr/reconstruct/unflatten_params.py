@@ -27,12 +27,12 @@ from decompile_tracr.dataset import data_utils
 from decompile_tracr.dataset import dataloading
 from decompile_tracr.dataset import config
 from decompile_tracr.dataset import compile as comp
-from decompile_tracr.tokenizing import tokenizer
-from decompile_tracr.tokenizing import vocab
-from decompile_tracr.sampling import sampling
-from decompile_tracr.sampling import rasp_utils
-from decompile_tracr.sampling.map_primitives import FunctionWithRepr
-from decompile_tracr.tokenizing.str_to_rasp import split_list
+from decompile_tracr.tokenize import tokenizer
+from decompile_tracr.tokenize import vocab
+from decompile_tracr.sample import sample
+from decompile_tracr.sample import rasp_utils
+from decompile_tracr.sample.map_primitives import FunctionWithRepr
+from decompile_tracr.tokenize.str_to_rasp import split_list
 from decompile_tracr.dataset.compile import get_weights
 
 
@@ -215,7 +215,7 @@ def _split_layers(w, l):
 if __name__ is "__main__":
     for _ in range(100):
         try:
-            t = tokenizer.tokenize(sampling.sample(rng, 10))
+            t = tokenizer.tokenize(sample.sample(rng, 10))
             p = tokenizer.detokenize(t)
             m = _compile(p)
             w = get_weights(t, max_weights_len=config.MAX_WEIGHTS_LENGTH)

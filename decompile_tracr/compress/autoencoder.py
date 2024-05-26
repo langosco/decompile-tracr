@@ -18,10 +18,10 @@ import einops
 
 from tracr.compiler.assemble import AssembledTransformerModel
 
-from decompile_tracr.tokenizing import tokenizer
-from decompile_tracr.sampling import sampling
+from decompile_tracr.tokenize import tokenizer
+from decompile_tracr.sample import sample
 from decompile_tracr.dataset import compile
-from decompile_tracr.training import metrics
+from decompile_tracr.compress import metrics
 
 from metamodels_for_rasp.train import Updater, TrainState
 
@@ -301,7 +301,7 @@ if __name__ == "__main__":
     key = jax.random.key(0)
 
     # sample a program and compile it
-    toks = tokenizer.tokenize(sampling.sample(rng, 5, only_categorical=True))
+    toks = tokenizer.tokenize(sample.sample(rng, 5, only_categorical=True))
     m = compile.compile_tokens_to_model(toks)
     accuracy = metrics.Accuracy(assembled_model=m)
     d_model = m.params['token_embed']['embeddings'].shape[-1]

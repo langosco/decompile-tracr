@@ -10,12 +10,12 @@ import chex
 from tracr.rasp import rasp
 from tracr.compiler import validating
 
-from decompile_tracr.sampling import rasp_utils
-from decompile_tracr.sampling.rasp_utils import SamplingError
-from decompile_tracr.sampling import sampling
-from decompile_tracr.sampling.validate import perform_checks
-from decompile_tracr.tokenizing import tokenizer
-from decompile_tracr.tokenizing import vocab
+from decompile_tracr.sample import rasp_utils
+from decompile_tracr.sample.rasp_utils import SamplingError
+from decompile_tracr.sample import sample
+from decompile_tracr.sample.validate import perform_checks
+from decompile_tracr.tokenize import tokenizer
+from decompile_tracr.tokenize import vocab
 from decompile_tracr.dataset import lib
 
 rng = np.random.default_rng(None)
@@ -25,7 +25,7 @@ INPUTS = [rasp_utils.sample_test_input(rng, max_seq_len=5, min_seq_len=5)
                for _ in range(1000)]
 
 t = time.time()
-PROGRAMS = [sampling.sample(rng, program_length=LENGTH) for _ in range(100)]
+PROGRAMS = [sample.sample(rng, program_length=LENGTH) for _ in range(100)]
 total_time = time.time() - t
 OUTPUTS_UNSANITIZED = [[p(x) for x in INPUTS] for p in PROGRAMS]  # can sometimes throw ValueError('key/tokens is None')
 OUTPUTS_UNSANITIZED = np.array(OUTPUTS_UNSANITIZED, dtype=float)

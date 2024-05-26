@@ -5,10 +5,10 @@ import shutil
 import jax
 
 
-from decompile_tracr.sampling import rasp_utils
-from decompile_tracr.sampling import sampling
-from decompile_tracr.tokenizing import tokenizer
-from decompile_tracr.tokenizing import vocab
+from decompile_tracr.sample import rasp_utils
+from decompile_tracr.sample import sample
+from decompile_tracr.tokenize import tokenizer
+from decompile_tracr.tokenize import vocab
 from decompile_tracr.dataset import config
 from decompile_tracr.dataset import generate
 from decompile_tracr.dataset import tokenize_lib

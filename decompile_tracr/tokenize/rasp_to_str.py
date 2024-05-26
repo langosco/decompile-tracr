@@ -20,7 +20,7 @@ from tracr.compiler import craft_graph_to_model
 from tracr.rasp import rasp
 from tracr.compiler import nodes
 
-from decompile_tracr.tokenizing import vocab
+from decompile_tracr.tokenize import vocab
 
 Node = nodes.Node
 
