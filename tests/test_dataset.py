@@ -7,6 +7,9 @@ from decompile_tracr.tokenize import vocab
 from decompile_tracr.dataset.config import DatasetConfig
 
 
+# Load from default dataset and do some sanity checks.
+
+
 rng = np.random.default_rng()
 
 @pytest.fixture()

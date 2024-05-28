@@ -267,15 +267,12 @@ class DataGenerator:
     def __post_init__(self):
         assert self.seq_len <= self.assembled_model.input_encoder._max_seq_len
         self._residuals_sampler = autoencoder.ResidualsSampler(
-            model=self.assembled_model, 
-            seq_len=self.seq_len, 
-            batch_size=self.batch_size,
-            flatten_leading_axes=False,
-        )
+            model=self.assembled_model)
 
     def __call__(self, key: jax.random.PRNGKey):
         """Return dict of residuals for each layer. Keys are layer names."""
-        res = self._residuals_sampler.sample_residuals(key)
+        res = self._residuals_sampler.sample_residuals(
+            key, batch_size=self.batch_size, flatten_leading_axes=False)
         res.residuals = self.encode(res.residuals)
         x = einops.rearrange(res.residuals, 'b l s d -> l b s d')
         return {k: Residuals(inputs=res.inputs, residuals=v) 

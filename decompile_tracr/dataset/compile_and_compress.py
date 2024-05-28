@@ -16,7 +16,7 @@ from decompile_tracr.dataset.config import DatasetConfig, load_config
 from decompile_tracr.dataset.logger_config import setup_logger
 from decompile_tracr.globals import disable_tqdm
 from decompile_tracr.dataset.compile import compile_tokens_to_model, DataError, load_next_batch
-from decompile_tracr.compress import autoencoder
+from decompile_tracr.compress import compress
 
 
 logger = setup_logger(__name__)
@@ -104,18 +104,14 @@ def compile_and_train_encoder(tokens: list[int], config: DatasetConfig):
 
     const_key = jax.random.key(123)
     if config.compress == "svd":
-        train_out = autoencoder.train_svd(const_key, model, hidden_size)
-        wenc, wdec = train_out['wenc'], train_out['wdec']
+        compressed_model, _ = compress.train_svd(const_key, model, hidden_size)
     elif config.compress == "autoencoder":
-        train_out = autoencoder.train_autoencoder(
+        compressed_model, _ = compress.train_autoencoder(
             const_key, model, nsteps=50_000, lr=2e-3, hidden_size=hidden_size)
-        wenc, wdec = autoencoder.get_wenc_and_wdec(train_out['state'].params)
     else:
         raise ValueError(f"Unknown compression method: {config.compress}")
     
-    logger.info(f'Accuracy: {train_out["accuracy"]}')
-    logger.info(f'MSE:      {train_out["mse"]}')
-    return model.params, wenc, wdec
+    return model.params, compressed_model.wenc, compressed_model.wdec
 
 
 def get_compressed_params(
@@ -134,14 +130,14 @@ def get_compressed_params(
     """
     hidden_size = wenc.shape[-1]
     params_batch = [
-        flatten_weights(autoencoder.update_params(
+        flatten_weights(compress.update_params(
             model_params, wenc, wdec, w_orth=None))
     ]
 
     for i in range(config.n_augs):
         key, subkey = jax.random.split(key)
         w_orth = jax.random.orthogonal(subkey, n=hidden_size)
-        p = autoencoder.update_params(
+        p = compress.update_params(
             model_params, wenc, wdec, w_orth)
         p = flatten_weights(p)
         params_batch.append(p)
