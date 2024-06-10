@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 import shutil
 
-from decompile_tracr.dataset.make_dataset import make_dataset, to_h5
+from decompile_tracr.dataset.make_dataset import make_dataset, merge
 from decompile_tracr.dataset.config import DatasetConfig
 from decompile_tracr.dataset.config import default_data_dir
 
@@ -20,8 +20,8 @@ def dataset_config():
         program_length=5,
         data_dir=default.parent / ".tests_cache",
         name='testing_make_dataset',
-        compress="svd",
-        n_augs=0,
+#        compress="svd",
+#        n_augs=0,
     )
     return config
 
@@ -33,7 +33,7 @@ def make_test_data(dataset_config):
     os.makedirs(base_dir)
 
     make_dataset(rng, config=dataset_config)
-    to_h5(dataset_config, make_test_splits=False)
+    merge(dataset_config, make_test_splits=False)
 
     return None
 

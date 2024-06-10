@@ -1,5 +1,4 @@
 from itertools import islice
-import re
 import os
 from collections import defaultdict
 from pathlib import Path
@@ -12,9 +11,8 @@ except ImportError:
 import h5py
 import numpy as np
 
-import jax
-import jax.flatten_util
 import chex
+from jaxtyping import ArrayLike
 
 from decompile_tracr.tokenize import vocab
 from decompile_tracr.dataset.logger_config import setup_logger
@@ -29,12 +27,28 @@ default_datadir = default_config.paths.data_dir
 
 # HDF5 utils
 
-def load_json_and_save_to_hdf5(config: DatasetConfig) -> None:
-    """Convert dataset in data_dir/full to a single HDF5 file."""
-    batch_size = 50
-    done = False
-    while not done:
-        done = _batch_to_hdf5(config=config, max_files=batch_size)
+def merge_h5(
+    config: DatasetConfig,
+    name: str = "train",
+) -> None:
+    """Merge all h5 files in source_dir into a single file.
+    """
+    source_dir = config.paths.compiled_cache
+    target_file = config.paths.dataset
+    source_files = list(source_dir.glob("*.h5"))
+    if len(source_files) == 0:
+        raise FileNotFoundError(f"No h5 files found in {source_dir}.")
+    
+    with h5py.File(target_file, "w") as target:
+        for file in source_files:
+            with h5py.File(file, "r") as source:
+                if name not in target:
+                    target.create_group(name)
+                    init_h5(target[name], source)
+                else:
+                    append_h5(target[name], source)
+            os.remove(file)
+    logger.info(f"Merged {len(source_files)} files.")
 
 
 def make_test_splits(dataset: Path) -> None:
@@ -51,34 +65,6 @@ def make_test_splits(dataset: Path) -> None:
         n_split = int(len(f['train/tokens']) * split_frac)
         _save_split_to_new_group(f, n_split, "val")
         _save_split_to_new_group(f, n_split, "test")
-
-
-def _batch_to_hdf5(config: DatasetConfig, max_files: int = 500):
-    """Convert dataset in data_dir/full to a single HDF5 file.
-    Run multiple times if the dataset is too large to fit in memory.
-    - Load up to max_data datapoints. 
-    - Save as HDF5 (append to existing file if it exists)
-    - Delete original files.
-    """
-    loaddir = config.paths.compiled_cache
-
-    data, files_loaded = load_batches(
-        loaddir, max_files=max_files, return_filenames=True)
-    data = dataset_to_arrays(data=data, config=config)
-
-    with h5py.File(config.paths.dataset, "a", libver="latest") as f:
-        if len(f.keys()) == 0:
-            f.create_group("train")
-            init_h5(f["train"], data)
-        else:
-            append_h5(f["train"], data)
-
-    for filename in files_loaded:
-        os.remove(loaddir / filename)
-    
-    remaining = os.scandir(loaddir)
-    done = not any(entry.name.endswith(".json") for entry in remaining)
-    return done
 
 
 def init_h5(f: h5py.File, data: dict, maxn: int = 10**7):
@@ -98,6 +84,50 @@ def append_h5(f: h5py.File, data: dict):
         f[k][-v.shape[0]:] = v
 
 
+# Data processing
+
+def flatten_params(params: dict, max_len: int):
+    # order keys
+    params = {k: params[k] for k in layer_names() if k in params}
+    flat = [vv.flatten() for v in params.values() for vv in v.values()]
+    sizes = [len(v) for v in flat]
+    flat = np.concatenate(flat)
+    if len(flat) > max_len:
+        raise DataError(f"Too many params (> {max_len})")
+    flat = pad_to(np.array(flat), max_len, 0.)
+    return flat, sizes
+
+
+def unflatten_params(flat: ArrayLike, sizes: ArrayLike, d_model: int):
+    """Inverse of flatten_params."""
+    # order keys
+    split = np.split(flat, np.cumsum(sizes))
+    params = dict()
+    for k in layer_names():
+        wshape = get_w_shape(k, d_model)
+        if k.endswith('embed'):
+            x = split.pop(0)
+            params[k] = {'embeddings': x.reshape(wshape)}
+        else:
+            params[k] = {
+                'b': split.pop(0),
+                'w': split.pop(0).reshape(wshape),
+            }
+        if len(split) <= 1:
+            break
+    return params
+
+
+def get_w_shape(layer_name: str, d: int):
+    if (layer_name in ["pos_embed", "token_embed"] 
+        or layer_name.endswith(("attn/linear", "mlp/linear_2"))):
+        return (-1, d)
+    elif layer_name.endswith(("key", "query", "value", "mlp/linear_1")):
+        return (d, -1)
+    else:
+        raise ValueError(f"Unknown layer name: {layer_name}")
+
+
 def dataset_to_arrays(
     data: list[dict],
     config: DatasetConfig,
@@ -108,7 +138,7 @@ def dataset_to_arrays(
     out = defaultdict(list)
 
     while data:
-        for k, v in datapoint_to_array(data.pop(0), config).items():
+        for k, v in datapoint_to_arrays(data.pop(0), config).items():
             out[k].append(v)
 
     # stack to np.arrays
@@ -124,23 +154,23 @@ def dataset_to_arrays(
     return out
 
 
-def datapoint_to_array(x: dict, config: DatasetConfig) -> dict[str, np.ndarray]:
+def datapoint_to_arrays(x: dict, config: DatasetConfig) -> dict[str, np.ndarray]:
     tokens = pad_to(
-        np.array(x['tokens']), 
+        np.array(x['tokens']),
         config.max_rasp_length, 
-        pad_value=vocab.pad_id
+        pad_value=vocab.pad_id,
     )
-    layer_idx = np.cumsum([len(w) for w in x['weights']])
-    layer_idx = pad_to(layer_idx, config.max_layers, pad_value=0)
-    weights = np.concatenate(x['weights']).astype(NUMPY_DTYPE)
+    layer_idx = pad_to(np.array(x['layer_idx'], dtype=int), 
+                       config.max_layers, pad_value=0)
+    weights = np.array(x['weights'], dtype=NUMPY_DTYPE)
     pad_value = 0.05 if not config.compress else 0
     weights = pad_to(weights, config.max_weights_length, pad_value=pad_value)
     return {
         'tokens': tokens,
         'weights': weights,
         'layer_idx': layer_idx,
-        'n_sops': x['n_sops'],
-        'n_layers': len(x["weights"])-1,
+        'n_sops': int(x['n_sops']),
+        'n_layers': int(len(x["weights"])-1),
     }
 
 
@@ -187,7 +217,6 @@ def pad_to(x: np.ndarray, max_len: int, pad_value: int = 0):
 
 
 # Data generation and json utils
-
 def load_batches(
     loaddir: Path,
     max_data: Optional[int] = None,
@@ -281,7 +310,9 @@ def dedupe(data: list[dict], reference: Optional[list[dict]] = None,
 
 
 def batched(iterable, n):
-    """Batch data into lists of length n. The last batch may be shorter."""
+    """Batch data into lists of length n. 
+    The last batch may be shorter.
+    """
     # batched('ABCDEFG', 2) --> AB CD EF G
     it = iter(iterable)
     while True:
@@ -301,28 +332,46 @@ def split_dict_data(data: dict, val_ratio: float = 0.1):
     return train, val
 
 
-def save_batch(
-    data: list,
+def get_filename(rng: np.random.Generator = None) -> str:
+    rng = np.random.default_rng(rng)
+    idx = rng.integers(0, 2**63)  # p(collision) is <1e-8 for 1e5 files
+    return f"data_{idx}"
+
+
+def save_h5(
+    data: list[dict],
+    savedir: Path | str,
+    rng: np.random.Generator = None,
+) -> None:
+    os.makedirs(savedir, exist_ok=True)
+    savepath = savedir / (get_filename(rng) + ".h5")
+    logger.info(f"Saving {len(data)} "
+                f"datapoints to {savepath}")
+    keys = data[0].keys()
+    assert all(set(x.keys()) == keys for x in data)
+    out = {k: [x[k] for x in data] for k in keys}
+    out = {k: np.stack(v) for k, v in out.items()}
+    out = {k: to_int(v) if k in ("tokens", "n_sops", "n_layers") else v 
+        for k, v in out.items()}
+    with h5py.File(savepath, 'a', libver='latest') as f:
+        for k, v in out.items():
+            f.create_dataset(k, data=v)
+
+
+def save_json(
+    data: list[dict],
     savedir: Path | str,
     overwrite = False,
-    filename = None,
+    filename: str = None,
     rng: np.random.Generator = None,
 ) -> None:
     """Save data to a json file.
     If filename is not set, use a counter to generate a new 
     filename.
     """
-    rng = np.random.default_rng(rng)
-    savedir = Path(savedir)
     os.makedirs(savedir, exist_ok=True)
-
-    if filename is None:
-        idx = rng.integers(0, 2**63)  # probability of collision is <1e-8 for 1e5 files.
-        filename = f"data_{idx}"
-    else:
-        filename = Path(filename)
-    
-    savepath = savedir / f"{filename}.json"
+    filename = filename or get_filename(rng)
+    savepath = Path(savedir) / (filename + ".json")
     logger.info(f"Saving {len(data)} "
                 f"datapoints to {savepath}")
     open_mode = "w" if overwrite else "x"
@@ -330,42 +379,16 @@ def save_batch(
         json.dump(data, f)
 
 
-def get_params(
-    params: dict, layer_name: str, include_unflatten_fn: bool = False,
-) -> jax.Array:
-    """
-    params: hk parameters as returned by tracr compiler in model.params.
-    layer_name: name of the layer to extract parameters for.
-    
-    Assume layer_name is in format `layer_n/attn` or `layer_n/mlp`.
-    Return parameters for that layer as a 1-d array.
-    """
-    prefix = f'transformer/{layer_name}'
-
-    if layer_name.endswith('attn'):
-        layer_params = [
-            params[f"{prefix}/{k}"] for k in ['key', 'query', 
-                                              'value', 'linear']
-        ]
-    elif layer_name.endswith('mlp'):
-        layer_params = [
-            params[f'{prefix}/{k}'] for k in ['linear_1', 'linear_2']
-        ]
-    elif layer_name == 'embed':
-        layer_params = [params['token_embed'], params['pos_embed']]
-    else:
-        raise ValueError(f'Unknown layer name {layer_name}.')
-    
-    flat, unflatten = jax.flatten_util.ravel_pytree(layer_params)
-    return flat if not include_unflatten_fn else (flat, unflatten)
-
-
-def layer_names(n_layers: int) -> Generator[str, None, None]:
-    assert n_layers % 2 == 0, "n_layers must be even."
-    yield "embed"
-    for i in range(n_layers // 2):
-        yield f"layer_{i}/attn"
-        yield f"layer_{i}/mlp"
+def layer_names() -> Generator[str, None, None]:
+    yield "pos_embed"
+    yield "token_embed"
+    for i in range(100): # what would you want more than 100 layers for
+        yield f"transformer/layer_{i}/attn/key"
+        yield f"transformer/layer_{i}/attn/query"
+        yield f"transformer/layer_{i}/attn/value"
+        yield f"transformer/layer_{i}/attn/linear"
+        yield f"transformer/layer_{i}/mlp/linear_1"
+        yield f"transformer/layer_{i}/mlp/linear_2"
 
 
 def acquire_lock(lockfile: Path | str) -> None:
@@ -396,3 +419,7 @@ class Lock:
     def __exit__(self, exc_type, exc_value, traceback):
         release_lock(self.lockfile)
         return None
+
+
+class DataError(Exception):
+    pass

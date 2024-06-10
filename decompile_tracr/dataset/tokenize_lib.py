@@ -10,7 +10,7 @@ from decompile_tracr.dataset.logger_config import setup_logger
 from decompile_tracr.dataset.config import DatasetConfig, load_config
 from decompile_tracr.dataset import lib
 from decompile_tracr.dataset.generate import to_filter
-from decompile_tracr.dataset.data_utils import save_batch
+from decompile_tracr.dataset.data_utils import save_json
 from decompile_tracr.dataset import data_utils
 from decompile_tracr.dataset import compile, compile_and_compress
 
@@ -38,7 +38,7 @@ def tokenize_lib(config: DatasetConfig, save=True):
     data = tokenize_loop(config)
     logger.info(f"Done tokenizing {len(data)} example programs.")
     if save:
-        save_batch(
+        save_json(
             rng=None,
             data=data, 
             savedir=config.paths.programs_cache,

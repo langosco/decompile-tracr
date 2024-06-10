@@ -15,13 +15,15 @@ from decompile_tracr.dataset import data_utils
 from decompile_tracr.dataset.config import DatasetConfig, load_config
 from decompile_tracr.dataset.logger_config import setup_logger
 from decompile_tracr.globals import disable_tqdm
-from decompile_tracr.dataset.compile import compile_tokens_to_model, DataError, load_next_batch
+#from decompile_tracr.dataset.compile import compile_tokens_to_model, DataError, load_next_batch
 from decompile_tracr.compress import compress
 
 
 logger = setup_logger(__name__)
 process = psutil.Process()
 
+
+# Currently broken after changes in compile.py
 
 def compile_all(
         key: jax.random.PRNGKey, config: DatasetConfig, max_batches=None):
@@ -57,7 +59,7 @@ def compile_single_batch(
                 data_utils.save_batch(to_save, config.paths.compiled_cache)
             else:
                 batch.extend(to_save)
-        except (InvalidValueSetError, NoTokensError, DataError) as e:
+        except (InvalidValueSetError, NoTokensError, data_utils.DataError) as e:
             logger.warning(f"Skipping program ({e}).")
 
         if i % 25 == 0:

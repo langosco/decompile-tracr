@@ -43,7 +43,7 @@ def save_deduped(
     logger.info(f"Splitting data by name: {list(deduped_by_name.keys())}")
     for name, data in deduped_by_name.items():
         for batch in data_utils.batched(data, config.compiling_batchsize):
-            data_utils.save_batch(
+            data_utils.save_json(
                 batch,
                 savedir=config.paths.programs / name
             )

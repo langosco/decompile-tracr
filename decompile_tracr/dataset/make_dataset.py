@@ -21,7 +21,7 @@ def parse_args():
     parser.add_argument('--ndata', type=int, default=None)
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--make_test_splits', action='store_true')
-    parser.add_argument('--only_to_h5', action='store_true')
+    parser.add_argument('--only_merge', action='store_true')
     parser.add_argument('--config', type=str, default=None,
                         help="Name of config file.")
     return parser.parse_args()
@@ -34,13 +34,13 @@ def make_dataset(rng: np.random.Generator, config: DatasetConfig):
         key = jax.random.key(rng.integers(0, 2**32))
         compile_and_compress.compile_all(key, config=config)
     else:
-        compile.compile_all(config)
+        compile.compile_batches(config)
 
 
-def to_h5(config: DatasetConfig, make_test_splits: bool = False):
-    data_utils.load_json_and_save_to_hdf5(config)
+def merge(config: DatasetConfig, make_test_splits: bool = False):
+    data_utils.merge_h5(config)
     if make_test_splits:
-        data_utils.make_test_splits(dataset=config.paths.dataset),
+        data_utils.make_test_splits(dataset=config.paths.dataset)
 
 
 if __name__ == "__main__":
@@ -51,6 +51,6 @@ if __name__ == "__main__":
     if args.ndata is not None:
         config.ndata = args.ndata
 
-    if not args.only_to_h5:
+    if not args.only_merge:
         make_dataset(rng, config)
-    to_h5(config, make_test_splits=args.make_test_splits)
+    merge(config, make_test_splits=args.make_test_splits)

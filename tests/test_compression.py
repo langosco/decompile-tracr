@@ -15,8 +15,7 @@ rng = np.random.default_rng(0)
 def assembled_model():
     program_toks = tokenizer.tokenize(
         sample.sample(rng, program_length=5))
-    assembled_model = compile.compile_tokens_to_model(program_toks)
-    return assembled_model
+    return compile.compile_(tokenizer.detokenize(program_toks))
 
 
 @pytest.fixture(scope='module')

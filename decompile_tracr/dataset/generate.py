@@ -13,7 +13,7 @@ from decompile_tracr.sample import sample
 from decompile_tracr.tokenize import tokenizer
 from decompile_tracr.dataset.logger_config import setup_logger
 from decompile_tracr.dataset.config import DatasetConfig, load_config
-from decompile_tracr.dataset.data_utils import save_batch
+from decompile_tracr.dataset.data_utils import save_json
 from decompile_tracr.globals import disable_tqdm
 from decompile_tracr.tokenize import vocab
 from decompile_tracr.tokenize.str_to_rasp import split_list
@@ -32,7 +32,7 @@ def generate(
     logger.info("Begin sampling RASP programs.")
     data = sample_loop(rng, config, disable_tqdm=disable_tqdm)
     logger.info(f"Done sampling {len(data)} RASP programs.")
-    save_batch(rng=rng, data=data, savedir=config.paths.programs_cache)
+    save_json(rng=rng, data=data, savedir=config.paths.programs_cache)
     return data
 
 
@@ -55,6 +55,7 @@ def sample_loop(rng, config: DatasetConfig, disable_tqdm=False):
             "name": config.name,
             "n_sops": program.annotations['length'],  # nr of sops
             "tokens": tokens,
+            "n_layers": tokens.count(vocab.eol_id),
         })
 
         if i % 100 == 0 and VERBOSE:
