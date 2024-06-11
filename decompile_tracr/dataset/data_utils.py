@@ -165,13 +165,17 @@ def datapoint_to_arrays(x: dict, config: DatasetConfig) -> dict[str, np.ndarray]
     weights = np.array(x['weights'], dtype=NUMPY_DTYPE)
     pad_value = 0.05 if not config.compress else 0
     weights = pad_to(weights, config.max_weights_length, pad_value=pad_value)
-    return {
+    out = {
         'tokens': tokens,
         'weights': weights,
         'layer_idx': layer_idx,
-        'n_sops': int(x['n_sops']),
         'n_layers': int(len(x["weights"])-1),
     }
+    out.update({k: v for k, v in x.items() 
+                if (k not in out
+                    and not isinstance(v, str)
+                    and np.isscalar(v))})
+    return out
 
 
 # Misc utils

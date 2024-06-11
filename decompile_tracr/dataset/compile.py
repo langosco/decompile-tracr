@@ -3,6 +3,7 @@ from pathlib import Path
 import argparse
 import shutil
 import psutil
+import gc
 import jax
 
 from tracr.compiler import compile_rasp_to_model
@@ -14,6 +15,7 @@ from decompile_tracr.tokenize import tokenizer
 from decompile_tracr.dataset import data_utils
 from decompile_tracr.dataset.config import DatasetConfig, load_config
 from decompile_tracr.dataset.logger_config import setup_logger
+from decompile_tracr.compress.utils import AssembledModelInfo
 
 
 logger = setup_logger(__name__)
@@ -27,6 +29,7 @@ def compile_batches(
 ) -> None:
     logger.info(f"Compiling RASP programs found in "
                 f"{config.paths.programs} and saving to {filename}.")
+
     for _ in range(max_batches):
         data = load_next_batch(config.paths.programs)
         if data is None:
@@ -34,7 +37,9 @@ def compile_batches(
 
         data = compile_batch(data, config=config)
         data_utils.save_h5(data, config.paths.compiled_cache)
+        del data
         jax.clear_caches()
+        gc.collect()
 
 
 def compile_batch(data: list[dict], config: DatasetConfig):
@@ -49,8 +54,12 @@ def compile_batch(data: list[dict], config: DatasetConfig):
 def unsafe_compile_datapoint(x: dict, max_len: int):
     prog = tokenizer.detokenize(x['tokens'])
     model = compile_(prog)
+    info = AssembledModelInfo(model=model)
     flat, idx = data_utils.flatten_params(model.params, max_len)
     x['weights'], x['layer_idx'] = flat, idx
+    x['d_model'] = info.d_model
+    x['n_heads'] = info.num_heads
+    x['categorical_output'] = info.use_unembed_argmax
     return x
 
 

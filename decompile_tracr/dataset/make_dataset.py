@@ -35,6 +35,7 @@ def make_dataset(rng: np.random.Generator, config: DatasetConfig):
         compile_and_compress.compile_all(key, config=config)
     else:
         compile.compile_batches(config)
+    return 
 
 
 def merge(config: DatasetConfig, make_test_splits: bool = False):

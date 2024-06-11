@@ -1,4 +1,6 @@
+import jax
 import chex
+import haiku as hk
 from tracr.compiler.assemble import AssembledTransformerModel
 
 
@@ -14,4 +16,7 @@ class AssembledModelInfo:
         self.num_layers: int = self.model.model_config.num_layers
         self.seq_len: int = self.model.input_encoder._max_seq_len
         self.bos: int = self.model.input_encoder.bos_encoding
+        self.use_unembed_argmax = hk.transform(
+            self.model.get_compiled_model).apply(
+                {}, jax.random.key(0)).use_unembed_argmax
 

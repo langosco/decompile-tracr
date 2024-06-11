@@ -84,21 +84,18 @@ class DataLoader:
         return self.length
 
 
-def load_dataset_for_model_input(
+def load_dataset(
     loadfile: Path = default_dataset,
     ndata: int = -1,
     group: str = "train",
 ) -> dict[str, np.ndarray]:
-    """Load dataset of tracr-compiled base models and process it 
-    for model input. Returns a dict of np.ndarrays with keys 'weights',
-    'tokens', 'n_sops', 'n_layers'.
-    """
+    """just load the dang dataset"""
     if not loadfile.exists():
         raise FileNotFoundError(f"File {loadfile} not found.")
     with h5py.File(loadfile, "r") as f:
         _check_dataset_shapes(f[group], ndata)
-        train_data = {k: v[:ndata] for k, v in f[group].items()}
-    return train_data
+        data = {k: v[:ndata] for k, v in f[group].items()}
+    return data
 
 
 def _check_dataset_shapes(g: h5py.Group, ndata: int):
