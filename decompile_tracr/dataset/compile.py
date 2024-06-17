@@ -60,6 +60,7 @@ def unsafe_compile_datapoint(x: dict, max_len: int):
     x['d_model'] = info.d_model
     x['n_heads'] = info.num_heads
     x['categorical_output'] = info.use_unembed_argmax
+    x['n_layers'] = info.num_layers
     return x
 
 

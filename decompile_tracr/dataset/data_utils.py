@@ -100,6 +100,8 @@ def flatten_params(params: dict, max_len: int):
 
 def unflatten_params(flat: ArrayLike, sizes: ArrayLike, d_model: int):
     """Inverse of flatten_params."""
+    sizes = np.array(sizes)
+    sizes = sizes[sizes > 0]
     # order keys
     split = np.split(flat, np.cumsum(sizes))
     params = dict()
@@ -169,7 +171,6 @@ def datapoint_to_arrays(x: dict, config: DatasetConfig) -> dict[str, np.ndarray]
         'tokens': tokens,
         'weights': weights,
         'layer_idx': layer_idx,
-        'n_layers': int(len(x["weights"])-1),
     }
     out.update({k: v for k, v in x.items() 
                 if (k not in out

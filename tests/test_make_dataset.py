@@ -2,6 +2,7 @@ import os
 import pytest
 import numpy as np
 import shutil
+import chex
 
 from decompile_tracr.tokenize import tokenizer
 from decompile_tracr.dataset import data_utils
@@ -10,6 +11,9 @@ from decompile_tracr.dataset.reconstruct import get_model
 from decompile_tracr.dataset.make_dataset import make_dataset, merge
 from decompile_tracr.dataset.config import DatasetConfig
 from decompile_tracr.dataset.config import default_data_dir
+from decompile_tracr.dataset.compile import compile_
+from decompile_tracr.compress.metrics import Embed, Unembed
+from decompile_tracr.compress.utils import AssembledModelInfo
 
 
 rng = np.random.default_rng()
@@ -61,17 +65,35 @@ def test_tokenization(dataset_config, make_test_data):
 
 def test_unflattening(dataset_config, make_test_data):
     data = load_dataset(dataset_config.paths.dataset)
-    params = [
-        data_utils.unflatten_params(w, s, d) 
-        for w, s, d in zip(data['weights'], data['layer_idx'], data['d_model'])
-    ]
+    for i, w in enumerate(data['weights']):
+        x = {k: v[i] for k, v in data.items()}
+        params = data_utils.unflatten_params(
+            w, sizes=x['layer_idx'], d_model=x['d_model'])
 
-    models = [get_model(p, h, l) 
-              for p, h, l in zip(params, data['n_heads'], data['n_layers'])]
-    
-    for model, p in zip(models, params):
-        test_input = rng.random((1, 5, 10))
-        out = model.apply(p, test_input)
-        assert True # TODO
+        # recompile and compare
+        m = compile_(tokenizer.detokenize(data['tokens'][i]))
+        info = AssembledModelInfo(model=m)
+        chex.assert_trees_all_equal(params, m.params)
+        assert info.num_heads == x['n_heads']
+        assert info.num_layers == x['n_layers']
+        assert info.d_model == x['d_model']
 
-    
+        # run forward pass through reconstructed and recompiled models
+        # recompiled model:
+        input_ = ["compiler_bos", 4, 2, 3]
+        out_compiled = m.apply(input_).decoded
+
+        # reconstructed model:
+        embed, unembed = Embed(assembled_model=m), Unembed(assembled_model=m)
+        model = get_model(
+            params, num_heads=x['n_heads'], num_layers=x['n_layers'])
+        input_tokens = np.array([m.input_encoder.encode(input_)])
+        out_reconstr = model.apply(params, embed(input_tokens))
+        unembedded = unembed(out_reconstr.output)
+        decoded = m.output_encoder.decode(np.squeeze(unembedded).tolist())
+
+        assert out_compiled[1:] == decoded[1:], (
+            f"Reconstructed model {i} output does not match original output. "
+            f"Expected: {out_compiled[1:]}, got: {decoded[1:]}"
+        )
+

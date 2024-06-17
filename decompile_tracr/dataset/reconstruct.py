@@ -21,12 +21,12 @@ from decompile_tracr.dataset.logger_config import setup_logger
 
 def reconstruct_model_from_datapoint(x: dict):
     params = data_utils.unflatten_params(
-        x['weights'], x['data_idx'], x['d_model'])
-    return get_model(params, x['n_heads'], x['n_layers'])
+        flat=x['weights'], sizes=x['data_idx'], d_model=x['d_model'])
+    return get_model(params, x['n_heads'], x['n_layers']), params
 
 
 def get_model(params: dict, num_heads: int, num_layers: int):
-    key_size = (params['transformer/layer_2/attn/key']['b'].shape[0] 
+    key_size = (params['transformer/layer_0/attn/key']['b'].shape[0] 
                 // num_heads)
     mlp_hidden_size = params['transformer/layer_0/mlp/linear_1']['b'].shape[0]
 
@@ -44,7 +44,8 @@ def get_model(params: dict, num_heads: int, num_layers: int):
     @hk.without_apply_rng
     @hk.transform
     def model(x):  # x: (batch, seq_len, d_model)
-        mask = np.zeros(x.shape[:2])
-        return Transformer(config=transformer_config)(x, mask=mask)
+        mask = np.ones(x.shape[:2])
+        return Transformer(config=transformer_config)(
+            x, mask=mask, use_dropout=False)
 
     return model
