@@ -7,7 +7,7 @@ import chex
 from decompile_tracr.tokenize import tokenizer
 from decompile_tracr.dataset import data_utils
 from decompile_tracr.dataset.dataloading import load_dataset
-from decompile_tracr.dataset.reconstruct import get_model
+from decompile_tracr.dataset.reconstruct import ModelFromParams
 from decompile_tracr.dataset.make_dataset import make_dataset, merge
 from decompile_tracr.dataset.config import DatasetConfig
 from decompile_tracr.dataset.config import default_data_dir
@@ -85,10 +85,9 @@ def test_unflattening(dataset_config, make_test_data):
 
         # reconstructed model:
         embed, unembed = Embed(assembled_model=m), Unembed(assembled_model=m)
-        model = get_model(
-            params, num_heads=x['n_heads'], num_layers=x['n_layers'])
+        model = ModelFromParams(params, num_heads=x['n_heads'])
         input_tokens = np.array([m.input_encoder.encode(input_)])
-        out_reconstr = model.apply(params, embed(input_tokens))
+        out_reconstr = model.from_tokens.apply(params, input_tokens)
         unembedded = unembed(out_reconstr.output)
         decoded = m.output_encoder.decode(np.squeeze(unembedded).tolist())
 
@@ -97,3 +96,13 @@ def test_unflattening(dataset_config, make_test_data):
             f"Expected: {out_compiled[1:]}, got: {decoded[1:]}"
         )
 
+
+def test_datapoint_attributes(dataset_config):
+    KEYS = set([
+        'categorical_output', 'd_model', 'layer_idx', 'n_heads', 
+        'n_layers', 'n_sops', 'tokens', 'weights',
+    ])
+    data = load_dataset(dataset_config.paths.dataset, ndata=0)
+    assert set(data.keys()) == KEYS, (
+        f"Expected keys {KEYS}, got {set(data.keys())}."
+    )

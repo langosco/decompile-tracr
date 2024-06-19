@@ -8,38 +8,40 @@ from decompile_tracr.sample import sample
 from decompile_tracr.dataset import compile
 from decompile_tracr.compress import compress
 from decompile_tracr.compress.utils import AssembledModelInfo
+from decompile_tracr.dataset.reconstruct import ModelFromParams
 
 rng = np.random.default_rng(0)
+HIDDEN_SIZE = 25
 
 @pytest.fixture(scope='module')
-def assembled_model():
+def x() -> AssembledModelInfo:
     program_toks = tokenizer.tokenize(
         sample.sample(rng, program_length=5))
-    return compile.compile_(tokenizer.detokenize(program_toks))
+    m = compile.compile_(tokenizer.detokenize(program_toks))
+    x = AssembledModelInfo(m)
+    x.params = m.params
+    return x
 
 
 @pytest.fixture(scope='module')
-def autoencoder(assembled_model):
-    h = AssembledModelInfo(model=assembled_model).d_model // 1.2
-    compressed_model, aux = compress.train_autoencoder(
-        jax.random.key(0), assembled_model, nsteps=10, 
-        dtype=jnp.float32, hidden_size=int(h))
-    return compressed_model, aux
+def autoencoder(x):
+    model = ModelFromParams(x.params, num_heads=x.num_heads)
+    return compress.train_autoencoder(jax.random.key(0), model, nsteps=10, 
+        dtype=jnp.float32, hidden_size=HIDDEN_SIZE)
 
 
 @pytest.fixture(scope='module')
-def svd(assembled_model):
-    h = AssembledModelInfo(model=assembled_model).d_model // 1.2
-    compressed_model, aux = compress.train_svd(
-        jax.random.key(0), assembled_model, hidden_size=int(h))
-    return compressed_model, aux
+def svd(x):
+    model = ModelFromParams(x.params, num_heads=x.num_heads)
+    return compress.train_svd(model=model, hidden_size=HIDDEN_SIZE)
 
 
 def test_autoencoder_methods(autoencoder):
     """Autoencoder methods are consistent."""
-    cmodel, aux = autoencoder
+    wenc, wdec, aux = autoencoder
+    c = compress.Compresser(wenc, wdec)
     ae, state = aux['model'], aux['state']
-    h, d = cmodel.hidden_size, cmodel.original_size
+    h, d = c.hidden_size, c.original_size
 
     def encode_decode(x):
         return ae.apply({'params': state.params}, x)
@@ -54,27 +56,27 @@ def test_autoencoder_methods(autoencoder):
     
     x = rng.normal(size=(10, d))
     z = rng.normal(size=(10, h))
-    assert np.all(encode(x) == cmodel.encode_activations(x))
-    assert np.all(decode(z) == cmodel.decode_activations(z))
+    assert np.all(encode(x) == c.encode_activations(x))
+    assert np.all(decode(z) == c.decode_activations(z))
     assert np.all(encode_decode(x) == decode(encode(x)))
     assert np.all(encode_decode(x) == 
-                  cmodel.decode_activations(
-                      cmodel.encode_activations(x)))
+                  c.decode_activations(c.encode_activations(x)))
 
 
 def test_svd_methods(svd):
-    cmodel, aux = svd
+    wenc, wdec, aux = svd
+    c = compress.Compresser(wenc, wdec)
     svd = aux['svd']
-    h, d = cmodel.hidden_size, cmodel.original_size
+    h, d = c.hidden_size, c.original_size
     x = rng.normal(size=(10, d))
     z = rng.normal(size=(10, h))
 
-    assert np.all(cmodel.encode_activations(x) == svd.transform(x))
+    assert np.all(c.encode_activations(x) == svd.transform(x))
     assert np.all(
-        cmodel.decode_activations(z) == 
+        c.decode_activations(z) == 
         svd.inverse_transform(z)
     )
     assert np.all(
-        cmodel.decode_activations(cmodel.encode_activations(x)) == 
+        c.decode_activations(c.encode_activations(x)) == 
         svd.inverse_transform(svd.transform(x))
     )

@@ -4,19 +4,17 @@ import haiku as hk
 from tracr.compiler.assemble import AssembledTransformerModel
 
 
-@chex.dataclass
 class AssembledModelInfo:
-    model: AssembledTransformerModel
-
-    def __post_init__(self):
-        self.d_model: int = self.model.params['token_embed']['embeddings'].shape[-1]
-        self.key_size: int = self.model.model_config.key_size
-        self.mlp_dim: int = self.model.model_config.mlp_hidden_size
-        self.num_heads: int = self.model.model_config.num_heads
-        self.num_layers: int = self.model.model_config.num_layers
-        self.seq_len: int = self.model.input_encoder._max_seq_len
-        self.bos: int = self.model.input_encoder.bos_encoding
+    def __init__(self, model: AssembledTransformerModel):
+        self.d_model: int = model.params['token_embed']['embeddings'].shape[-1]
+        self.key_size: int = model.model_config.key_size
+        self.mlp_dim: int = model.model_config.mlp_hidden_size
+        self.num_heads: int = model.model_config.num_heads
+        self.num_layers: int = model.model_config.num_layers
+        self.seq_len: int = model.input_encoder._max_seq_len
+        self.vocab_size: int = model.input_encoder.vocab_size
+        self.bos: int = model.input_encoder.bos_encoding
         self.use_unembed_argmax = hk.transform(
-            self.model.get_compiled_model).apply(
+            model.get_compiled_model).apply(
                 {}, jax.random.key(0)).use_unembed_argmax
 

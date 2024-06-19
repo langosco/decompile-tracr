@@ -20,6 +20,9 @@ from tracr.compiler.assemble import AssembledTransformerModel
 from metamodels_for_rasp.train import TrainState
 
 
+# Currently unused and broken due to changes in the ../compress module.
+
+
 @struct.dataclass
 class TransformerConfig:
     vocab_size: int

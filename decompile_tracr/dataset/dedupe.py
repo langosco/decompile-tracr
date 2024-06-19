@@ -2,6 +2,7 @@ import os
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 import argparse
 from collections import defaultdict
+from typing import Optional
 
 from decompile_tracr.dataset import data_utils
 from decompile_tracr.dataset import logger_config
@@ -26,7 +27,7 @@ def dedupe(config: DatasetConfig) -> list[dict]:
         if prev_len > 0:
             logger.info(f"(dedupe.py) Found existing data in {savedir}. "
                         f"Loaded {prev_len} existing programs.")
-    deduped = data_utils.dedupe(data, reference=reference)
+    deduped = _dedupe(data, reference=reference)
     save_deduped(deduped, config)
     return deduped
 
@@ -47,6 +48,38 @@ def save_deduped(
                 batch,
                 savedir=config.paths.programs / name
             )
+
+
+def _dedupe(data: list[dict], reference: Optional[list[dict]] = None,
+            ) -> list[dict]:
+    """Deduplicate programs by RASP string.
+    Assume data is a list of dicts that include the 
+    key "tokens", as returned by load_batches().
+
+    Args:
+    - data: list of dicts with keys "tokens".
+    - reference: list of dicts with keys "tokens". If provided,
+    treat examples in data that match elements of reference as duplicates.
+    """
+    if reference is None:
+        reference: set[list[int]] = set()
+    else:
+        reference = set([tuple(x['tokens']) for x in reference])
+    deduped: list[dict] = []
+
+    logger.info(f"Deduplicating {len(data)} programs.")
+    logger.info(f"Reference set size: {len(reference)}")
+    for x in data:
+        tokens = tuple(x['tokens'])
+        if tokens not in reference:
+            reference.add(tokens)
+            deduped.append(x)
+
+    logger.info(f"Removed: {len(data) - len(deduped)} programs. "
+                f"({100*(len(data) - len(deduped)) / len(data)}%)")
+    logger.info(f"Remaining new datapoints: {len(deduped)}")
+
+    return deduped
 
 
 if __name__ == "__main__":

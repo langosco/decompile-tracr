@@ -86,15 +86,22 @@ def append_h5(f: h5py.File, data: dict):
 
 # Data processing
 
-def flatten_params(params: dict, max_len: int):
+def flatten_params(params: dict, config: DatasetConfig
+                   ) -> tuple[np.ndarray, np.ndarray]:
     # order keys
     params = {k: params[k] for k in layer_names() if k in params}
     flat = [vv.flatten() for v in params.values() for vv in v.values()]
     sizes = [len(v) for v in flat]
-    flat = np.concatenate(flat)
-    if len(flat) > max_len:
-        raise DataError(f"Too many params (> {max_len})")
-    flat = pad_to(np.array(flat), max_len, 0.)
+    flat = np.concatenate(flat, dtype=NUMPY_DTYPE)
+    maxw = config.max_weights_length
+    pad_value = 0.05 if not config.compress else 0
+    if len(flat) > maxw:
+        raise DataError(f"Too many params (> {maxw})")
+    flat = pad_to(np.array(flat), maxw, pad_value)
+
+    if len(sizes) > config.max_layers:
+        raise DataError(f"Too many layers (> {config.max_layers})")
+    sizes = pad_to(np.array(sizes), config.max_layers, 0)
     return flat, sizes
 
 
@@ -130,55 +137,6 @@ def get_w_shape(layer_name: str, d: int):
         raise ValueError(f"Unknown layer name: {layer_name}")
 
 
-def dataset_to_arrays(
-    data: list[dict],
-    config: DatasetConfig,
-) -> dict[str, np.ndarray]:
-    """Process a list of dicts into a dict of arrays for model input.
-    Deletes original datapoints (i.e. elements of data) to free memory.
-    """
-    out = defaultdict(list)
-
-    while data:
-        for k, v in datapoint_to_arrays(data.pop(0), config).items():
-            out[k].append(v)
-
-    # stack to np.arrays
-    out = {k: np.stack(v) for k, v in out.items()}
-    out = {k: to_int(v) if k in ("tokens", "n_sops", "n_layers") else v 
-           for k, v in out.items()}
-    
-    # asserts
-    chex.assert_shape(out["tokens"], (None, config.max_rasp_length))
-    chex.assert_shape(out["weights"], (None, config.max_weights_length))
-    chex.assert_shape(out["layer_idx"], (None, config.max_layers))
-    assert len(out["tokens"]) == len(out["weights"])
-    return out
-
-
-def datapoint_to_arrays(x: dict, config: DatasetConfig) -> dict[str, np.ndarray]:
-    tokens = pad_to(
-        np.array(x['tokens']),
-        config.max_rasp_length, 
-        pad_value=vocab.pad_id,
-    )
-    layer_idx = pad_to(np.array(x['layer_idx'], dtype=int), 
-                       config.max_layers, pad_value=0)
-    weights = np.array(x['weights'], dtype=NUMPY_DTYPE)
-    pad_value = 0.05 if not config.compress else 0
-    weights = pad_to(weights, config.max_weights_length, pad_value=pad_value)
-    out = {
-        'tokens': tokens,
-        'weights': weights,
-        'layer_idx': layer_idx,
-    }
-    out.update({k: v for k, v in x.items() 
-                if (k not in out
-                    and not isinstance(v, str)
-                    and np.isscalar(v))})
-    return out
-
-
 # Misc utils
 
 def get_tokens_by_layer(tokens: list[int]):
@@ -198,19 +156,6 @@ def get_tokens_by_layer(tokens: list[int]):
         assert l[-1] == vocab.eol_id
         l[-1] = vocab.eos_id
     return layers
-
-
-def to_int(array: np.ndarray) -> np.ndarray:
-    int_arr = array.astype(np.int64)
-    assert np.allclose(array, int_arr), f"Array is not integer: {array}"
-    return int_arr
-
-
-def pad_and_chunk(arr: chex.Array, chunk_size: int) -> chex.Array:
-    pad_size = -len(arr) % chunk_size
-    padded = np.pad(arr, (0, pad_size))
-    chunks = padded.reshape(-1, chunk_size)
-    return chunks
 
 
 def pad_to(x: np.ndarray, max_len: int, pad_value: int = 0):
@@ -281,39 +226,6 @@ def load_batches_from_subdirs(
     return data
 
 
-def dedupe(data: list[dict], reference: Optional[list[dict]] = None,
-) -> list[dict]:
-    """Deduplicate programs by RASP string.
-    Assume data is a list of dicts that include the 
-    key "tokens", as returned by load_batches().
-
-    Args:
-    - data: list of dicts with keys "tokens".
-    - reference: list of dicts with keys "tokens". If provided,
-    treat examples in data that match elements of reference as duplicates.
-    """
-    if reference is None:
-        reference: set[list[int]] = set()
-    else:
-        reference = set([tuple(x['tokens']) for x in reference])
-    deduped: list[dict] = []
-
-    logger.info(f"Deduplicating {len(data)} programs.")
-    logger.info(f"Reference set size: {len(reference)}")
-    for x in data:
-        tokens = tuple(x['tokens'])
-        if tokens not in reference:
-            reference.add(tokens)
-            deduped.append(x)
-        
-
-    logger.info(f"Removed: {len(data) - len(deduped)} programs. "
-                f"({100*(len(data) - len(deduped)) / len(data)}%)")
-    logger.info(f"Remaining new datapoints: {len(deduped)}")
-
-    return deduped
-
-
 def batched(iterable, n):
     """Batch data into lists of length n. 
     The last batch may be shorter.
@@ -348,6 +260,8 @@ def save_h5(
     savedir: Path | str,
     rng: np.random.Generator = None,
 ) -> None:
+    if len(data) == 0:
+        raise ValueError("data should be non-empty.")
     os.makedirs(savedir, exist_ok=True)
     savepath = savedir / (get_filename(rng) + ".h5")
     logger.info(f"Saving {len(data)} "
@@ -356,8 +270,6 @@ def save_h5(
     assert all(set(x.keys()) == keys for x in data)
     out = {k: [x[k] for x in data] for k in keys}
     out = {k: np.stack(v) for k, v in out.items()}
-    out = {k: to_int(v) if k in ("tokens", "n_sops", "n_layers") else v 
-        for k, v in out.items()}
     with h5py.File(savepath, 'a', libver='latest') as f:
         for k, v in out.items():
             f.create_dataset(k, data=v)
@@ -404,13 +316,11 @@ def acquire_lock(lockfile: Path | str) -> None:
             pass
     except FileExistsError:
         time.sleep(0.1)
-        return acquire_lock(lockfile)
-    return None
+        acquire_lock(lockfile)
 
 
 def release_lock(lockfile: Path | str) -> None:
     os.remove(lockfile)
-    return None
 
 
 class Lock:

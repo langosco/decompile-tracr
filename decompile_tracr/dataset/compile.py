@@ -5,6 +5,7 @@ import shutil
 import psutil
 import gc
 import jax
+import numpy as np
 
 from tracr.compiler import compile_rasp_to_model
 from tracr.rasp import rasp
@@ -12,6 +13,7 @@ from tracr.compiler.basis_inference import InvalidValueSetError
 from tracr.compiler.craft_model_to_transformer import NoTokensError
 
 from decompile_tracr.tokenize import tokenizer
+from decompile_tracr.tokenize import vocab
 from decompile_tracr.dataset import data_utils
 from decompile_tracr.dataset.config import DatasetConfig, load_config
 from decompile_tracr.dataset.logger_config import setup_logger
@@ -25,10 +27,10 @@ process = psutil.Process()
 def compile_batches(
     config: DatasetConfig, 
     max_batches: int = 10**8,
-    filename: str = None,
 ) -> None:
     logger.info(f"Compiling RASP programs found in "
-                f"{config.paths.programs} and saving to {filename}.")
+                f"{config.paths.programs} and saving "
+                f"to {config.paths.compiled_cache}.")
 
     for _ in range(max_batches):
         data = load_next_batch(config.paths.programs)
@@ -45,28 +47,33 @@ def compile_batches(
 def compile_batch(data: list[dict], config: DatasetConfig):
     assert config.compress is None
     data = [
-        compile_datapoint(d, config.max_weights_length) for d in data]
+        compile_datapoint(d, config=config) for d in data]
     data = [d for d in data if d is not None]
-    data = [data_utils.datapoint_to_arrays(d, config) for d in data]
     return data
 
 
-def unsafe_compile_datapoint(x: dict, max_len: int):
+def unsafe_compile_datapoint(x: dict, config: DatasetConfig):
     prog = tokenizer.detokenize(x['tokens'])
     model = compile_(prog)
+    flat, idx = data_utils.flatten_params(model.params, config)
     info = AssembledModelInfo(model=model)
-    flat, idx = data_utils.flatten_params(model.params, max_len)
     x['weights'], x['layer_idx'] = flat, idx
     x['d_model'] = info.d_model
     x['n_heads'] = info.num_heads
     x['categorical_output'] = info.use_unembed_argmax
     x['n_layers'] = info.num_layers
+    x['tokens'] = data_utils.pad_to(
+        np.array(x['tokens']),
+        config.max_rasp_length, 
+        pad_value=vocab.pad_id,
+    )
+    del x['name']
     return x
 
 
-def compile_datapoint(x: dict, max_len: int):
+def compile_datapoint(x: dict, config: DatasetConfig):
     try:
-        return unsafe_compile_datapoint(x, max_len)
+        return unsafe_compile_datapoint(x, config)
     except (NoTokensError, InvalidValueSetError, 
             data_utils.DataError) as e:
         logger.info(f"Failed to compile datapoint. {e}")

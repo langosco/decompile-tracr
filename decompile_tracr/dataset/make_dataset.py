@@ -4,14 +4,15 @@
 # this script is useful for generating a sample dataset using a 
 # single thread.
 
+import os
+os.environ["JAX_PLATFORMS"]  = "cpu"
 import argparse
 import numpy as np
-import jax
 
 from decompile_tracr.dataset import generate
-from decompile_tracr.dataset import tokenize_lib
 from decompile_tracr.dataset import dedupe
-from decompile_tracr.dataset import compile, compile_and_compress
+from decompile_tracr.dataset.compile import compile_batches
+from decompile_tracr.dataset.compress import compress_batches
 from decompile_tracr.dataset import data_utils
 from decompile_tracr.dataset.config import DatasetConfig, load_config
 
@@ -28,13 +29,12 @@ def parse_args():
 
 
 def make_dataset(rng: np.random.Generator, config: DatasetConfig):
-    generate.generate(rng, config=config)
-    dedupe.dedupe(config)
     if config.compress is not None:
-        key = jax.random.key(rng.integers(0, 2**32))
-        compile_and_compress.compile_all(key, config=config)
+        compress_batches(config=config)
     else:
-        compile.compile_batches(config)
+        generate.generate(rng, config=config)
+        dedupe.dedupe(config)
+        compile_batches(config)
     return 
 
 

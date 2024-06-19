@@ -12,7 +12,7 @@ from decompile_tracr.dataset import lib
 from decompile_tracr.dataset.generate import to_filter
 from decompile_tracr.dataset.data_utils import save_json
 from decompile_tracr.dataset import data_utils
-from decompile_tracr.dataset import compile, compile_and_compress
+from decompile_tracr.dataset.compile import compile_batch
 
 
 logger = setup_logger(__name__)
@@ -34,6 +34,7 @@ def tokenize_loop(config: DatasetConfig):
 
 
 def tokenize_lib(config: DatasetConfig, save=True):
+    assert config.compress is None
     logger.info("Begin tokenizing example programs.")
     data = tokenize_loop(config)
     logger.info(f"Done tokenizing {len(data)} example programs.")
@@ -50,25 +51,11 @@ def tokenize_lib(config: DatasetConfig, save=True):
 
 def compile_and_save_to_h5(examples: list[dict], config: DatasetConfig):
     logger.info("Compiling examples.")
-    data = []
-    for x in examples:
-        if not config.compress:
-            x['weights'] = compile.get_weights(
-                x['tokens'], config.max_weights_length)
-            data.append(x)
-        else:
-            key, subkey = jax.random.split(key)
-            compressed = compile_and_compress.process_tokens(
-                subkey, x['tokens'], config)
-            data.extend(compile_and_compress.to_datapoints(
-                compressed, x))
-
+    data = compile_batch(examples, config=config)
     logger.info("Saving to h5.")
-    data = data_utils.dataset_to_arrays(data=data, config=config)
     with h5py.File(config.paths.dataset, 'a') as f:
         f.create_group("lib")
         data_utils.init_h5(f["lib"], data, maxn=100)
-    
     return None
 
 

@@ -34,17 +34,29 @@ class DatasetConfig:
     program_length: Optional[int] = 8
     max_rasp_length: Optional[int] = 256
     max_weights_length: Optional[int] = 65_536
-    max_layers: Optional[int] = 50
+    max_layers: Optional[int] = 128
     data_dir: Optional[Path] = None
     name: Optional[str] = "default"
     compiling_batchsize: Optional[int] = 180  # constrained by cpu mem
     compress: Optional[str] = None  # "svd" or "autoencoder"
     n_augs: Optional[int] = None  # number of augmentations
+    source_data_dir: Optional[Path] = None
 
     def __post_init__(self):
         if self.data_dir is None:
             self.data_dir = default_data_dir()
         self.paths = DatasetPaths(self.data_dir)
+
+        if self.source_data_dir is not None:
+            if self.compress is None:
+                raise ValueError(
+                    "source_data_dir specified but no compression "
+                    "method specified."
+                )
+            self.source_paths = DatasetPaths(self.source_data_dir)
+        else:
+            if self.compress is not None:
+                raise ValueError("No source directory specified.")
 
         if self.compress is not None:
             assert self.compress in ["svd", "autoencoder"]
@@ -75,12 +87,12 @@ _presets = {
         program_length=5,
         max_rasp_length=128,
         max_weights_length=32_768,
-        max_layers=30,
         compiling_batchsize=30,
         name="small",
         compress="svd",
-        n_augs=30,
+        n_augs=0,
         data_dir=base_data_dir / "small_compressed",
+        source_data_dir=base_data_dir / "default",
     ),
 
 
@@ -94,20 +106,5 @@ _presets = {
         name="range_4_8",
         data_dir=base_data_dir / "range",
     ),
-
-
-    "small_compressed_no_augs": DatasetConfig(
-        ndata=10_000,
-        program_length=5,
-        max_rasp_length=128,
-        max_weights_length=32_768,
-        max_layers=30,
-        compiling_batchsize=100,
-        name="small",
-        compress="svd",
-        n_augs=0,
-        data_dir=base_data_dir / "small_compressed_no_augs",
-    ),
-
 }
 

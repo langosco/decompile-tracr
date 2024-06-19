@@ -25,6 +25,7 @@ from decompile_tracr.dataset import compile
 from decompile_tracr.compress import metrics
 from decompile_tracr.compress import autoencoder
 from decompile_tracr.compress.utils import AssembledModelInfo
+from decompile_tracr.dataset.reconstruct import ModelFromParams
 
 
 from metamodels_for_rasp.train import Updater, TrainState
@@ -78,6 +79,13 @@ class CompressedModel:
         )(x, use_dropout=False)
         return output
 
+
+class Compresser:
+    def __init__(self, wenc, wdec):
+        self.wenc = wenc
+        self.wdec = wdec
+        self.original_size, self.hidden_size = wenc.shape
+
     def encode_activations(self, x: ArrayLike):
         return x @ self.wenc
     
@@ -93,23 +101,13 @@ class Residuals:
 
 class ResidualsSampler:
     """Helper class to sample transformer activations."""
-    def __init__(self, model: AssembledTransformerModel):
-        info = AssembledModelInfo(model=model)
+    def __init__(self, model: ModelFromParams):
         self.model = model
-        self.seq_len = info.seq_len
-        self.bos = info.bos
+        self.seq_len = model.seq_len
 
-    def sample_tokens(
-        self, key: jax.random.PRNGKey, batch_size: int = 512):
-        """Utility function to sample a sequence of input tokens.
-        """
-        bos = self.bos * jnp.ones((batch_size, 1), dtype=int)
-        inputs = jax.random.randint(
-            key, (batch_size, self.seq_len-1), 0, 5)
-        inputs = jnp.concatenate([bos, inputs], axis=1)
-        return inputs
+    def sample_tokens(self, key: jax.random.PRNGKey, batch_size: int = 512):
+        return jax.random.randint(key, (batch_size, self.seq_len), 0, 5)
 
-#    @functools.partial(jax.jit, static_argnames=('self','flatten_leading_axes'))
     def sample_residuals(
         self, 
         key: jax.random.PRNGKey,
@@ -117,49 +115,42 @@ class ResidualsSampler:
         flatten_leading_axes: bool = True,
     ) -> Residuals:
         inputs = self.sample_tokens(key, batch_size=batch_size)
-        out = self.model.forward(self.model.params, inputs)
-        res = out.transformer_output.residuals
-        embeddings = out.transformer_output.input_embeddings
+        out = self.model.from_tokens.apply(self.model.params, inputs)
+        res = out.residuals
+        embeddings = out.input_embeddings
         res = einops.rearrange([embeddings, *res], 'l b s d -> b l s d')
         if flatten_leading_axes:
             res = einops.rearrange(res, 'b l s d -> (b l s) d')
         return Residuals(inputs=inputs, residuals=res)
 
 
-def train_svd(
-    key: jax.random.PRNGKey,
-    assembled_model: AssembledTransformerModel,
-    hidden_size: int,
-) -> dict:
+def train_svd(model: ModelFromParams, hidden_size: int):
     """A cheaper method that is ~equivalent to a linear autoencoder."""
-    N = 2**7
-    d_model = AssembledModelInfo(model=assembled_model).d_model
-    residuals_sampler = ResidualsSampler(model=assembled_model)
+    N = 2**6
+    residuals_sampler = ResidualsSampler(model)
     svd = sklearn.decomposition.TruncatedSVD(n_components=hidden_size)
+    key = jax.random.key(0)
     data = residuals_sampler.sample_residuals(key, batch_size=N).residuals
     svd.fit(data)
-    wenc = svd.transform(np.identity(d_model))
+    wenc = svd.transform(np.identity(model.d_model))
     wdec = svd.inverse_transform(np.identity(hidden_size))
     aux = dict(svd=svd)
-    return (CompressedModel(
-        tracr_model=assembled_model, wenc=wenc, wdec=wdec,
-    ), aux)
+    return wenc, wdec, aux
 
 
 def init_autoencoder(
     key: jax.random.PRNGKey, 
-    model: AssembledTransformerModel,
+    model: ModelFromParams,
     hidden_size: Optional[int] = None,
     dtype: Optional[jnp.dtype] = jnp.bfloat16,
-    lr: Optional[float] = 1e-3,
+    lr: Optional[float] = 2e-3,
 ) -> tuple[Updater, TrainState]:
-    d_model = AssembledModelInfo(model=model).d_model
     if hidden_size is None:
-        hidden_size = int(d_model // 1.2)
+        hidden_size = int(model.d_model // 1.2)
 
     ae = autoencoder.Autoencoder(
         hidden_size=hidden_size, 
-        output_size=d_model,
+        output_size=model.d_model,
         use_bias=False,
         dtype=dtype,
         tie_embeddings=False,
@@ -171,7 +162,7 @@ def init_autoencoder(
         model=ae,
         loss_fn=loss_fn,
     )
-    residuals_sampler = ResidualsSampler(model=model)
+    residuals_sampler = ResidualsSampler(model)
     subkey1, subkey2 = jax.random.split(key)
     train_state = updater.init_train_state(
         rng=subkey1, 
@@ -183,14 +174,14 @@ def init_autoencoder(
 
 def train_autoencoder(
     key: jax.random.PRNGKey,
-    assembled_model: AssembledTransformerModel,
-    nsteps: int = 100,
+    model: ModelFromParams,
+    nsteps: int = 50_000,
     **init_args,
-) -> tuple[CompressedModel, dict]:
+):
     BATCH_SIZE = 2**8
     updater, state = init_autoencoder(
-        key, assembled_model, **init_args)
-    residuals_sampler = ResidualsSampler(model=assembled_model)
+        key, model=model, **init_args)
+    residuals_sampler = ResidualsSampler(model)
     log = []
 
     @jax.jit
@@ -208,8 +199,7 @@ def train_autoencoder(
     wenc, wdec = autoencoder.get_wenc_and_wdec(state.params)
     aux = dict(model=updater.model, state=state, log=log, 
                hidden_size=updater.model.hidden_size, original_size=wenc.shape[0])
-    return (CompressedModel(
-        tracr_model=assembled_model, wenc=wenc, wdec=wdec), aux)
+    return wenc, wdec, aux
 
 
 def get_metrics(assembled_model: AssembledTransformerModel, 
@@ -222,7 +212,9 @@ def get_metrics(assembled_model: AssembledTransformerModel,
         metric_fn = metrics.MSE(assembled_model=assembled_model)
         name = "mse"
 
-    residuals_sampler = ResidualsSampler(model=assembled_model)
+    h = AssembledModelInfo(assembled_model).num_heads
+    residuals_sampler = ResidualsSampler(
+        model=ModelFromParams(assembled_model.params, num_heads=h))
 
     test_data = residuals_sampler.sample_residuals(
         jax.random.key(0), batch_size=2**15, flatten_leading_axes=False
@@ -233,10 +225,10 @@ def get_metrics(assembled_model: AssembledTransformerModel,
 
 @jax.jit
 def update_params(
-    model_params: dict, 
+    params: dict, 
     wenc: ArrayLike, 
     wdec: ArrayLike, 
-    w_orth: ArrayLike,
+    w_orth: ArrayLike = None,
 ):
     """Return new set of transformer params that operates on the 
     compressed residual stream."""
@@ -245,28 +237,27 @@ def update_params(
         wdec = w_orth.T @ wdec
 
     new_params = {k: {kk: None for kk in v.keys()} 
-                  for k, v in model_params.items()}
+                  for k, v in params.items()}
 
-    for layer in model_params.keys():
+    for layer in params.keys():
         name = layer.split("/")[-1]
         if "embed" in layer:
             assert name in ['pos_embed', 'token_embed'], name
             new_params[layer]['embeddings'] = (
-                model_params[layer]['embeddings'] @ wenc
-            )
+                params[layer]['embeddings'] @ wenc)
         elif "attn" in layer and name == "linear":
-            new_params[layer]['w'] = model_params[layer]['w'] @ wenc
-            new_params[layer]['b'] = model_params[layer]['b'] @ wenc
+            new_params[layer]['w'] = params[layer]['w'] @ wenc
+            new_params[layer]['b'] = params[layer]['b'] @ wenc
         elif "attn" in layer:
             assert name in ['query', 'key', 'value']
-            new_params[layer]['w'] = wdec @ model_params[layer]['w']
-            new_params[layer]['b'] = model_params[layer]['b']
+            new_params[layer]['w'] = wdec @ params[layer]['w']
+            new_params[layer]['b'] = params[layer]['b']
         elif layer.endswith("mlp/linear_1"):
-            new_params[layer]['w'] = wdec @ model_params[layer]['w']
-            new_params[layer]['b'] = model_params[layer]['b']
+            new_params[layer]['w'] = wdec @ params[layer]['w']
+            new_params[layer]['b'] = params[layer]['b']
         elif layer.endswith("mlp/linear_2"):
-            new_params[layer]['w'] = model_params[layer]['w'] @ wenc
-            new_params[layer]['b'] = model_params[layer]['b'] @ wenc
+            new_params[layer]['w'] = params[layer]['w'] @ wenc
+            new_params[layer]['b'] = params[layer]['b'] @ wenc
         else:
             raise ValueError(f"Unknown layer: {layer}")
     
@@ -299,10 +290,12 @@ if __name__ == "__main__":
 
     # train autoencoder
     key, subkey = jax.random.split(key)
-    train_out = train_autoencoder(
-        subkey, m, nsteps=50_000, lr=2e-3, hidden_size=hidden_size)
-    state, log, model = (
-        train_out['state'], train_out['log'], train_out['model'])
+    info = AssembledModelInfo(model=m)
+    model = ModelFromParams(m.params, num_heads=info.num_heads)
+    wenc, wdec, aux = train_autoencoder(
+        subkey, model, nsteps=50_000, lr=2e-3, hidden_size=hidden_size)
+    state, log, aenc = (
+        aux['state'], aux['log'], aux['model'])
 
     plt.plot([l["train/loss"] for l in log])
     plt.yscale('log')
@@ -316,11 +309,11 @@ if __name__ == "__main__":
     unembed = metrics.Unembed(assembled_model=m)
     decode = metrics.Decode(assembled_model=m)
 
-    residuals_sampler = ResidualsSampler(model=m)
+    residuals_sampler = ResidualsSampler(model=model)
     key, subkey = jax.random.split(key)
     test_data = residuals_sampler.sample_residuals(
         subkey, batch_size=2**12, flatten_leading_axes=False)
-    decoded = model.apply({'params': state.params}, test_data.residuals)
+    decoded = aenc.apply({'params': state.params}, test_data.residuals)
     decoded = np.array(decoded, dtype=np.float32)
 
     print("Acc: ", accuracy(test_data.residuals[:, -1], decoded[:, -1]))

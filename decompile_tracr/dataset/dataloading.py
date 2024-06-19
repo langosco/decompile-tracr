@@ -27,6 +27,12 @@ class DataLoader:
         max_datapoints: Optional[int] = -1,
     ):
         with h5py.File(loadfile, "r") as f:
+            if group not in f:
+                raise ValueError(f"Group {group} not found in {loadfile}")
+            elif "tokens" not in f[f"{group}"]:
+                raise ValueError(f"Dataset {loadfile}/{group} "
+                                 "has no 'tokens' key.")
+
             n = f[f"{group}/tokens"].shape[0]
             self.shape = {k: v.shape for k, v in f[group].items()}
             _check_dataset_shapes(f[group], n)
