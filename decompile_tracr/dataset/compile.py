@@ -67,7 +67,6 @@ def unsafe_compile_datapoint(x: dict, config: DatasetConfig):
         config.max_rasp_length, 
         pad_value=vocab.pad_id,
     )
-    del x['name']
     return x
 
 

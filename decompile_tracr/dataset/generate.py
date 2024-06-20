@@ -52,7 +52,6 @@ def sample_loop(rng, config: DatasetConfig, disable_tqdm=False):
             continue
 
         data.append({
-            "name": config.name,
             "n_sops": program.annotations['length'],  # nr of sops
             "tokens": tokens,
             "n_layers": tokens.count(vocab.eol_id),

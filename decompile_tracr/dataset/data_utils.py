@@ -167,63 +167,22 @@ def pad_to(x: np.ndarray, max_len: int, pad_value: int = 0):
 
 
 # Data generation and json utils
-def load_batches(
-    loaddir: Path,
-    max_data: Optional[int] = None,
-    max_files: Optional[int] = None,
-    return_filenames: bool = False,
-) -> list[dict]:
-    """Load all json files in loaddir and merge into a single list. 
-    """
+def load_batches(loaddir: Path) -> list[dict]:
+    """Load all json files in loaddir and return in a single list."""
     data = []
-    files_loaded = []
-    t = time.time()
     for entry in os.scandir(loaddir):
         if entry.name.endswith(".json"):
             batch = load_json(entry.path)
             data.extend(batch)
-            files_loaded.append(entry.name)
         
-        if max_data is not None and len(data) >= max_data:
-            logger.info(f"load_batches: Loaded "
-                        f"{len(data)} >= {max_data} datapoints. Stopping "
-                        f"and truncating to {max_data} datapoints. "
-                        f"({time.time() - t:.2f}s)")
-            data = data[:max_data]
-            break
-        
-        if max_files is not None and len(files_loaded) >= max_files:
-            logger.info(f"load_batches: Loaded {len(files_loaded)} files. "
-                        f"Stopping. ({time.time() - t:.2f}s).")
-            break
-
     if len(data) == 0:
-        raise FileNotFoundError(f"load_batches: No files found in {loaddir}.")
-    elif max_data is not None and len(data) < max_data:
-        logger.warning(f"load_batches: Loaded {len(data)} < {max_data} "
-                       f"datapoints. {time.time() - t:.2f}s")
-
-    if return_filenames:
-        return data, files_loaded
-    else:
-        return data
+        raise FileNotFoundError(f"No json files found in {loaddir}.")
+    return data
 
 
 def load_json(filename: str) -> list[dict]:
     with open(filename, "r") as f:
         return json.load(f)
-
-
-def load_batches_from_subdirs(
-    loaddir: Path,
-    max_data_per_subdir: Optional[int] = None,
-) -> list[dict]:
-    """Load all json files in loaddir/subdirs and merge into a single list."""
-    subdirs = list(loaddir.iterdir())
-    subdirs = [x for x in subdirs if x.is_dir()]
-    data = [load_batches(d, max_data=max_data_per_subdir) for d in subdirs]
-    data = [x for ds in data for x in ds]
-    return data
 
 
 def batched(iterable, n):

@@ -21,33 +21,20 @@ def dedupe(config: DatasetConfig) -> list[dict]:
     data = data_utils.load_batches(config.paths.programs_cache)
     reference = tokenize_lib(config, save=False)
     if savedir.exists():
-        previously_deduped = data_utils.load_batches_from_subdirs(savedir)
+        previously_deduped = data_utils.load_batches(savedir)
         reference.extend(previously_deduped)
         prev_len = len(previously_deduped)
         if prev_len > 0:
             logger.info(f"(dedupe.py) Found existing data in {savedir}. "
                         f"Loaded {prev_len} existing programs.")
     deduped = _dedupe(data, reference=reference)
-    save_deduped(deduped, config)
+
+    for batch in data_utils.batched(deduped, config.compiling_batchsize):
+        data_utils.save_json(
+            batch,
+            savedir=config.paths.programs
+        )
     return deduped
-
-
-def save_deduped(
-    deduped: list[dict],
-    config: DatasetConfig,
-) -> None:
-    """Split data by name and save to data/programs/{name}."""
-    deduped_by_name = defaultdict(list)
-    for x in deduped:
-        deduped_by_name[x['name']].append(x)
-    
-    logger.info(f"Splitting data by name: {list(deduped_by_name.keys())}")
-    for name, data in deduped_by_name.items():
-        for batch in data_utils.batched(data, config.compiling_batchsize):
-            data_utils.save_json(
-                batch,
-                savedir=config.paths.programs / name
-            )
 
 
 def _dedupe(data: list[dict], reference: Optional[list[dict]] = None,

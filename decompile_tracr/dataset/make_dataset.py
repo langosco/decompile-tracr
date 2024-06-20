@@ -29,12 +29,12 @@ def parse_args():
 
 
 def make_dataset(rng: np.random.Generator, config: DatasetConfig):
-    if config.compress is not None:
-        compress_batches(config=config)
-    else:
+    if config.compress is None:
         generate.generate(rng, config=config)
         dedupe.dedupe(config)
         compile_batches(config)
+    else:
+        compress_batches(config=config)
     return 
 
 

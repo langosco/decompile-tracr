@@ -11,7 +11,7 @@ from decompile_tracr.compress.utils import AssembledModelInfo
 from decompile_tracr.dataset.reconstruct import ModelFromParams
 
 rng = np.random.default_rng(0)
-HIDDEN_SIZE = 25
+HIDDEN_SIZE = 15
 
 @pytest.fixture(scope='module')
 def x() -> AssembledModelInfo:

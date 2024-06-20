@@ -36,7 +36,6 @@ class DatasetConfig:
     max_weights_length: Optional[int] = 65_536
     max_layers: Optional[int] = 128
     data_dir: Optional[Path] = None
-    name: Optional[str] = "default"
     compiling_batchsize: Optional[int] = 180  # constrained by cpu mem
     compress: Optional[str] = None  # "svd" or "autoencoder"
     n_augs: Optional[int] = None  # number of augmentations
@@ -88,7 +87,6 @@ _presets = {
         max_rasp_length=128,
         max_weights_length=32_768,
         compiling_batchsize=30,
-        name="small",
         compress="svd",
         n_augs=0,
         data_dir=base_data_dir / "small_compressed",
@@ -103,7 +101,6 @@ _presets = {
         max_weights_length=65_536,
         max_layers=50,
         compiling_batchsize=180,
-        name="range_4_8",
         data_dir=base_data_dir / "range",
     ),
 }

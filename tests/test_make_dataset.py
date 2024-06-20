@@ -26,7 +26,6 @@ def dataset_config():
         ndata=50,
         program_length=5,
         data_dir=default.parent / ".tests_cache",
-        name='testing_make_dataset',
 #        compress="svd",
 #        n_augs=0,
     )
@@ -54,7 +53,7 @@ def test_deduplication(make_test_data):
 def test_tokenization(dataset_config, make_test_data):
     """De-tokenize, then re-tokenize. Ensure that the re-tokenized
     program is the same as the original."""
-    data = data_utils.load_batches_from_subdirs(dataset_config.paths.programs)
+    data = data_utils.load_batches(dataset_config.paths.programs)
     for x in data:
         program = tokenizer.detokenize(x['tokens'])
         retokenized = tokenizer.tokenize(program)
