@@ -39,7 +39,7 @@ def merge_h5(
     if len(source_files) == 0:
         raise FileNotFoundError(f"No h5 files found in {source_dir}.")
     
-    with h5py.File(target_file, "w") as target:
+    with h5py.File(target_file, "a") as target:
         for file in source_files:
             with h5py.File(file, "r") as source:
                 if name not in target:
