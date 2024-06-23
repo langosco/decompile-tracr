@@ -21,9 +21,19 @@ from decompile_tracr.dataset import data_utils
 
 rng = np.random.default_rng()
 logger = logger_config.setup_logger(__name__)
-DATASETS = [
-    "default",
+DATASETS = [  # TODO read all existing datasets instead
+    "small",
+    "small_compressed",
 ]
+
+for name in DATASETS:
+    config = load_config(name)
+    if not config.paths.dataset.exists():
+        message = (
+            f"Dataset {config.name} at {config.paths.dataset} "
+            "does not exist. Failing all tests in test_dataset.py"
+        )
+        pytest.skip(reason=message, allow_module_level=True)
 
 
 @pytest.mark.parametrize("dataset_name", DATASETS)
