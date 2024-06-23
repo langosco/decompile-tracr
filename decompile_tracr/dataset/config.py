@@ -34,7 +34,7 @@ class DatasetConfig:
     max_rasp_length: int = 256
     max_weights_length: int = 65_536
     max_layers: int = 128
-    compiling_batchsize: int = 180  # constrained by cpu mem
+    compiling_batchsize: int = 100  # constrained by cpu mem
     compress: str = None  # "svd" or "autoencoder"
     n_augs: int = None  # number of augmentations
     source_data_dir: Path = None
@@ -77,6 +77,24 @@ base_data_dir = default_base_data_dir()
 _presets = {
     "default": DatasetConfig(),
 
+    "small": DatasetConfig(
+        program_length=5,
+        max_rasp_length=128,
+        max_weights_length=32_768,
+        compiling_batchsize=100,
+        name="small",
+    ),
+
+    "range": DatasetConfig(
+        ndata=1_000,
+        program_length=[4,5,6,7,8],
+        max_rasp_length=128,
+        max_weights_length=65_536,
+        max_layers=50,
+        compiling_batchsize=180,
+        name="range",
+    ),
+
     "compressed": DatasetConfig(
         compiling_batchsize=20,
         compress="orthogonal",
@@ -93,19 +111,8 @@ _presets = {
         compiling_batchsize=30,
         compress="svd",
         n_augs=0,
-        source_data_dir=base_data_dir / "default",
+        source_data_dir=base_data_dir / "small",
         name="small_compressed",
-    ),
-
-
-    "range": DatasetConfig(
-        ndata=1_000,
-        program_length=[4,5,6,7,8],
-        max_rasp_length=128,
-        max_weights_length=65_536,
-        max_layers=50,
-        compiling_batchsize=180,
-        name="range",
     ),
 }
 

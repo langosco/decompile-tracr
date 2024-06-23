@@ -24,6 +24,7 @@ def parse_args():
     parser.add_argument('--make_test_splits', action='store_true')
     parser.add_argument('--config', type=str, default=None,
                         help="Name of config file.")
+    parser.add_argument('--only_merge', action='store_true')
     return parser.parse_args()
 
 
@@ -49,9 +50,12 @@ if __name__ == "__main__":
     if args.ndata is not None:
         config.ndata = args.ndata
     
-    make_dataset(rng, config)
-    merge(config)
-    data_utils.add_ids(dataset=config.paths.dataset)
+    if not args.only_merge:
+        make_dataset(rng, config)
+        merge(config)
+        data_utils.add_ids(dataset=config.paths.dataset)
+    else:
+        merge(config)
 
     if args.make_test_splits:
         data_utils.make_test_splits(dataset=config.paths.dataset)
