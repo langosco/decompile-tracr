@@ -38,6 +38,7 @@ def make_test_data(dataset_config):
     shutil.rmtree(base_dir, ignore_errors=True)
     make_dataset(rng, config=dataset_config)
     merge(dataset_config)
+    data_utils.add_ids(dataset_config.paths.dataset)
 
 
 def test_sampling(dataset_config, make_test_data):
@@ -98,7 +99,7 @@ def test_unflattening(dataset_config, make_test_data):
 def test_datapoint_attributes(dataset_config):
     KEYS = set([
         'categorical_output', 'd_model', 'layer_idx', 'n_heads', 
-        'n_layers', 'n_sops', 'tokens', 'weights',
+        'n_layers', 'n_sops', 'tokens', 'weights', 'ids',
     ])
     data = load_dataset(dataset_config.paths.dataset, end=0)
     actual_keys = set(data.keys())

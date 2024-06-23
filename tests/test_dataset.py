@@ -141,7 +141,7 @@ def test_unflatten(dataset_name: str):
 def test_datapoint_attributes(dataset_name: str):
     KEYS = set([
         'categorical_output', 'd_model', 'layer_idx', 'n_heads', 
-        'n_layers', 'n_sops', 'tokens', 'weights',
+        'n_layers', 'n_sops', 'tokens', 'weights', 'ids',
     ])
     config = load_config(dataset_name)
     data = load_dataset(config.paths.dataset, end=0)
