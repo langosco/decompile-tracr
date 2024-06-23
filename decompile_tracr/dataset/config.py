@@ -6,7 +6,7 @@ from decompile_tracr.globals import hpc_storage_dir
 from decompile_tracr.globals import module_path
 
 
-def default_data_dir() -> Path:
+def default_base_data_dir() -> Path:
     if on_cluster:
         data_dir = hpc_storage_dir / "lauro/rasp-data/"
     else:
@@ -18,9 +18,7 @@ class DatasetPaths:
     """Set up paths for the dataset and cache.
     Pipeline: .cache/programs -> programs -> .cache/compiled -> dataset.h5
     """
-    def __init__(self, data_dir: Optional[str | Path] = None):
-        if data_dir is None:
-            data_dir = default_data_dir()
+    def __init__(self, data_dir: Path | str):
         self.data_dir = Path(data_dir)
         self.programs_cache  = data_dir / ".cache/programs"
         self.compiled_cache  = data_dir / ".cache/compiled"
@@ -30,20 +28,20 @@ class DatasetPaths:
 
 @chex.dataclass
 class DatasetConfig:
+    base_data_dir: Path = default_base_data_dir()
     ndata: int = 100
-    program_length: Optional[int] = 8
-    max_rasp_length: Optional[int] = 256
-    max_weights_length: Optional[int] = 65_536
-    max_layers: Optional[int] = 128
-    data_dir: Optional[Path] = None
-    compiling_batchsize: Optional[int] = 180  # constrained by cpu mem
-    compress: Optional[str] = None  # "svd" or "autoencoder"
-    n_augs: Optional[int] = None  # number of augmentations
-    source_data_dir: Optional[Path] = None
+    program_length: int = 8
+    max_rasp_length: int = 256
+    max_weights_length: int = 65_536
+    max_layers: int = 128
+    compiling_batchsize: int = 180  # constrained by cpu mem
+    compress: str = None  # "svd" or "autoencoder"
+    n_augs: int = None  # number of augmentations
+    source_data_dir: Path = None
+    name: str = "default"
 
     def __post_init__(self):
-        if self.data_dir is None:
-            self.data_dir = default_data_dir()
+        self.data_dir = self.base_data_dir / self.name
         self.paths = DatasetPaths(self.data_dir)
 
         if self.source_data_dir is not None:
@@ -58,7 +56,7 @@ class DatasetConfig:
                 raise ValueError("No source directory specified.")
 
         if self.compress is not None:
-            assert self.compress in ["svd", "autoencoder"]
+            assert self.compress in ["svd", "autoencoder", "orthogonal"]
             assert self.n_augs is not None, (
                 "Number of augmentations must be set.")
         else:
@@ -73,13 +71,19 @@ def load_config(name: Optional[str] = None) -> DatasetConfig:
     return _presets[name]
 
 
-base_data_dir = default_data_dir()
+base_data_dir = default_base_data_dir()
 
+# TODO: instead of specifying name twice, do something better
 _presets = {
-    "default": DatasetConfig(
-        data_dir=base_data_dir / "default",
-    ),
+    "default": DatasetConfig(),
 
+    "compressed": DatasetConfig(
+        compiling_batchsize=20,
+        compress="orthogonal",
+        n_augs=0,
+        source_data_dir=base_data_dir / "default",
+        name="compressed",
+    ),
 
     "small_compressed": DatasetConfig(
         ndata=10_000,
@@ -89,8 +93,8 @@ _presets = {
         compiling_batchsize=30,
         compress="svd",
         n_augs=0,
-        data_dir=base_data_dir / "small_compressed",
         source_data_dir=base_data_dir / "default",
+        name="small_compressed",
     ),
 
 
@@ -101,7 +105,7 @@ _presets = {
         max_weights_length=65_536,
         max_layers=50,
         compiling_batchsize=180,
-        data_dir=base_data_dir / "range",
+        name="range",
     ),
 }
 

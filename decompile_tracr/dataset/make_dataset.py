@@ -22,7 +22,6 @@ def parse_args():
     parser.add_argument('--ndata', type=int, default=None)
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--make_test_splits', action='store_true')
-    parser.add_argument('--only_merge', action='store_true')
     parser.add_argument('--config', type=str, default=None,
                         help="Name of config file.")
     return parser.parse_args()
@@ -38,10 +37,8 @@ def make_dataset(rng: np.random.Generator, config: DatasetConfig):
     return 
 
 
-def merge(config: DatasetConfig, make_test_splits: bool = False):
+def merge(config: DatasetConfig):
     data_utils.merge_h5(config)
-    if make_test_splits:
-        data_utils.make_test_splits(dataset=config.paths.dataset)
 
 
 if __name__ == "__main__":
@@ -51,7 +48,10 @@ if __name__ == "__main__":
     config = load_config(args.config)
     if args.ndata is not None:
         config.ndata = args.ndata
+    
+    make_dataset(rng, config)
+    merge(config)
+    data_utils.add_ids(dataset=config.paths.dataset)
 
-    if not args.only_merge:
-        make_dataset(rng, config)
-    merge(config, make_test_splits=args.make_test_splits)
+    if args.make_test_splits:
+        data_utils.make_test_splits(dataset=config.paths.dataset)

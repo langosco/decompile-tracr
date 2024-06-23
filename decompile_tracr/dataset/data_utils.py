@@ -48,7 +48,18 @@ def merge_h5(
                 else:
                     append_h5(target[name], source)
             os.remove(file)
+        
     logger.info(f"Merged {len(source_files)} files.")
+
+
+def add_ids(dataset: Path) -> None:
+    with h5py.File(dataset, "r+") as f:
+        groups = set.intersection(set(f.keys()), {"train", "val", "test"})
+        for group in groups:
+            if "ids" in f[group]:
+                del f[group]["ids"]
+            f[group].create_dataset(
+                name="ids", data=np.arange(len(f[group]["tokens"])))
 
 
 def make_test_splits(dataset: Path) -> None:
@@ -76,9 +87,6 @@ def init_h5(f: h5py.File, data: dict, maxn: int = 10**7):
 def append_h5(f: h5py.File, data: dict):
     """Write dict to HDF5 datasets. Assume datasets corresponding
     to the dict keys already exist and append to them."""
-    assert set(f.keys()) == set(data.keys()), (
-        f"Keys in existing HDF5 file {set(f.keys())} do not match "
-        f"keys in data {set(data.keys())}.")
     for k, v in data.items():
         f[k].resize((f[k].shape[0] + v.shape[0]), axis=0)
         f[k][-v.shape[0]:] = v
@@ -94,10 +102,9 @@ def flatten_params(params: dict, config: DatasetConfig
     sizes = [len(v) for v in flat]
     flat = np.concatenate(flat, dtype=NUMPY_DTYPE)
     maxw = config.max_weights_length
-    pad_value = 0.05 if not config.compress else 0
     if len(flat) > maxw:
         raise DataError(f"Too many params (> {maxw})")
-    flat = pad_to(np.array(flat), maxw, pad_value)
+    flat = pad_to(np.array(flat), maxw, 0.1)
 
     if len(sizes) > config.max_layers:
         raise DataError(f"Too many layers (> {config.max_layers})")
@@ -220,7 +227,8 @@ def save_h5(
     rng: np.random.Generator = None,
 ) -> None:
     if len(data) == 0:
-        raise ValueError("data should be non-empty.")
+        logger.warning("Got empty list - no data to save.")
+        return None
     os.makedirs(savedir, exist_ok=True)
     savepath = savedir / (get_filename(rng) + ".h5")
     logger.info(f"Saving {len(data)} "
@@ -285,6 +293,7 @@ def release_lock(lockfile: Path | str) -> None:
 class Lock:
     def __init__(self, lockfile: Path | str):
         self.lockfile = lockfile
+        os.makedirs(Path(lockfile).parent, exist_ok=True)
 
     def __enter__(self):
         acquire_lock(self.lockfile)

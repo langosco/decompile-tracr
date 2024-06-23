@@ -92,22 +92,23 @@ class DataLoader:
 
 def load_dataset(
     loadfile: Path = default_dataset,
-    ndata: int = -1,
     group: str = "train",
+    start: int = 0,
+    end: int = -1,
 ) -> dict[str, np.ndarray]:
     """just load the dang dataset"""
     if not loadfile.exists():
         raise FileNotFoundError(f"File {loadfile} not found.")
     with h5py.File(loadfile, "r") as f:
-        _check_dataset_shapes(f[group], ndata)
-        data = {k: v[:ndata] for k, v in f[group].items()}
+        _check_dataset_shapes(f[group], end)
+        data = {k: v[start:end] for k, v in f[group].items()}
     return data
 
 
 def _check_dataset_shapes(g: h5py.Group, ndata: int):
     n = g["tokens"].shape[0]
     assert ndata == -1 or n >= ndata, (
-        f"Expected at least {ndata} datapoints, got {n}")
+        f"Got ndata={ndata}, but dataset has fewer datapoints ({n}).")
     for k, v in g.items():
         assert v.shape[0] == n, (
             f"len(tokens) = {n}, but len({k}) = {v.shape[0]}")

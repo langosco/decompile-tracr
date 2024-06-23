@@ -10,7 +10,7 @@ from decompile_tracr.dataset.dataloading import load_dataset
 from decompile_tracr.dataset.reconstruct import ModelFromParams
 from decompile_tracr.dataset.make_dataset import make_dataset, merge
 from decompile_tracr.dataset.config import DatasetConfig
-from decompile_tracr.dataset.config import default_data_dir
+from decompile_tracr.dataset.config import default_base_data_dir
 from decompile_tracr.dataset.compile import compile_
 from decompile_tracr.compress.metrics import Embed, Unembed
 from decompile_tracr.compress.utils import AssembledModelInfo
@@ -21,11 +21,11 @@ rng = np.random.default_rng()
 
 @pytest.fixture(scope="module")
 def dataset_config():
-    default = default_data_dir()
+    default = default_base_data_dir()
     config = DatasetConfig(
+        base_data_dir=default / ".tests_cache",
         ndata=50,
         program_length=5,
-        data_dir=default.parent / ".tests_cache",
 #        compress="svd",
 #        n_augs=0,
     )
@@ -36,9 +36,8 @@ def dataset_config():
 def make_test_data(dataset_config):
     base_dir = dataset_config.paths.data_dir
     shutil.rmtree(base_dir, ignore_errors=True)
-    os.makedirs(base_dir)
     make_dataset(rng, config=dataset_config)
-    merge(dataset_config, make_test_splits=False)
+    merge(dataset_config)
 
 
 def test_sampling(dataset_config, make_test_data):
@@ -101,7 +100,7 @@ def test_datapoint_attributes(dataset_config):
         'categorical_output', 'd_model', 'layer_idx', 'n_heads', 
         'n_layers', 'n_sops', 'tokens', 'weights',
     ])
-    data = load_dataset(dataset_config.paths.dataset, ndata=0)
-    assert set(data.keys()) == KEYS, (
-        f"Expected keys {KEYS}, got {set(data.keys())}."
-    )
+    data = load_dataset(dataset_config.paths.dataset, end=0)
+    actual_keys = set(data.keys())
+    assert actual_keys >= KEYS, (
+        f"Missing keys {KEYS - actual_keys} in dataset.")    

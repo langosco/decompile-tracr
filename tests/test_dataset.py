@@ -9,9 +9,7 @@ from decompile_tracr.dataset.config import load_config, DatasetConfig
 from decompile_tracr.dataset import logger_config
 from decompile_tracr.dataset.dataloading import load_dataset
 from decompile_tracr.dataset.reconstruct import ModelFromParams
-from decompile_tracr.dataset.make_dataset import make_dataset, merge
 from decompile_tracr.dataset.config import DatasetConfig
-from decompile_tracr.dataset.config import default_data_dir
 from decompile_tracr.dataset.compile import compile_
 from decompile_tracr.compress.metrics import Embed, Unembed
 from decompile_tracr.compress.utils import AssembledModelInfo
@@ -106,7 +104,7 @@ def test_unflatten(dataset_name: str):
     Then check outputs of the reconstructed model.
     """
     config = load_config(dataset_name)
-    data = load_dataset(config.paths.dataset, ndata=5)
+    data = load_dataset(config.paths.dataset, end=5)
     for i, w in enumerate(data['weights']):
         x = {k: v[i] for k, v in data.items()}
         params = data_utils.unflatten_params(
@@ -146,10 +144,26 @@ def test_datapoint_attributes(dataset_name: str):
         'n_layers', 'n_sops', 'tokens', 'weights',
     ])
     config = load_config(dataset_name)
-    data = load_dataset(config.paths.dataset, ndata=0)
-    assert set(data.keys()) == KEYS, (
-        f"Expected keys {KEYS}, got {set(data.keys())}."
-    )
+    data = load_dataset(config.paths.dataset, end=0)
+    actual_keys = set(data.keys())
+    assert actual_keys >= KEYS, (
+        f"Missing keys {KEYS - actual_keys} in dataset.")    
+    assert actual_keys <= KEYS, (
+        f"Unexpected keys {actual_keys - KEYS} in dataset.")
+
+
+@pytest.mark.parametrize("dataset_name", DATASETS)
+def test_shapes(dataset_name: str):
+    config = load_config(dataset_name)
+    with h5py.File(config.paths.dataset, "r") as f:
+        groups = set.intersection(set(f.keys()), {"train", "val", "test"})
+        for group in groups:
+            n = f[f"{group}/tokens"].shape[0]
+            for k, v in f[group].items():
+                assert v.shape[0] == n, (
+                    f"len({group}/tokens) = {n}, but "
+                    f"len({group}/{k}) = {v.shape[0]}"
+                )
 
 
 def _load_tokens(config: DatasetConfig, n: int = -1):

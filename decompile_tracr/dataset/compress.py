@@ -4,13 +4,15 @@ os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 import argparse
 import gc
 import psutil
+from pathlib import Path
 
 import jax
+from jax.random import PRNGKey
 import numpy as np
 import h5py
 
 from decompile_tracr.dataset import data_utils
-from decompile_tracr.dataset.dataloading import DataLoader
+from decompile_tracr.dataset.dataloading import load_dataset
 from decompile_tracr.dataset.config import DatasetConfig, load_config
 from decompile_tracr.dataset.logger_config import setup_logger
 from decompile_tracr.compress import compress
@@ -29,56 +31,83 @@ process = psutil.Process()
 
 
 def compress_batches(config: DatasetConfig) -> None:
-    # TODO: enable parallelism
     logger.info(f"Compressing RASP programs found in "
                 f"{config.source_paths.dataset} and saving "
                 f"to {config.paths.compiled_cache}.")
-    
-    with h5py.File(config.source_paths.dataset, "r") as f:
-        groups = list(f.keys())
 
+    name = f"start_idx_compression_{config.name}"
+    start, end = 0, config.compiling_batchsize
+    while end < ndata(config.source_paths.dataset):
+        with data_utils.Lock(config.source_paths.data_dir / "dataset.lock"):
+            with h5py.File(config.source_paths.dataset, "r+") as f:
+                if not name in f:
+                    f.create_dataset(name, data=end)
+                else:
+                    start = f[name][()]
+                    end = start + config.compiling_batchsize
+                    end = min(end, ndata(config.source_paths.dataset))
+                    f[name][()] = end
+
+        load_and_compress_batch(config, start, end)
+
+
+def load_and_compress_batch(config: DatasetConfig, start: int, end: int
+                            ) -> None:
+    with h5py.File(config.source_paths.dataset, "r") as f:
+        groups = set.intersection(set(f.keys()), {"train", "val", "test"})
+
+    key = jax.random.key(0)
     for group in groups:
-        dataloader = DataLoader(
+        batch = load_dataset(
             loadfile=config.source_paths.dataset,
             group=group,
-            batch_size=config.compiling_batchsize,
+            start=start,
+            end=end,
         )
+        key, subkey = jax.random.split(key)
+        batch = compress_batch(subkey, batch, config=config)
+        data_utils.save_h5(batch, config.paths.compiled_cache)
+        del batch
+        jax.clear_caches()
+        gc.collect()
 
-        for batch in dataloader:
-            batch = compress_batch(batch, config=config)
-            data_utils.save_h5(batch, config.paths.compiled_cache)
-            del batch
-            jax.clear_caches()
-            gc.collect()
 
-
-def compress_batch(batch: dict, config: DatasetConfig) -> dict:
+def compress_batch(key: PRNGKey, batch: dict, config: DatasetConfig) -> dict:
     assert config.compress is not None
     if 'batch_id' in batch:
         del batch['batch_id']
 
+    keys = jax.random.split(key, len(batch['weights']))
     compressed = [
-        compress_datapoint({k: v[i] for k, v in batch.items()}, config)
-        for i in range(len(batch['weights']))
+        compress_datapoint(k, {k: v[i] for k, v in batch.items()}, config)
+        for k, i in zip(keys, range(len(batch['weights'])))
     ]
 
     return [d for d in compressed if d is not None]
 
 
-def compress_datapoint(x: dict, config: DatasetConfig):
+def compress_datapoint(key: PRNGKey, x: dict, config: DatasetConfig):
     try:
-        return unsafe_compress_datapoint(x, config)
+        return unsafe_compress_datapoint(key=key, x=x, config=config)
     except data_utils.DataError as e:
         logger.info(f"Failed to compress datapoint. {e}")
         return None
 
 
-def unsafe_compress_datapoint(x: dict, config: DatasetConfig) -> dict:
+def unsafe_compress_datapoint(key: PRNGKey, x: dict, config: DatasetConfig
+                              ) -> dict:
     params = data_utils.unflatten_params(
         x['weights'], sizes=x['layer_idx'], d_model=x['d_model'])
     model = ModelFromParams(params, num_heads=x['n_heads'])
-    h = int(model.d_model // 1.1)
-    wenc, wdec, aux = compress.train_svd(model=model, hidden_size=h)
+    if config.compress == "svd":
+        h = int(model.d_model // 1.1)
+        wenc, wdec, aux = compress.train_svd(model=model, hidden_size=h)
+    elif config.compress == "autoencoder":
+        raise NotImplementedError
+    elif config.compress == "orthogonal":
+        h = model.d_model
+        orth = jax.random.orthogonal(key, n=h)
+        wenc, wdec = orth, orth.T
     params_compressed = compress.update_params(params, wenc, wdec)
     params_compressed, idx = data_utils.flatten_params(
         params_compressed, config=config)
@@ -89,6 +118,12 @@ def unsafe_compress_datapoint(x: dict, config: DatasetConfig) -> dict:
     out['d_model'] = h
     return out
 
+
+def ndata(dataset: Path | str):
+    with h5py.File(dataset, "r") as f:
+        assert "train/tokens" in f
+        return f["train/tokens"].shape[0]
+    
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Data processing.')
