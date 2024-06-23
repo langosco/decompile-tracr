@@ -6,6 +6,7 @@ import psutil
 import gc
 import jax
 import numpy as np
+import signal
 
 from tracr.compiler import compile_rasp_to_model
 from tracr.rasp import rasp
@@ -18,10 +19,22 @@ from decompile_tracr.dataset import data_utils
 from decompile_tracr.dataset.config import DatasetConfig, load_config
 from decompile_tracr.dataset.logger_config import setup_logger
 from decompile_tracr.compress.utils import AssembledModelInfo
+from decompile_tracr.dataset import SigtermReceivedError
 
 
 logger = setup_logger(__name__)
 process = psutil.Process()
+SIGTERM_RECEIVED = False
+
+
+def handle_sigterm(signum, frame):
+    global SIGTERM_RECEIVED
+    SIGTERM_RECEIVED = True
+    logger.info("Received SIGTERM, performing cleanup...")
+
+
+signal.signal(signal.SIGTERM, handle_sigterm)
+
 
 
 def compile_batches(
@@ -39,9 +52,14 @@ def compile_batches(
 
         data = compile_batch(data, config=config)
         data_utils.save_h5(data, config.paths.compiled_cache)
+
+        if SIGTERM_RECEIVED:
+            break
+
         del data
         jax.clear_caches()
         gc.collect()
+
 
 
 def compile_batch(data: list[dict], config: DatasetConfig):
@@ -133,7 +151,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Data processing.')
     parser.add_argument('--delete_existing', action='store_true',
                         help="delete current data on startup.")
-    parser.add_argument('--max_batches', type=int, default=None,
+    parser.add_argument('--max_batches', type=int, default=10**8,
                         help="maximum number of batches to compile.")
     parser.add_argument('--config', type=str, default=None,
                         help="Name of config file.")

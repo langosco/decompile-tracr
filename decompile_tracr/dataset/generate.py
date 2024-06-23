@@ -3,7 +3,6 @@ os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 import numpy as np
 from tqdm import tqdm
 import argparse
-import psutil
 
 from tracr.compiler.basis_inference import InvalidValueSetError
 from tracr.compiler.craft_model_to_transformer import NoTokensError
@@ -20,26 +19,30 @@ from decompile_tracr.tokenize.str_to_rasp import split_list
 
 
 logger = setup_logger(__name__)
-process = psutil.Process()
 VERBOSE = False
 
 
-def generate(
-    rng: np.random.Generator, 
+def generate_batches(
+    rng: np.random.Generator,
     config: DatasetConfig,
+):
+    logger.info("Begin sampling RASP programs.")
+    bs = min(config.ndata, 1000)
+    nbatches = np.ceil(config.ndata / bs).astype(int)
+    for i in range(nbatches):
+        if i == nbatches - 1:
+            bs = config.ndata - i * bs
+        generate_batch(rng, bs, config=config, disable_tqdm=disable_tqdm)
+
+
+def generate_batch(
+    rng, 
+    batch_size: int,
+    config: DatasetConfig, 
     disable_tqdm: bool = False,
 ) -> list[dict]:
-    logger.info("Begin sampling RASP programs.")
-    data = sample_loop(rng, config, disable_tqdm=disable_tqdm)
-    logger.info(f"Done sampling {len(data)} RASP programs.")
-    save_json(rng=rng, data=data, savedir=config.paths.programs_cache)
-    return data
-
-
-def sample_loop(rng, config: DatasetConfig, disable_tqdm=False):
     data = []
-    for i in tqdm(range(config.ndata), disable=disable_tqdm, 
-                  desc="Sampling"):
+    for i in tqdm(range(batch_size), disable=disable_tqdm, desc="Sampling"):
         program = sample_rasp(rng, config.program_length)
         try:
             tokens = tokenizer.tokenize(program)
@@ -57,10 +60,7 @@ def sample_loop(rng, config: DatasetConfig, disable_tqdm=False):
             "n_layers": tokens.count(vocab.eol_id),
         })
 
-        if i % 100 == 0 and VERBOSE:
-            mem_info = process.memory_full_info()
-            logger.info(f"Memory usage: {mem_info.uss / 1024**2:.2f} "
-                        f"MB ({len(data)} programs).")
+    save_json(rng=rng, data=data, savedir=config.paths.programs_cache)
     return data
 
 
@@ -120,16 +120,4 @@ if __name__ == "__main__":
     if args.ndata is not None:
         config.ndata = args.ndata
 
-    data = generate(rng, config, disable_tqdm=args.disable_tqdm)
-
-    lengths = [x["n_sops"] for x in data]
-    n_tokens_per_program = [len(x["tokens"]) for x in data]
-
-    logger.info(f"Min and max program length: {np.min(lengths)}, "
-                f"{np.max(lengths)}")
-    logger.info(f"Average program length: {np.mean(lengths)}")
-    logger.info(f"Average number of tokens per program: "
-                f"{np.mean(n_tokens_per_program)}")
-    logger.info(f"Min and max number of tokens per program: "
-                f"{np.min(n_tokens_per_program)}, "
-                f"{np.max(n_tokens_per_program)}")
+    generate_batches(rng, config, disable_tqdm=args.disable_tqdm)

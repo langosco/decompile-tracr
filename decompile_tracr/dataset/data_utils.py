@@ -59,7 +59,10 @@ def add_ids(dataset: Path) -> None:
             if "ids" in f[group]:
                 del f[group]["ids"]
             f[group].create_dataset(
-                name="ids", data=np.arange(len(f[group]["tokens"])))
+                name="ids", 
+                data=np.arange(len(f[group]["tokens"])),
+                maxshape=(None,),
+            )
 
 
 def make_test_splits(dataset: Path) -> None:
