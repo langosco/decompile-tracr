@@ -52,10 +52,9 @@ if __name__ == "__main__":
     
     if not args.only_merge:
         make_dataset(rng, config)
-        merge(config)
-        data_utils.add_ids(dataset=config.paths.dataset)
-    else:
-        merge(config)
+
+    merge(config)
+    data_utils.add_ids(dataset=config.paths.dataset)
 
     if args.make_test_splits:
         data_utils.make_test_splits(dataset=config.paths.dataset)

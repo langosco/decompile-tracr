@@ -28,7 +28,7 @@ def generate_batches(
     disable_tqdm: bool = False,
 ):
     logger.info("Begin sampling RASP programs.")
-    bs = min(config.ndata, 1000)
+    bs = min(config.ndata, 100)
     nbatches = np.ceil(config.ndata / bs).astype(int)
     for i in range(nbatches):
         if i == nbatches - 1:

@@ -1,4 +1,5 @@
 import os
+os.environ["JAX_PLATFORMS"] = "cpu"
 from pathlib import Path
 import argparse
 import shutil
@@ -19,21 +20,11 @@ from decompile_tracr.dataset import data_utils
 from decompile_tracr.dataset.config import DatasetConfig, load_config
 from decompile_tracr.dataset.logger_config import setup_logger
 from decompile_tracr.compress.utils import AssembledModelInfo
+from decompile_tracr.dataset import Signals
 
 
 logger = setup_logger(__name__)
 process = psutil.Process()
-SIGTERM_RECEIVED = False
-
-
-def handle_sigterm(signum, frame):
-    global SIGTERM_RECEIVED
-    SIGTERM_RECEIVED = True
-    logger.info("Received SIGTERM, performing cleanup...")
-
-
-signal.signal(signal.SIGTERM, handle_sigterm)
-
 
 
 def compile_batches(
@@ -52,7 +43,7 @@ def compile_batches(
         data = compile_batch(data, config=config)
         data_utils.save_h5(data, config.paths.compiled_cache)
 
-        if SIGTERM_RECEIVED:
+        if Signals.sigterm:
             break
 
         del data

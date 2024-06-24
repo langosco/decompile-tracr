@@ -1,10 +1,10 @@
 import os
-os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
-#os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = 0.1
+os.environ["JAX_PLATFORMS"] = "cpu"
 import argparse
 import gc
 import psutil
 from pathlib import Path
+import signal
 
 import jax
 from jax.random import PRNGKey
@@ -12,6 +12,7 @@ import numpy as np
 import h5py
 
 from decompile_tracr.dataset import data_utils
+from decompile_tracr.dataset import Signals
 from decompile_tracr.dataset.dataloading import load_dataset
 from decompile_tracr.dataset.config import DatasetConfig, load_config
 from decompile_tracr.dataset.logger_config import setup_logger
@@ -49,6 +50,9 @@ def compress_batches(config: DatasetConfig) -> None:
                     f[name][()] = end
 
         load_and_compress_batch(config, start, end)
+
+        if Signals.sigterm:
+            break
 
 
 def load_and_compress_batch(config: DatasetConfig, start: int, end: int

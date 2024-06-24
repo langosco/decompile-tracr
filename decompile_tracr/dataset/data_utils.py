@@ -67,6 +67,9 @@ def add_ids(dataset: Path) -> None:
 
 def make_test_splits(dataset: Path) -> None:
     def _save_split_to_new_group(f: h5py.File, n_split: int, group_name: str):
+        assert group_name not in f
+        assert n_split > 0
+        assert all(n_split < len(v) for v in f["train"].values())
         split = {}
         for k, v in f["train"].items():
             split[k] = v[-n_split:]

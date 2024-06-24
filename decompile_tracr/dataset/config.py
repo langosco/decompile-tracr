@@ -29,7 +29,7 @@ class DatasetPaths:
 @chex.dataclass
 class DatasetConfig:
     base_data_dir: Path = default_base_data_dir()
-    ndata: int = 100
+    ndata: int = 10_000
     program_length: int = 8
     max_rasp_length: int = 256
     max_weights_length: int = 65_536
@@ -78,6 +78,7 @@ _presets = {
     "default": DatasetConfig(),
 
     "small": DatasetConfig(
+        ndata=100,
         program_length=5,
         max_rasp_length=128,
         max_weights_length=32_768,
