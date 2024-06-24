@@ -19,7 +19,6 @@ from decompile_tracr.dataset import data_utils
 from decompile_tracr.dataset.config import DatasetConfig, load_config
 from decompile_tracr.dataset.logger_config import setup_logger
 from decompile_tracr.compress.utils import AssembledModelInfo
-from decompile_tracr.dataset import SigtermReceivedError
 
 
 logger = setup_logger(__name__)

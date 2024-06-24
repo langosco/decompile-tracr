@@ -25,6 +25,7 @@ VERBOSE = False
 def generate_batches(
     rng: np.random.Generator,
     config: DatasetConfig,
+    disable_tqdm: bool = False,
 ):
     logger.info("Begin sampling RASP programs.")
     bs = min(config.ndata, 1000)
