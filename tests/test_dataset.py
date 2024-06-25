@@ -176,6 +176,19 @@ def test_shapes(dataset_name: str):
                 )
 
 
+@pytest.mark.parametrize("dataset_name", DATASETS)
+def test_ids(dataset_name: str):
+    config = load_config(dataset_name)
+    with h5py.File(config.paths.dataset, "r") as f:
+        groups = set.intersection(set(f.keys()), {"train", "val", "test"})
+        for group in groups:
+            ids = f[f"{group}/ids"]
+            assert set(ids) == set(range(len(ids))), (
+                f"Dataset {dataset_name}: ids in {group} are "
+                "not unique or not contiguous."
+            )
+
+
 def _load_tokens(config: DatasetConfig, n: int = -1):
     path = config.paths.dataset
     with h5py.File(path, "r") as f:

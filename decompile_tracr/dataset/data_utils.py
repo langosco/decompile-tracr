@@ -39,9 +39,9 @@ def merge_h5(
     if len(source_files) == 0:
         raise FileNotFoundError(f"No h5 files found in {source_dir}.")
     
-    with h5py.File(target_file, "a") as target:
+    with h5py.File(target_file, "a", libver="latest") as target:
         for file in source_files:
-            with h5py.File(file, "r") as source:
+            with h5py.File(file, "r", libver="latest") as source:
                 if name not in target:
                     target.create_group(name)
                     init_h5(target[name], source)
@@ -53,7 +53,7 @@ def merge_h5(
 
 
 def add_ids(dataset: Path) -> None:
-    with h5py.File(dataset, "r+") as f:
+    with h5py.File(dataset, "r+", libver="latest") as f:
         groups = set.intersection(set(f.keys()), {"train", "val", "test"})
         for group in groups:
             if "ids" in f[group]:
@@ -67,7 +67,7 @@ def add_ids(dataset: Path) -> None:
 
 def make_test_splits(dataset: Path) -> None:
     def _save_split_to_new_group(f: h5py.File, n_split: int, group_name: str):
-        assert group_name not in f
+        assert group_name not in f, f"Group {group_name} already exists."
         assert n_split > 0
         assert all(n_split < len(v) for v in f["train"].values())
         split = {}
@@ -78,7 +78,7 @@ def make_test_splits(dataset: Path) -> None:
         init_h5(f[group_name], split)
 
     split_frac = 0.03
-    with h5py.File(dataset, "r+") as f:
+    with h5py.File(dataset, "r+", libver="latest") as f:
         n_split = int(len(f['train/tokens']) * split_frac)
         _save_split_to_new_group(f, n_split, "val")
         _save_split_to_new_group(f, n_split, "test")
@@ -298,16 +298,15 @@ def release_lock(lockfile: Path | str) -> None:
 
 class Lock:
     def __init__(self, lockfile: Path | str):
-        self.lockfile = lockfile
-        os.makedirs(Path(lockfile).parent, exist_ok=True)
+        self.lockfile = Path(lockfile)
+        self.lockfile.parent.mkdir(exist_ok=True)
 
     def __enter__(self):
         acquire_lock(self.lockfile)
-        return None
+        return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         release_lock(self.lockfile)
-        return None
 
 
 class DataError(Exception):

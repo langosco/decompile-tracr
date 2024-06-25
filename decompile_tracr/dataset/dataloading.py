@@ -26,7 +26,7 @@ class DataLoader:
         process_fn: Optional[callable] = None,
         max_datapoints: Optional[int] = -1,
     ):
-        with h5py.File(loadfile, "r") as f:
+        with h5py.File(loadfile, "r", libver="latest") as f:
             if group not in f:
                 raise ValueError(f"Group {group} not found in {loadfile}")
             elif "tokens" not in f[f"{group}"]:
@@ -71,12 +71,12 @@ class DataLoader:
         """Load data from an HDF5 file and yield it in batches."""
         if not self.loadfile.exists():
             raise FileNotFoundError(f"File {self.loadfile} not found.")
-        with h5py.File(self.loadfile, "r") as f:
+        with h5py.File(self.loadfile, "r", libver="latest") as f:
             n = f[f"{self.group}/tokens"].shape[0]
             _check_dataset_shapes(f[self.group], n)
         
         for i in range(0, self.ndata, self.batch_size):
-            with h5py.File(self.loadfile, "r") as f:
+            with h5py.File(self.loadfile, "r", libver="latest") as f:
                 data = {
                     k: v[i:i+self.batch_size] 
                     for k, v in f[self.group].items()
@@ -99,7 +99,7 @@ def load_dataset(
     """just load the dang dataset"""
     if not loadfile.exists():
         raise FileNotFoundError(f"File {loadfile} not found.")
-    with h5py.File(loadfile, "r") as f:
+    with h5py.File(loadfile, "r", libver="latest") as f:
         _check_dataset_shapes(f[group], end)
         data = {k: v[start:end] for k, v in f[group].items()}
     return data

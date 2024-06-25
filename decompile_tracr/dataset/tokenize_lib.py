@@ -53,7 +53,7 @@ def compile_and_save_to_h5(examples: list[dict], config: DatasetConfig):
     logger.info("Compiling examples.")
     data = compile_batch(examples, config=config)
     logger.info("Saving to h5.")
-    with h5py.File(config.paths.dataset, 'a') as f:
+    with h5py.File(config.paths.dataset, 'a', libver="latest") as f:
         f.create_group("lib")
         data_utils.init_h5(f["lib"], data, maxn=100)
     return None

@@ -97,7 +97,6 @@ def load_next_batch(loaddir: str):
             f.seek(0)
             file_list = [x.rstrip("\n") for x in f.readlines()]
             path = get_next_filename(file_list, loaddir)
-
             f.write(path + "\n")
             f.flush()
 

@@ -4,7 +4,6 @@ import argparse
 import gc
 import psutil
 from pathlib import Path
-import signal
 
 import jax
 from jax.random import PRNGKey
@@ -35,29 +34,36 @@ def compress_batches(config: DatasetConfig) -> None:
     logger.info(f"Compressing RASP programs found in "
                 f"{config.source_paths.dataset} and saving "
                 f"to {config.paths.compiled_cache}.")
-
-    name = f"start_idx_compression_{config.name}"
-    start, end = 0, config.compiling_batchsize
+    end = 0
     while end < ndata(config.source_paths.dataset):
-        with data_utils.Lock(config.source_paths.data_dir / "dataset.lock"):
-            with h5py.File(config.source_paths.dataset, "r+") as f:
-                if not name in f:
-                    f.create_dataset(name, data=end)
-                else:
-                    start = f[name][()]
-                    end = start + config.compiling_batchsize
-                    end = min(end, ndata(config.source_paths.dataset))
-                    f[name][()] = end
-
+        start, end = get_current_idx(config)
         load_and_compress_batch(config, start, end)
-
         if Signals.sigterm:
             break
 
 
+def get_current_idx(config: DatasetConfig) -> int:
+    start, end = 0, config.compiling_batchsize
+    name = f"start_idx_compression_{config.name}"
+    tracker_file = Path(config.source_paths.data_dir) / f"{name}"
+    with data_utils.Lock(config.source_paths.data_dir / "dataset.lock"):
+        if not tracker_file.exists():
+            with open(tracker_file, "w") as f:
+                f.write(str(end))
+        else:
+            with open(tracker_file, "r") as f:
+                start = int(f.read())
+                end = start + config.compiling_batchsize
+                end = min(end, ndata(config.source_paths.dataset))
+            
+            with open(tracker_file, "w") as f:
+                f.write(str(end))
+    return start, end
+
+
 def load_and_compress_batch(config: DatasetConfig, start: int, end: int
                             ) -> None:
-    with h5py.File(config.source_paths.dataset, "r") as f:
+    with h5py.File(config.source_paths.dataset, "r", libver="latest") as f:
         groups = set.intersection(set(f.keys()), {"train", "val", "test"})
 
     key = jax.random.key(0)
@@ -124,7 +130,7 @@ def unsafe_compress_datapoint(key: PRNGKey, x: dict, config: DatasetConfig
 
 
 def ndata(dataset: Path | str):
-    with h5py.File(dataset, "r") as f:
+    with h5py.File(dataset, "r", libver="latest") as f:
         assert "train/tokens" in f
         return f["train/tokens"].shape[0]
     
