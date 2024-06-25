@@ -1,31 +1,24 @@
 #!/bin/bash
 
 trap "kill 0" SIGINT
-set -o errexit
-CONFIG_NAME="range"
-N_PARALLEL=20
+#set -o errexit
 export CUDA_VISIBLE_DEVICES=""
 export JAX_PLATFORMS=cpu
 
-for i in $(seq 1 $N_PARALLEL)
-do
-    python -m decompile_tracr.dataset.generate --disable_tqdm --config $CONFIG_NAME --ndata 100 &
-done
-wait
-echo "Done generating programs"
+CONFIG_NAME="small"
+N_PARALLEL=10
+#TERMSEQ="TERM,30000,KILL"
+TERMSEQ="TERM,1000,KILL"
+
+generate="python -m decompile_tracr.dataset.generate --config $CONFIG_NAME --ndata 99999999999"
+compile="python -m decompile_tracr.dataset.compile --config $CONFIG_NAME"
+compress="python -m decompile_tracr.dataset.compress --config small_compressed"
+
+SEQ=$(seq 1 $N_PARALLEL)
 
 
-python -m decompile_tracr.dataset.dedupe --config $CONFIG_NAME
-
-
-for i in $(seq 1 $N_PARALLEL)
-do
-#    python -m decompile_tracr.dataset.compile_and_compress --config $CONFIG_NAME &
-    python -m decompile_tracr.dataset.compile --config $CONFIG_NAME &
-done
-wait
-echo "Done compiling programs"
-
-
-python -m decompile_tracr.dataset.make_dataset --only_to_h5 --make_test_splits --config $CONFIG_NAME
-echo "Saved dataset to h5."
+parallel -n0 --timeout 3000 --ungroup --termseq $TERMSEQ "$generate" ::: $SEQ
+python -m decompile_tracr.dataset.dedupe --config $CONFIG_NAME  && echo "Deduped programs."
+parallel -n0 --timeout 10000 --ungroup --termseq $TERMSEQ "$compile" ::: $SEQ
+python -m decompile_tracr.dataset.make_dataset --only_merge --config $CONFIG_NAME && echo "Merged dataset."
+parallel -n0 --timeout 10000 --ungroup --termseq $TERMSEQ "$compress" ::: $SEQ
