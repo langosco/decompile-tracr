@@ -35,7 +35,7 @@ def compress_batches(config: DatasetConfig) -> None:
                 f"{config.source_paths.dataset} and saving "
                 f"to {config.paths.compiled_cache}.")
     end = 0
-    while end < ndata(config.source_paths.dataset):
+    while end <= ndata(config.source_paths.dataset):
         start, end = get_current_idx(config)
         load_and_compress_batch(config, start, end)
         if Signals.sigterm:
@@ -58,6 +58,7 @@ def get_current_idx(config: DatasetConfig) -> int:
             
             with open(tracker_file, "w") as f:
                 f.write(str(end))
+    assert start < end
     return start, end
 
 
@@ -76,7 +77,8 @@ def load_and_compress_batch(config: DatasetConfig, start: int, end: int
         )
         key, subkey = jax.random.split(key)
         batch = compress_batch(subkey, batch, config=config)
-        data_utils.save_h5(batch, config.paths.compiled_cache)
+        if not Signals.n_sigterms >= 2:
+            data_utils.save_h5(batch, config.paths.compiled_cache)
         del batch
         jax.clear_caches()
         gc.collect()
