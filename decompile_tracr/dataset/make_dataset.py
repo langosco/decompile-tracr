@@ -38,10 +38,6 @@ def make_dataset(rng: np.random.Generator, config: DatasetConfig):
     return 
 
 
-def merge(config: DatasetConfig):
-    data_utils.merge_h5(config)
-
-
 if __name__ == "__main__":
     args = parse_args()
     rng = np.random.default_rng(args.seed)
@@ -53,7 +49,7 @@ if __name__ == "__main__":
     if not args.only_merge:
         make_dataset(rng, config)
 
-    merge(config)
+    data_utils.merge_h5(config)
     data_utils.add_ids(dataset=config.paths.dataset)
 
     if args.make_test_splits:

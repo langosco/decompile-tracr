@@ -37,7 +37,8 @@ def merge_h5(
     target_file = config.paths.dataset
     source_files = list(source_dir.glob("*.h5"))
     if len(source_files) == 0:
-        raise FileNotFoundError(f"No h5 files found in {source_dir}.")
+        logger.warning(f"No h5 files found in {source_dir}.")
+        return
     
     with h5py.File(target_file, "a", libver="latest") as target:
         for file in source_files:
