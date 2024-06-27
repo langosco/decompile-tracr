@@ -24,6 +24,7 @@ logger = logger_config.setup_logger(__name__)
 DATASETS = [  # TODO read all existing datasets instead
     "small",
     "small_compressed",
+    "test",
 ]
 
 for name in DATASETS:
@@ -91,9 +92,9 @@ def test_tokenization(dataset_name: str):
     config = load_config(dataset_name)
     train, val, test = _load_tokens(config, n=10_000)
     tokens = train
-    if val != []:
+    if len(val) > 0:
         tokens = np.concatenate([train, val])
-    if test != []:
+    if len(test) > 0:
         tokens = np.concatenate([tokens, test])
 
     for x in tokens:
