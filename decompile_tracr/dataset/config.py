@@ -73,11 +73,10 @@ def load_config(name: Optional[str] = None) -> DatasetConfig:
 
 base_data_dir = default_base_data_dir()
 
-# TODO: instead of specifying name twice, do something better
-_presets = {
-    "default": DatasetConfig(),
+_presets_list = [
+    DatasetConfig(),
 
-    "small": DatasetConfig(
+    DatasetConfig(
         ndata=100,
         program_length=5,
         max_rasp_length=128,
@@ -86,7 +85,7 @@ _presets = {
         name="small",
     ),
 
-    "range": DatasetConfig(
+    DatasetConfig(
         ndata=1_000,
         program_length=[4,5,6,7,8],
         max_rasp_length=128,
@@ -96,7 +95,7 @@ _presets = {
         name="range",
     ),
 
-    "compressed": DatasetConfig(
+    DatasetConfig(
         compiling_batchsize=20,
         compress="orthogonal",
         n_augs=0,
@@ -104,7 +103,19 @@ _presets = {
         name="compressed",
     ),
 
-    "small_compressed": DatasetConfig(
+    DatasetConfig(
+        ndata=10_000,
+        program_length=5,
+        max_rasp_length=128,
+        max_weights_length=32_768,
+        compiling_batchsize=30,
+        compress="orthogonal",
+        n_augs=0,
+        source_data_dir=base_data_dir / "small",
+        name="small_scrambled",
+    ),
+
+    DatasetConfig(
         ndata=10_000,
         program_length=5,
         max_rasp_length=128,
@@ -115,5 +126,6 @@ _presets = {
         source_data_dir=base_data_dir / "small",
         name="small_compressed",
     ),
-}
+]
 
+_presets = {config.name: config for config in _presets_list}

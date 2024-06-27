@@ -1,4 +1,3 @@
-import os
 import pytest
 import numpy as np
 import shutil
@@ -8,7 +7,7 @@ from decompile_tracr.tokenize import tokenizer
 from decompile_tracr.dataset import data_utils
 from decompile_tracr.dataset.dataloading import load_dataset
 from decompile_tracr.dataset.reconstruct import ModelFromParams
-from decompile_tracr.dataset.make_dataset import make_dataset, merge
+from decompile_tracr.dataset.make_dataset import make_dataset
 from decompile_tracr.dataset.config import DatasetConfig
 from decompile_tracr.dataset.config import default_base_data_dir
 from decompile_tracr.dataset.compile import compile_
@@ -23,8 +22,8 @@ rng = np.random.default_rng()
 def dataset_config():
     default = default_base_data_dir()
     config = DatasetConfig(
+        name="test",
         base_data_dir=default / ".tests_cache",
-        ndata=50,
         program_length=5,
 #        compress="svd",
 #        n_augs=0,
@@ -36,8 +35,8 @@ def dataset_config():
 def make_test_data(dataset_config):
     base_dir = dataset_config.paths.data_dir
     shutil.rmtree(base_dir, ignore_errors=True)
-    make_dataset(rng, config=dataset_config)
-    merge(dataset_config)
+    make_dataset(rng, config=dataset_config, ndata=50)
+    data_utils.merge_h5(dataset_config)
     data_utils.add_ids(dataset_config.paths.dataset)
 
 

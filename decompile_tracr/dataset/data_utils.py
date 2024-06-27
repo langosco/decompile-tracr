@@ -285,12 +285,16 @@ def layer_names() -> Generator[str, None, None]:
 def acquire_lock(lockfile: Path | str) -> None:
     """Acquire a lockfile. If the lockfile already exists, wait and try again.
     """
-    try:
-        with open(lockfile, "x") as f:
-            pass
-    except FileExistsError:
-        time.sleep(0.1)
-        acquire_lock(lockfile)
+    MAX_TRIES = 1000
+    for _ in range(MAX_TRIES):
+        try:
+            with open(lockfile, "x") as f:
+                pass
+            return
+        except FileExistsError:
+            time.sleep(0.1)
+    raise FileExistsError(f"Could not acquire lockfile {lockfile} "
+                          f"after {MAX_TRIES} tries ({MAX_TRIES*0.1}s).")
 
 
 def release_lock(lockfile: Path | str) -> None:

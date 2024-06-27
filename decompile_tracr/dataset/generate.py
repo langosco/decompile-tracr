@@ -1,5 +1,5 @@
 import os
-os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+os.environ["JAX_PLATFORMS"] = "cpu"
 import numpy as np
 from tqdm import tqdm
 import argparse
@@ -26,14 +26,15 @@ VERBOSE = False
 def generate_batches(
     rng: np.random.Generator,
     config: DatasetConfig,
+    ndata: int = 100,
     disable_tqdm: bool = False,
 ):
     logger.info("Begin sampling RASP programs.")
-    bs = min(config.ndata, 100)
-    nbatches = np.ceil(config.ndata / bs).astype(int)
+    bs = min(ndata, 100)
+    nbatches = np.ceil(ndata / bs).astype(int)
     for i in range(nbatches):
         if i == nbatches - 1:
-            bs = config.ndata - i * bs
+            bs = ndata - i * bs
         generate_batch(rng, bs, config=config, disable_tqdm=disable_tqdm)
 
 
@@ -104,7 +105,7 @@ def ops_per_layer(tokens: list[int]):
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Sample RASP programs.')
-    parser.add_argument('--ndata', type=int, default=None)
+    parser.add_argument('--ndata', type=int, default=100)
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--disable_tqdm', action='store_true')
     parser.add_argument('--config', type=str, default=None,
@@ -119,7 +120,6 @@ if __name__ == "__main__":
     args = parse_args()
     rng = np.random.default_rng(args.seed)
     config = load_config(args.config)
-    if args.ndata is not None:
-        config.ndata = args.ndata
 
-    generate_batches(rng, config, disable_tqdm=args.disable_tqdm)
+    generate_batches(rng, config, ndata=args.ndata, 
+                     disable_tqdm=args.disable_tqdm)
