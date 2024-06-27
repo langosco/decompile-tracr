@@ -13,6 +13,7 @@ from decompile_tracr.tokenize import tokenizer
 from decompile_tracr.dataset.logger_config import setup_logger
 from decompile_tracr.dataset.config import DatasetConfig, load_config
 from decompile_tracr.dataset.data_utils import save_json
+from decompile_tracr.dataset import data_utils
 from decompile_tracr.dataset import Signals
 from decompile_tracr.globals import disable_tqdm
 from decompile_tracr.tokenize import vocab
@@ -30,12 +31,14 @@ def generate_batches(
     disable_tqdm: bool = False,
 ):
     logger.info("Begin sampling RASP programs.")
-    bs = min(ndata, 100)
+    bs = min(ndata, 200)
     nbatches = np.ceil(ndata / bs).astype(int)
     for i in range(nbatches):
         if i == nbatches - 1:
             bs = ndata - i * bs
         generate_batch(rng, bs, config=config, disable_tqdm=disable_tqdm)
+        if Signals.sigterm:
+            break
 
 
 def generate_batch(
@@ -57,13 +60,21 @@ def generate_batch(
             logger.warning(f"Skipping program {i} (too long).")
             continue
 
+        tokens = data_utils.pad_to(
+            np.array(tokens),
+            config.max_rasp_length, 
+            pad_value=vocab.pad_id,
+        ).tolist()
+
         data.append({
             "n_sops": program.annotations['length'],  # nr of sops
             "tokens": tokens,
             "n_layers": tokens.count(vocab.eol_id),
         })
+
     if not Signals.n_sigterms >= 2:  # avoid saving after 2nd sigterm
         save_json(rng=rng, data=data, savedir=config.paths.programs_cache)
+
     return data
 
 

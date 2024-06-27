@@ -7,7 +7,7 @@ import psutil
 import gc
 import jax
 import numpy as np
-import signal
+import h5py
 
 from tracr.compiler import compile_rasp_to_model
 from tracr.rasp import rasp
@@ -36,9 +36,10 @@ def compile_batches(
                 f"to {config.paths.compiled_cache}.")
 
     for _ in range(max_batches):
-        data = load_next_batch(config.paths.programs)
+        data = load_batch(config=config)
         if data is None:
-            break
+            logger.info(f"No more data to load in {config.paths.programs}")
+            return None
 
         data = compile_batch(data, config=config)
 
@@ -53,11 +54,22 @@ def compile_batches(
         gc.collect()
 
 
+def load_batch(config: DatasetConfig):
+    assert config.paths.programs.exists()
+    start, end = data_utils.track_idx_between_processes(
+        config, name="compile_idx")
+    with h5py.File(config.paths.programs, 'r') as f:
+        if start > f['tokens'].shape[0]:
+            return None
+        data_dict = {k: v[start:end] for k, v in f.items()}
+        n = len(data_dict['tokens'])
+    data = [{k: v[i] for k, v in data_dict.items()} for i in range(n)]
+    return data
+
 
 def compile_batch(data: list[dict], config: DatasetConfig):
     assert config.compress is None
-    data = [
-        compile_datapoint(d, config=config) for d in data]
+    data = [compile_datapoint(d, config=config) for d in data]
     data = [d for d in data if d is not None]
     return data
 
@@ -72,11 +84,6 @@ def unsafe_compile_datapoint(x: dict, config: DatasetConfig):
     x['n_heads'] = info.num_heads
     x['categorical_output'] = info.use_unembed_argmax
     x['n_layers'] = info.num_layers
-    x['tokens'] = data_utils.pad_to(
-        np.array(x['tokens']),
-        config.max_rasp_length, 
-        pad_value=vocab.pad_id,
-    )
     return x
 
 
@@ -87,47 +94,6 @@ def compile_datapoint(x: dict, config: DatasetConfig):
             data_utils.DataError) as e:
         logger.info(f"Failed to compile datapoint. {e}")
         return None
-
-
-def load_next_batch(loaddir: str):
-    """Keep  track of files already loaded.
-    Return next batch of data.
-    """
-    history = loaddir / "files_already_loaded.txt"
-    with data_utils.Lock(loaddir / "history.lock"):
-        with open(history, "a+") as f:
-            f.seek(0)
-            file_list = [x.rstrip("\n") for x in f.readlines()]
-            path = get_next_filename(file_list, loaddir)
-            f.write(path + "\n")
-            f.flush()
-
-    if path == "":
-        logger.info("No more files to load. "
-                    f"All filenames present in {history}")
-        return None
-    else:
-        logger.info(f"Loading next batch: {path}.")
-        return data_utils.load_json(path)
-
-
-def get_next_filename(file_list: list[str], loaddir: Path):
-    """Return the next filename of a json file in loaddir. 
-    Recursively search subdirectories.
-    Args:
-        file_list: list of filenames already loaded (to avoid).
-        loaddir: directory to search.
-    """
-    for entry in os.scandir(loaddir):
-        if entry.path.endswith(".json") and entry.path not in file_list:
-            return entry.path
-
-        if entry.is_dir():
-            out = get_next_filename(file_list, entry.path)
-            if out != "":
-                return out
-    
-    return ""
 
 
 def compile_(program: rasp.SOp):

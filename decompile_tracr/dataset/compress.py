@@ -36,36 +36,22 @@ def compress_batches(config: DatasetConfig) -> None:
                 f"to {config.paths.compiled_cache}.")
     end = 0
     while end <= ndata(config.source_paths.dataset):
-        start, end = get_current_idx(config)
-        load_and_compress_batch(config, start, end)
-        if Signals.sigterm:
+        start, end = data_utils.track_idx_between_processes(
+            config, name="compress_idx")
+        done = load_and_compress_batch(config, start, end)
+        if done or Signals.sigterm:
             break
-
-
-def get_current_idx(config: DatasetConfig) -> int:
-    start, end = 0, config.compiling_batchsize
-    name = f"start_idx_compression_{config.name}"
-    tracker_file = Path(config.source_paths.data_dir) / f"{name}"
-    with data_utils.Lock(config.source_paths.data_dir / "dataset.lock"):
-        if not tracker_file.exists():
-            with open(tracker_file, "w") as f:
-                f.write(str(end))
-        else:
-            with open(tracker_file, "r") as f:
-                start = int(f.read())
-                end = start + config.compiling_batchsize
-                end = min(end, ndata(config.source_paths.dataset))
-            
-            with open(tracker_file, "w") as f:
-                f.write(str(end))
-    assert start < end
-    return start, end
 
 
 def load_and_compress_batch(config: DatasetConfig, start: int, end: int
                             ) -> None:
+    done = False
     with h5py.File(config.source_paths.dataset, "r", libver="latest") as f:
         groups = set.intersection(set(f.keys()), {"train", "val", "test"})
+        groups = [g for g in groups if len(f[g]) >= start]
+        if len(groups) == 0:
+            done = True
+            return done
 
     key = jax.random.key(0)
     for group in groups:
@@ -82,6 +68,8 @@ def load_and_compress_batch(config: DatasetConfig, start: int, end: int
         del batch
         jax.clear_caches()
         gc.collect()
+    
+    return done
 
 
 def compress_batch(key: PRNGKey, batch: dict, config: DatasetConfig) -> dict:

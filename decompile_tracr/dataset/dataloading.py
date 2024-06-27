@@ -92,7 +92,7 @@ class DataLoader:
 
 def load_dataset(
     loadfile: Path = default_dataset,
-    group: str = "train",
+    group: str | None = "train",
     start: int = 0,
     end: int = -1,
 ) -> dict[str, np.ndarray]:
@@ -100,8 +100,11 @@ def load_dataset(
     if not loadfile.exists():
         raise FileNotFoundError(f"File {loadfile} not found.")
     with h5py.File(loadfile, "r", libver="latest") as f:
-        _check_dataset_shapes(f[group], end)
-        data = {k: v[start:end] for k, v in f[group].items()}
+        if group is not None:
+            _check_dataset_shapes(f[group], end)
+            data = {k: v[start:end] for k, v in f[group].items()}
+        else:
+            data = {k: v[start:end] for k, v in f.items()}
     return data
 
 

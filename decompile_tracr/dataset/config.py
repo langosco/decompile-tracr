@@ -22,7 +22,7 @@ class DatasetPaths:
         self.data_dir = Path(data_dir)
         self.programs_cache  = data_dir / ".cache/programs"
         self.compiled_cache  = data_dir / ".cache/compiled"
-        self.programs        = data_dir / "programs"  # for deduped programs
+        self.programs        = data_dir / "programs.h5"  # for deduped programs
         self.dataset         = data_dir / "dataset.h5"
 
 
@@ -125,6 +125,12 @@ _presets_list = [
         n_augs=0,
         source_data_dir=base_data_dir / "small",
         name="small_compressed",
+    ),
+
+    DatasetConfig(
+        name="test",
+        base_data_dir=base_data_dir / ".tests_cache",
+        program_length=5,
     ),
 ]
 

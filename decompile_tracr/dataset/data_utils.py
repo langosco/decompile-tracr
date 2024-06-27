@@ -88,6 +88,7 @@ def make_test_splits(dataset: Path) -> None:
 def init_h5(f: h5py.File, data: dict, maxn: int = 10**7):
     """Write dict to HDF5 datasets."""
     for k, v in data.items():
+        v = np.array(v)
         f.create_dataset(k, data=v, maxshape=(maxn, *v.shape[1:]))
 
 
@@ -95,6 +96,7 @@ def append_h5(f: h5py.File, data: dict):
     """Write dict to HDF5 datasets. Assume datasets corresponding
     to the dict keys already exist and append to them."""
     for k, v in data.items():
+        v = np.array(v)
         f[k].resize((f[k].shape[0] + v.shape[0]), axis=0)
         f[k][-v.shape[0]:] = v
 
@@ -316,3 +318,29 @@ class Lock:
 
 class DataError(Exception):
     pass
+
+
+def track_idx_between_processes(config: DatasetConfig, name: str) -> int:
+    """Helper function to keep track of an integer index between
+    processes via a lockfile. Used loading batches of data
+    when compiling or compressing compiled models.
+    """
+    # TODO: this could be a class instead, with a get_current_idx
+    # method and a reset method.
+    start, end = 0, config.compiling_batchsize
+    tracker_file = config.paths.data_dir / name
+    lockfile = config.paths.data_dir / f"{tracker_file}.lock"
+    with Lock(lockfile):
+        if not tracker_file.exists():
+            with open(tracker_file, "w") as f:
+                f.write(str(end))
+        else:
+            with open(tracker_file, "r") as f:
+                start = int(f.read())
+                end = start + config.compiling_batchsize
+            
+            with open(tracker_file, "w") as f:
+                f.write(str(end))
+    assert end > start, f"end: {end}, start: {start}"
+    return start, end
+
