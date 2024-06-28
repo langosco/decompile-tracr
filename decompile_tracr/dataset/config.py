@@ -63,10 +63,11 @@ class DatasetConfig:
         "Augmentations are only possible when compressing.")
 
 
-# Presets
 def load_config(name: Optional[str] = None) -> DatasetConfig:
     if name is None:
         name = "default"
+    if name not in _presets:
+        raise ValueError(f"Unknown dataset config: {name}")
     return _presets[name]
 
 

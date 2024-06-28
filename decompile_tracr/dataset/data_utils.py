@@ -54,6 +54,8 @@ def merge_h5(
 
 
 def add_ids(dataset: Path) -> None:
+    if not dataset.exists():
+        raise FileNotFoundError(f"Dataset file {dataset} not found.")
     with h5py.File(dataset, "r+", libver="latest") as f:
         groups = set.intersection(set(f.keys()), {"train", "val", "test"})
         for group in groups:
@@ -67,6 +69,8 @@ def add_ids(dataset: Path) -> None:
 
 
 def make_test_splits(dataset: Path) -> None:
+    if not dataset.exists():
+        raise FileNotFoundError(f"Dataset file {dataset} not found.")
     def _save_split_to_new_group(f: h5py.File, n_split: int, group_name: str):
         assert group_name not in f, f"Group {group_name} already exists."
         assert n_split > 0
