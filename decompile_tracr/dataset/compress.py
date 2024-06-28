@@ -34,10 +34,10 @@ def compress_batches(config: DatasetConfig) -> None:
     logger.info(f"Compressing RASP programs found in "
                 f"{config.source_paths.dataset} and saving "
                 f"to {config.paths.compiled_cache}.")
-    end = 0
-    while end <= ndata(config.source_paths.dataset):
+    end, n = 0, data_utils.ndata(config.source_paths.dataset)
+    while end <= n:
         start, end = data_utils.track_idx_between_processes(
-            config, name="compress_idx")
+            config, name="compress_idx", maximum=n)
         done = load_and_compress_batch(config, start, end)
         if done or Signals.sigterm:
             break
@@ -48,7 +48,7 @@ def load_and_compress_batch(config: DatasetConfig, start: int, end: int
     done = False
     with h5py.File(config.source_paths.dataset, "r", libver="latest") as f:
         groups = set.intersection(set(f.keys()), {"train", "val", "test"})
-        groups = [g for g in groups if len(f[g]) >= start]
+        groups = [g for g in groups if len(f[g]['tokens']) >= start]
         if len(groups) == 0:
             done = True
             return done
@@ -119,12 +119,6 @@ def unsafe_compress_datapoint(key: PRNGKey, x: dict, config: DatasetConfig
     return out
 
 
-def ndata(dataset: Path | str):
-    with h5py.File(dataset, "r", libver="latest") as f:
-        assert "train/tokens" in f
-        return f["train/tokens"].shape[0]
-    
-    
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Data processing.')
     parser.add_argument('--max_batches', type=int, default=None,

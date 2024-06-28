@@ -324,13 +324,14 @@ class DataError(Exception):
     pass
 
 
-def track_idx_between_processes(config: DatasetConfig, name: str) -> int:
+def track_idx_between_processes(
+        config: DatasetConfig, name: str, maximum: int) -> int:
     """Helper function to keep track of an integer index between
     processes via a lockfile. Used loading batches of data
     when compiling or compressing compiled models.
     """
     # TODO: this could be a class instead, with a get_current_idx
-    # method and a reset method.
+    # method and a reset method. Or an iterator.
     start, end = 0, config.compiling_batchsize
     tracker_file = config.paths.data_dir / name
     lockfile = config.paths.data_dir / f"{tracker_file}.lock"
@@ -342,9 +343,20 @@ def track_idx_between_processes(config: DatasetConfig, name: str) -> int:
             with open(tracker_file, "r") as f:
                 start = int(f.read())
                 end = start + config.compiling_batchsize
+                end = min(end, maximum)
             
             with open(tracker_file, "w") as f:
                 f.write(str(end))
-    assert end > start, f"end: {end}, start: {start}"
+    if start == maximum:
+        assert end == start
+        logger.info(f"Reached end of dataset at index {start}.")
     return start, end
+
+
+def ndata(dataset: Path | str):
+    with h5py.File(dataset, "r", libver="latest") as f:
+        assert "train/tokens" in f
+        return f["train/tokens"].shape[0]
+    
+    
 

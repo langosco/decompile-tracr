@@ -56,11 +56,12 @@ def compile_batches(
 
 def load_batch(config: DatasetConfig):
     assert config.paths.programs.exists()
+    n = data_utils.ndata(config.paths.programs)
     start, end = data_utils.track_idx_between_processes(
-        config, name="compile_idx")
+        config, name="compile_idx", maximum=n)
+    if start == end:
+        return None
     with h5py.File(config.paths.programs, 'r') as f:
-        if start > f['tokens'].shape[0]:
-            return None
         data_dict = {k: v[start:end] for k, v in f.items()}
         n = len(data_dict['tokens'])
     data = [{k: v[i] for k, v in data_dict.items()} for i in range(n)]
