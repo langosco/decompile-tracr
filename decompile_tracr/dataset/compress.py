@@ -3,7 +3,6 @@ os.environ["JAX_PLATFORMS"] = "cpu"
 import argparse
 import gc
 import psutil
-from pathlib import Path
 
 import jax
 from jax.random import PRNGKey

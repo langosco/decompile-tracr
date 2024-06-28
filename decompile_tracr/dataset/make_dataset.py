@@ -19,12 +19,14 @@ from decompile_tracr.dataset.config import DatasetConfig, load_config
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Sample RASP programs.')
-    parser.add_argument('--ndata', type=int, default=100)
-    parser.add_argument('--seed', type=int, default=None)
-    parser.add_argument('--make_test_splits', action='store_true')
     parser.add_argument('--config', type=str, default=None,
                         help="Name of config file.")
-    parser.add_argument('--only_merge', action='store_true')
+    parser.add_argument('--ndata', type=int, default=100)
+    parser.add_argument('--seed', type=int, default=None)
+    parser.add_argument('--make', action='store_true')
+    parser.add_argument('--merge', action='store_true')
+    parser.add_argument('--add_ids', action='store_true')
+    parser.add_argument('--make_test_splits', action='store_true')
     return parser.parse_args()
 
 
@@ -43,11 +45,14 @@ if __name__ == "__main__":
     rng = np.random.default_rng(args.seed)
     config = load_config(args.config)
 
-    if not args.only_merge:
+    if args.make:
         make_dataset(rng, config=config, ndata=args.ndata)
-
-    data_utils.merge_h5(config)
-    data_utils.add_ids(dataset=config.paths.dataset)
+    
+    if args.merge:
+        data_utils.merge_h5(config)
+    
+    if args.add_ids:
+        data_utils.add_ids(dataset=config.paths.dataset)
 
     if args.make_test_splits:
         data_utils.make_test_splits(dataset=config.paths.dataset)

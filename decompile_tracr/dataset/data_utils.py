@@ -60,6 +60,7 @@ def add_ids(dataset: Path) -> None:
         groups = set.intersection(set(f.keys()), {"train", "val", "test"})
         for group in groups:
             if "ids" in f[group]:
+                logger.warning(f"Overwriting ids in {dataset}/{group}.")
                 del f[group]["ids"]
             f[group].create_dataset(
                 name="ids", 
