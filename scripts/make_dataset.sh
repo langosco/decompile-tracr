@@ -1,24 +1,23 @@
 #!/bin/bash
 
-trap "kill 0" SIGINT
-#set -o errexit
 export CUDA_VISIBLE_DEVICES=""
 export JAX_PLATFORMS=cpu
 
-CONFIG_NAME="small"
-N_PARALLEL=10
-#TERMSEQ="TERM,30000,KILL"
-TERMSEQ="TERM,1000,KILL"
+BASE_CONFIG="small"
+COMP_CONFIG="small_compressed"
+N_PARALLEL=5
+TERMSEQ="TERM,30000,TERM,5000,KILL,25"
 
-generate="python -m decompile_tracr.dataset.generate --config $CONFIG_NAME --ndata 99999999999"
-compile="python -m decompile_tracr.dataset.compile --config $CONFIG_NAME"
-compress="python -m decompile_tracr.dataset.compress --config small_compressed"
+generate="python -m decompile_tracr.dataset.generate --config $BASE_CONFIG --ndata 99999999999"
+compile="python -m decompile_tracr.dataset.compile --config $BASE_CONFIG"
+compress="python -m decompile_tracr.dataset.compress --config $COMP_CONFIG"
 
 SEQ=$(seq 1 $N_PARALLEL)
 
 
-parallel -n0 --timeout 3000 --ungroup --termseq $TERMSEQ "$generate" ::: $SEQ
-python -m decompile_tracr.dataset.dedupe --config $CONFIG_NAME  && echo "Deduped programs."
-parallel -n0 --timeout 10000 --ungroup --termseq $TERMSEQ "$compile" ::: $SEQ
-python -m decompile_tracr.dataset.make_dataset --only_merge --config $CONFIG_NAME && echo "Merged dataset."
-parallel -n0 --timeout 10000 --ungroup --termseq $TERMSEQ "$compress" ::: $SEQ
+parallel -n0 --timeout 2000 --ungroup --termseq $TERMSEQ "$generate" ::: $SEQ
+python -m decompile_tracr.dataset.dedupe --config $BASE_CONFIG
+parallel -n0 --timeout 20000 --ungroup --termseq $TERMSEQ "$compile" ::: $SEQ
+python -m decompile_tracr.dataset.make_dataset --merge --add_ids --config $BASE_CONFIG
+parallel -n0 --timeout 20000 --ungroup --termseq $TERMSEQ "$compress" ::: $SEQ
+python -m decompile_tracr.dataset.make_dataset --merge --config $COMP_CONFIG
