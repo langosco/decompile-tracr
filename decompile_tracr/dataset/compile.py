@@ -92,7 +92,7 @@ def compile_datapoint(x: dict, config: DatasetConfig):
         return unsafe_compile_datapoint(x, config)
     except (NoTokensError, InvalidValueSetError, 
             data_utils.DataError) as e:
-        logger.info(f"Failed to compile datapoint. {e}")
+        logger.warning(f"Failed to compile datapoint. {e}")
         return None
 
 

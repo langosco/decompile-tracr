@@ -64,16 +64,16 @@ def _dedupe(data: list[dict], reference: Optional[list[dict]] = None,
         reference = set([tuple(x) for x in reference])
     deduped: list[dict] = []
 
-    logger.info(f"Deduplicating {len(data)} programs.")
-    logger.info(f"Reference set size: {len(reference)}")
+    logger.info(f"Deduplicating {len(data):.2f} programs.")
+    logger.info(f"Reference set size: {len(reference):.2f}")
     for x in data:
         tokens = tuple(x['tokens'])
         if tokens not in reference:
             reference.add(tokens)
             deduped.append(x)
 
-    logger.info(f"Removed: {len(data) - len(deduped)} programs. "
-                f"({100*(len(data) - len(deduped)) / len(data)}%)")
+    logger.info(f"Removed: {len(data) - len(deduped):.2f} programs. "
+                f"({100*(len(data) - len(deduped)) / len(data):.2f}%)")
     logger.info(f"Remaining new datapoints: {len(deduped)}")
 
     return deduped

@@ -90,7 +90,7 @@ def compress_datapoint(key: PRNGKey, x: dict, config: DatasetConfig):
     try:
         return unsafe_compress_datapoint(key=key, x=x, config=config)
     except data_utils.DataError as e:
-        logger.info(f"Failed to compress datapoint. {e}")
+        logger.warning(f"Failed to compress datapoint. {e}")
         return None
 
 
