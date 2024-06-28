@@ -356,8 +356,11 @@ def track_idx_between_processes(
 
 def ndata(dataset: Path | str):
     with h5py.File(dataset, "r", libver="latest") as f:
-        assert "train/tokens" in f
-        return f["train/tokens"].shape[0]
-    
-    
+        if "train" in f:
+            return f["train/tokens"].shape[0]
+        elif "tokens" in f:
+            return f["tokens"].shape[0]
+        else:
+            raise ValueError(f"Could not find key 'tokens' {dataset}. "
+                             f"Available keys: {list(f.keys())}.")
 
