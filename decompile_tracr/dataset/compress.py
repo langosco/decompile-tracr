@@ -38,6 +38,9 @@ def compress_batches(config: DatasetConfig) -> None:
     while end <= n:
         start, end = data_utils.track_idx_between_processes(
             config, name="compress_idx", maximum=n)
+        if start == end:
+            break
+
         done = load_and_compress_batch(config, start, end)
         if done or Signals.sigterm:
             break
@@ -48,7 +51,7 @@ def load_and_compress_batch(config: DatasetConfig, start: int, end: int
     done = False
     with h5py.File(config.source_paths.dataset, "r", libver="latest") as f:
         groups = set.intersection(set(f.keys()), {"train", "val", "test"})
-        groups = [g for g in groups if len(f[g]['tokens']) >= start]
+        groups = [g for g in groups if len(f[g]['tokens']) > start]
         if len(groups) == 0:
             done = True
             return done
