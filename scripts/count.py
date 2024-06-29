@@ -1,6 +1,5 @@
 import argparse
 import h5py
-import jax
 from decompile_tracr.dataset.config import load_config
 
 
@@ -12,7 +11,7 @@ config = load_config(args.config)
 dataset = config.paths.dataset
 programs = config.paths.programs
 
-if dataset.exists() and False:
+if dataset.exists():
     with h5py.File(dataset, 'r') as f:
         for k, v in f.items():
             print(f"Number of datapoints in {k}: {len(v['tokens']):,}")
