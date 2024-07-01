@@ -66,7 +66,7 @@ def load_and_compress_batch(config: DatasetConfig, start: int, end: int
         key, subkey = jax.random.split(key)
         batch = compress_batch(subkey, batch, config=config)
         if not Signals.n_sigterms >= 2:
-            data_utils.save_h5(batch, config.paths.compiled_cache)
+            data_utils.save_h5(batch, config.paths.compiled_cache, group=group)
         del batch
         jax.clear_caches()
         gc.collect()
@@ -102,7 +102,7 @@ def unsafe_compress_datapoint(key: PRNGKey, x: dict, config: DatasetConfig
         x['weights'], sizes=x['layer_idx'], d_model=x['d_model'])
     model = ModelFromParams(params, num_heads=x['n_heads'])
     if config.compress == "svd":
-        h = int(model.d_model // 1.1)
+        h = int(model.d_model * 0.9)
         wenc, wdec, aux = compress.train_svd(model=model, hidden_size=h)
     elif config.compress == "autoencoder":
         raise NotImplementedError
@@ -110,6 +110,13 @@ def unsafe_compress_datapoint(key: PRNGKey, x: dict, config: DatasetConfig
         h = model.d_model
         orth = jax.random.orthogonal(key, n=h)
         wenc, wdec = orth, orth.T
+    elif config.compress == "svd_orthogonal":
+        h = int(model.d_model * 0.9)
+        orth = jax.random.orthogonal(key, n=h)
+        wenc, wdec, aux = compress.train_svd(model=model, hidden_size=h)
+        wenc, wdec = wenc @ orth, wdec @ orth.T
+    else:
+        raise ValueError(f"Invalid compression method: {config.compress}")
     params_compressed = compress.update_params(params, wenc, wdec)
     params_compressed, idx = data_utils.flatten_params(
         params_compressed, config=config)

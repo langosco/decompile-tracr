@@ -27,11 +27,8 @@ default_datadir = default_config.paths.data_dir
 
 # HDF5 utils
 
-def merge_h5(
-    config: DatasetConfig,
-    name: str = "train",
-) -> None:
-    """Merge all h5 files in source_dir into a single file.
+def merge_h5(config: DatasetConfig) -> None:
+    """Merge all h5 files in source_dir into a single file dataset.h5
     """
     source_dir = config.paths.compiled_cache
     target_file = config.paths.dataset
@@ -39,15 +36,20 @@ def merge_h5(
     if len(source_files) == 0:
         logger.warning(f"No h5 files found in {source_dir}.")
         return
+
+    def _merge_onto(source: h5py.File, target: h5py.File):
+        for split in source.keys():
+            assert split in ("train", "val", "test"), f"Unknown split {split}."
+            if split not in target:
+                target.create_group(split)
+                init_h5(target[split], source[split])
+            else:
+                append_h5(target[split], source[split])
     
     with h5py.File(target_file, "a", libver="latest") as target:
         for file in source_files:
             with h5py.File(file, "r", libver="latest") as source:
-                if name not in target:
-                    target.create_group(name)
-                    init_h5(target[name], source)
-                else:
-                    append_h5(target[name], source)
+                _merge_onto(source, target)
             os.remove(file)
         
     logger.info(f"Merged {len(source_files)} files.")
@@ -239,21 +241,30 @@ def save_h5(
     data: list[dict],
     savedir: Path | str,
     rng: np.random.Generator = None,
+    group: str = None,
 ) -> None:
+    """Save a dict of arrays as h5 datasets.
+    """
     if len(data) == 0:
         logger.warning("Got empty list - no data to save.")
         return None
     os.makedirs(savedir, exist_ok=True)
     savepath = savedir / (get_filename(rng) + ".h5")
-    logger.info(f"Saving {len(data)} "
-                f"datapoints to {savepath}")
+    logger.info(f"Saving {len(data)} datapoints to {savepath}")
+    if savepath.exists():
+        logger.warning(f"File {savepath} already exists. Overwriting.")
     keys = data[0].keys()
     assert all(set(x.keys()) == keys for x in data)
     out = {k: [x[k] for x in data] for k in keys}
     out = {k: np.stack(v) for k, v in out.items()}
-    with h5py.File(savepath, 'a', libver='latest') as f:
-        for k, v in out.items():
-            f.create_dataset(k, data=v)
+    with h5py.File(savepath, 'w', libver='latest') as f:
+        if group is None:
+            for k, v in out.items():
+                f.create_dataset(k, data=v)
+        else:
+            f.create_group(group)
+            for k, v in out.items():
+                f[group].create_dataset(k, data=v)
 
 
 def save_json(

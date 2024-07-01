@@ -44,7 +44,8 @@ def compile_batches(
         data = compile_batch(data, config=config)
 
         if not Signals.n_sigterms >= 2:
-            data_utils.save_h5(data, config.paths.compiled_cache)
+            data_utils.save_h5(
+                data, config.paths.compiled_cache, group='train')
 
         if Signals.sigterm:
             break
