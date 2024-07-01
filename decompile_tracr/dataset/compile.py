@@ -27,46 +27,31 @@ logger = setup_logger(__name__)
 process = psutil.Process()
 
 
-def compile_batches(
-    config: DatasetConfig, 
-    max_batches: int = 10**8,
-) -> None:
+def compile_batches(config: DatasetConfig) -> None:
+    assert config.paths.programs.exists()
     logger.info(f"Compiling RASP programs found in "
                 f"{config.paths.programs} and saving "
                 f"to {config.paths.compiled_cache}.")
 
-    for _ in range(max_batches):
-        data = load_batch(config=config)
-        if data is None:
-            logger.info(f"No more data to load in {config.paths.programs}")
-            return None
-
-        data = compile_batch(data, config=config)
+    for batch in data_utils.async_iter_h5(
+        dataset=config.paths.programs,
+        name="compile_idx",
+        batch_size=config.compiling_batchsize,
+    ):
+        n = len(batch['tokens'])
+        batch = [{k: v[i] for k, v in batch.items()} for i in range(n)]
+        batch = compile_batch(batch, config=config)
 
         if not Signals.n_sigterms >= 2:
             data_utils.save_h5(
-                data, config.paths.compiled_cache, group='train')
+                batch, config.paths.compiled_cache, group='train')
 
         if Signals.sigterm:
             break
 
-        del data
+        del batch
         jax.clear_caches()
         gc.collect()
-
-
-def load_batch(config: DatasetConfig):
-    assert config.paths.programs.exists()
-    n = data_utils.ndata(config.paths.programs)
-    start, end = data_utils.track_idx_between_processes(
-        config, name="compile_idx", maximum=n)
-    if start == end:
-        return None
-    with h5py.File(config.paths.programs, 'r') as f:
-        data_dict = {k: v[start:end] for k, v in f.items()}
-        n = len(data_dict['tokens'])
-    data = [{k: v[i] for k, v in data_dict.items()} for i in range(n)]
-    return data
 
 
 def compile_batch(data: list[dict], config: DatasetConfig):
@@ -94,7 +79,7 @@ def compile_datapoint(x: dict, config: DatasetConfig):
         return unsafe_compile_datapoint(x, config)
     except (NoTokensError, InvalidValueSetError, 
             data_utils.DataError) as e:
-        logger.warning(f"Failed to compile datapoint. {e}")
+        logger.warning(f"Failed to compile datapoint: {e}")
         return None
 
 
@@ -110,8 +95,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Data processing.')
     parser.add_argument('--delete_existing', action='store_true',
                         help="delete current data on startup.")
-    parser.add_argument('--max_batches', type=int, default=10**8,
-                        help="maximum number of batches to compile.")
     parser.add_argument('--config', type=str, default=None,
                         help="Name of config file.")
     args = parser.parse_args()
@@ -122,7 +105,4 @@ if __name__ == "__main__":
         os.makedirs(args.savepath)
     
     config = load_config(args.config)
-    compile_batches(
-        config=config,
-        max_batches=args.max_batches,
-    )
+    compile_batches(config=config)

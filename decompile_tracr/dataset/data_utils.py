@@ -34,7 +34,7 @@ def merge_h5(config: DatasetConfig) -> None:
     target_file = config.paths.dataset
     source_files = list(source_dir.glob("*.h5"))
     if len(source_files) == 0:
-        logger.warning(f"No h5 files found in {source_dir}.")
+        logger.warning(f"merge: no h5 files found in {source_dir}.")
         return
 
     def _merge_onto(source: h5py.File, target: h5py.File):
@@ -52,7 +52,7 @@ def merge_h5(config: DatasetConfig) -> None:
                 _merge_onto(source, target)
             os.remove(file)
         
-    logger.info(f"Merged {len(source_files)} files.")
+    logger.info(f"merge: merged {len(source_files)} files into {target_file}.")
 
 
 def add_ids(dataset: Path) -> None:
@@ -336,35 +336,6 @@ class DataError(Exception):
     pass
 
 
-def track_idx_between_processes(
-        config: DatasetConfig, name: str, maximum: int) -> int:
-    """Helper function to keep track of an integer index between
-    processes via a lockfile. Used loading batches of data
-    when compiling or compressing compiled models.
-    """
-    # TODO: this could be a class instead, with a get_current_idx
-    # method and a reset method. Or an iterator.
-    start, end = 0, config.compiling_batchsize
-    tracker_file = config.paths.data_dir / name
-    lockfile = config.paths.data_dir / f"{tracker_file}.lock"
-    with Lock(lockfile):
-        if not tracker_file.exists():
-            with open(tracker_file, "w") as f:
-                f.write(str(end))
-        else:
-            with open(tracker_file, "r") as f:
-                start = int(f.read())
-                end = start + config.compiling_batchsize
-                end = min(end, maximum)
-            
-            with open(tracker_file, "w") as f:
-                f.write(str(end))
-    if start == maximum:
-        assert end == start
-        logger.info(f"Reached end of dataset at index {start}.")
-    return start, end
-
-
 def ndata(dataset: Path | str):
     with h5py.File(dataset, "r", libver="latest") as f:
         if "train" in f:
@@ -375,3 +346,38 @@ def ndata(dataset: Path | str):
             raise ValueError(f"Could not find key 'tokens' {dataset}. "
                              f"Available keys: {list(f.keys())}.")
 
+
+def async_iter_h5(
+        dataset: Path | str, name: str, batch_size: int, group: str = None,
+    ) -> Generator[dict[str, np.ndarray], None, None]:
+    """Iterate over an h5 dataset asynchronously.
+    """
+    tracker = dataset.parent / name
+    lockfile = dataset.parent / f"{tracker}.lock"
+    with Lock(lockfile):
+        if not tracker.exists():
+            with open(tracker, "w") as f:
+                f.write("0")
+
+    def _get_next_index():
+        n = ndata(dataset)
+        with Lock(lockfile):
+            with open(tracker, "r") as f:
+                start = int(f.read())
+            end = start + batch_size
+            end = min(end, n)
+
+            with open(tracker, "w") as f:
+                f.write(str(end))
+        return start, end
+
+    while True:
+        start, end = _get_next_index()
+        if start == end:
+            logger.info(f"iter_h5: reached end of {dataset} at index {end}.")
+            break
+
+        with h5py.File(dataset, 'r') as f:
+            if group is not None:
+                f = f[group]
+            yield {k: v[start:end] for k, v in f.items()}

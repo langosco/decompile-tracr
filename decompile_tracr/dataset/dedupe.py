@@ -37,6 +37,9 @@ def dedupe(config: DatasetConfig) -> list[dict]:
             logger.info(f"(dedupe.py) Found existing data in {programs}. "
                         f"Loaded {prev_len} existing programs.")
     deduped = _dedupe(data, reference=reference)
+    if len(deduped) == 0:
+        return dict()
+
     deduped = {k: [x[k] for x in data] for k in deduped[0].keys()}
 
     with h5py.File(programs, "a", libver="latest") as f:

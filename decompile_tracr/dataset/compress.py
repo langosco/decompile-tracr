@@ -1,3 +1,4 @@
+"""Load tracr-compiled models and compress them."""
 import os
 os.environ["JAX_PLATFORMS"] = "cpu"
 import argparse
@@ -22,56 +23,37 @@ logger = setup_logger(__name__)
 process = psutil.Process()
 
 
-# load from default dataset
-# reconstruct params
-# if no compression: just multiply by a random orthogonal matrix
-# if compression: reconstruct model too, and train encoder/decoder,
-# then compress params
-
-
-def compress_batches(config: DatasetConfig) -> None:
+def compress_batches(
+        config: DatasetConfig,
+        splits: set[str] = {"train", "val", "test"},
+    ) -> None:
     logger.info(f"Compressing RASP programs found in "
                 f"{config.source_paths.dataset} and saving "
                 f"to {config.paths.compiled_cache}.")
-    end, n = 0, data_utils.ndata(config.source_paths.dataset)
-    while end <= n:
-        start, end = data_utils.track_idx_between_processes(
-            config, name="compress_idx", maximum=n)
-        if start == end:
-            break
 
-        done = load_and_compress_batch(config, start, end)
-        if done or Signals.sigterm:
-            break
-
-
-def load_and_compress_batch(config: DatasetConfig, start: int, end: int
-                            ) -> None:
-    done = False
     with h5py.File(config.source_paths.dataset, "r", libver="latest") as f:
-        groups = set.intersection(set(f.keys()), {"train", "val", "test"})
-        groups = [g for g in groups if len(f[g]['tokens']) > start]
-        if len(groups) == 0:
-            done = True
-            return done
+        groups = set.intersection(set(f.keys()), splits)
 
     key = jax.random.key(0)
     for group in groups:
-        batch = load_dataset(
-            loadfile=config.source_paths.dataset,
+        for batch in data_utils.async_iter_h5(
+            dataset=config.source_paths.dataset,
+            name=f"compress_idx_{group}",
+            batch_size=config.compiling_batchsize,
             group=group,
-            start=start,
-            end=end,
-        )
-        key, subkey = jax.random.split(key)
-        batch = compress_batch(subkey, batch, config=config)
-        if not Signals.n_sigterms >= 2:
-            data_utils.save_h5(batch, config.paths.compiled_cache, group=group)
-        del batch
-        jax.clear_caches()
-        gc.collect()
-    
-    return done
+        ):
+            key, subkey = jax.random.split(key)
+            batch = compress_batch(subkey, batch, config=config)
+            if not Signals.n_sigterms >= 2:
+                data_utils.save_h5(
+                    batch, config.paths.compiled_cache, group=group)
+
+            if Signals.sigterm:
+                break
+
+            del batch
+            jax.clear_caches()
+            gc.collect()
 
 
 def compress_batch(key: PRNGKey, batch: dict, config: DatasetConfig) -> dict:
@@ -92,7 +74,7 @@ def compress_datapoint(key: PRNGKey, x: dict, config: DatasetConfig):
     try:
         return unsafe_compress_datapoint(key=key, x=x, config=config)
     except data_utils.DataError as e:
-        logger.warning(f"Failed to compress datapoint. {e}")
+        logger.warning(f"Failed to compress datapoint: {e}")
         return None
 
 
@@ -130,25 +112,18 @@ def unsafe_compress_datapoint(key: PRNGKey, x: dict, config: DatasetConfig
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Data processing.')
-    parser.add_argument('--max_batches', type=int, default=None,
-                        help="maximum number of batches to compile.")
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--config', type=str, default=None,
                         help="Name of config file.")
-    parser.add_argument('--device', type=str, default=None,
-                        help="Device to use.")
+    parser.add_argument('--split', type=str, default=None,
+                        help="Name of dataset split to compress. Default all.")
     args = parser.parse_args()
 
     if args.seed is None:
         args.seed = np.random.default_rng(None).integers(0, 2**32)
     
-    if args.device == "cpu":
-        device = jax.devices("cpu")[0]
-    elif args.device is None:
-        device = None
-    else:
-        device = jax.devices()[int(args.device)]
-    
-    with jax.default_device(device):
-        config = load_config(args.config)
-        compress_batches(config=config)
+    config = load_config(args.config)
+    compress_batches(
+        config=config, 
+        splits={args.split} if args.split else {"train", "val", "test"},
+    )
