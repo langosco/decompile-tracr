@@ -21,11 +21,11 @@ logger = logger_config.setup_logger(__name__)
 
 # Deduplicate based on tokenized rasp code.
 
-def dedupe(config: DatasetConfig) -> list[dict]:
+def dedupe(config: DatasetConfig, max_files: int = None) -> list[dict]:
     """Load, dedupe, and save data."""
     programs = config.paths.programs
     logger.info("Begin loading data and deduping.")
-    data = data_utils.load_batches(config.paths.programs_cache)
+    data = data_utils.load_batches(config.paths.programs_cache, max_files)
     reference: list = tokenize_lib(config, save=False)
     reference = [x['tokens'] for x in reference]
     if programs.exists():
@@ -86,6 +86,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Data processing.')
     parser.add_argument('--batchsize', type=int, default=None,
                         help="batch size for saving deduped data.")
+    parser.add_argument('--max_files', type=int, default=None,
+                        help="Maximum number of files to process.")
     parser.add_argument('--config', type=str, default=None,
                         help="Name of config file.")
     args = parser.parse_args()
@@ -93,4 +95,4 @@ if __name__ == "__main__":
     config = load_config(args.config)
     if args.batchsize is not None:
         config.compiling_batchsize = args.batchsize
-    dedupe(config)
+    dedupe(config=config, max_files=args.max_files)
