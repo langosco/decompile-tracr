@@ -25,7 +25,8 @@ def dedupe(config: DatasetConfig, max_files: int = None) -> list[dict]:
     """Load, dedupe, and save data."""
     programs = config.paths.programs
     logger.info("Begin loading data and deduping.")
-    data = data_utils.load_batches(config.paths.programs_cache, max_files)
+    data, filenames = data_utils.load_batches(
+        config.paths.programs_cache, max_files)
     reference: list = tokenize_lib(config, save=False)
     reference = [x['tokens'] for x in reference]
     if programs.exists():
@@ -47,6 +48,10 @@ def dedupe(config: DatasetConfig, max_files: int = None) -> list[dict]:
             data_utils.init_h5(f, deduped)
         else:
             data_utils.append_h5(f, deduped)
+    
+    logger.info(f"(dedupe.py) Deleting {len(filenames)} deduped files.")
+    for file in filenames:
+        os.remove(file)
     return deduped
 
 

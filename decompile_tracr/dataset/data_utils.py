@@ -194,9 +194,11 @@ def pad_to(x: np.ndarray, max_len: int, pad_value: int = 0):
 def load_batches(loaddir: Path, max_files: int = None) -> list[dict]:
     """Load all json files in loaddir and return in a single list."""
     data = []
+    filenames = []
 
     def _load_json(entry: os.DirEntry):
         if entry.name.endswith(".json"):
+            filenames.append(entry.path)
             with open(entry.path, "r") as f:
                 data.extend(json.load(f))
 
@@ -210,7 +212,7 @@ def load_batches(loaddir: Path, max_files: int = None) -> list[dict]:
         
     if len(data) == 0:
         raise FileNotFoundError(f"No json files found in {loaddir}.")
-    return data
+    return data, filenames
 
 
 def batched(iterable, n):
