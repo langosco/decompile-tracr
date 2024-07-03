@@ -128,6 +128,18 @@ _presets_list = [
         base_data_dir=base_data_dir / ".tests_cache",
         program_length=5,
     ),
+
+    DatasetConfig(
+        program_length=[4,5,6,7,8],
+        max_rasp_length=128,
+        max_weights_length=65_536,
+        max_layers=50,
+        compiling_batchsize=180,
+        name="range_scrambled",
+        compress="orthogonal",
+        source_data_dir=base_data_dir / "range",
+    ),
+
 ]
 
 _presets = {config.name: config for config in _presets_list}
