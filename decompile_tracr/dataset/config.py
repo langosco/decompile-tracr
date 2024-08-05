@@ -55,7 +55,8 @@ class DatasetConfig:
                 raise ValueError("No source directory specified.")
 
         if self.compress is not None:
-            assert self.compress in ["svd", "autoencoder", "orthogonal"]
+            assert self.compress in ["svd", "autoencoder", "orthogonal"], (
+                f"Unkown compression method: {self.compress}")
             assert self.n_augs is not None, (
                 "Number of augmentations must be set.")
         else:
@@ -137,6 +138,7 @@ _presets_list = [
         compiling_batchsize=180,
         name="range_scrambled",
         compress="orthogonal",
+        n_augs=0,
         source_data_dir=base_data_dir / "range",
     ),
 
