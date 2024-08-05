@@ -24,9 +24,9 @@ process = psutil.Process()
 
 
 def compress_batches(
-        config: DatasetConfig,
-        splits: set[str] = {"train", "val", "test"},
-    ) -> None:
+    config: DatasetConfig,
+    splits: set[str] = {"train", "val", "test"},
+) -> None:
     logger.info(f"Compressing RASP programs found in "
                 f"{config.source_paths.dataset} and saving "
                 f"to {config.paths.compiled_cache}.")
@@ -43,7 +43,8 @@ def compress_batches(
             group=group,
         ):
             key, subkey = jax.random.split(key)
-            batch = compress_batch(subkey, batch, config=config)
+            augment = config.n_augs > 0 and group == "train"
+            batch = compress_batch(subkey, batch, config=config, augment=augment)
             if not Signals.n_sigterms >= 2:
                 data_utils.save_h5(
                     batch, config.paths.compiled_cache, group=group)
@@ -56,18 +57,30 @@ def compress_batches(
             gc.collect()
 
 
-def compress_batch(key: PRNGKey, batch: dict, config: DatasetConfig) -> dict:
+def compress_batch(key: PRNGKey, batch: dict, config: DatasetConfig, augment: bool
+        ) -> dict:
     assert config.compress is not None
     if 'batch_id' in batch:
         del batch['batch_id']
 
-    keys = jax.random.split(key, len(batch['weights']))
-    compressed = [
-        compress_datapoint(k, {k: v[i] for k, v in batch.items()}, config)
-        for k, i in zip(keys, range(len(batch['weights'])))
-    ]
+    compressed = []
+    batch_size = len(batch['weights'])
+    for i in range(batch_size):
+        key, subkey = jax.random.split(key)
+        x = {k: v[i] for k, v in batch.items()}
+        c = compress_datapoint(subkey, x, config=config)
+        if c is not None:
+            compressed.append(c)
 
-    return [d for d in compressed if d is not None]
+        if augment and config.n_augs > 0:
+            assert config.compress != "svd"
+            for _ in range(config.n_augs):
+                key, subkey = jax.random.split(key)
+                c = compress_datapoint(subkey, x, config=config)
+                if c is not None:
+                    compressed.append(c)
+
+    return compressed
 
 
 def compress_datapoint(key: PRNGKey, x: dict, config: DatasetConfig):

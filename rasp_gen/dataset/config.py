@@ -125,6 +125,28 @@ _presets_list = [
     ),
 
     DatasetConfig(
+        program_length=5,
+        max_rasp_length=128,
+        max_weights_length=32_768,
+        compiling_batchsize=30,
+        compress="svd",
+        n_augs=0,
+        source_data_dir=base_data_dir / "small",
+        name="small_compressed_and_scrambled",
+    ),
+
+    DatasetConfig(
+        program_length=5,
+        max_rasp_length=128,
+        max_weights_length=32_768,
+        compiling_batchsize=30,
+        compress="svd",
+        n_augs=20,
+        source_data_dir=base_data_dir / "small",
+        name="small_compressed_augs",
+    ),
+
+    DatasetConfig(
         name="test",
         base_data_dir=base_data_dir / ".tests_cache",
         program_length=5,
