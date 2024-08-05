@@ -1,9 +1,9 @@
 from collections import Counter
 import numpy as np
 
-from decompile_tracr.sample import rasp_utils
-from decompile_tracr.sample.rasp_utils import SamplingError
-from decompile_tracr.dataset.logger_config import setup_logger
+from rasp_gen.sample import rasp_utils
+from rasp_gen.sample.rasp_utils import SamplingError
+from rasp_gen.dataset.logger_config import setup_logger
 
 from tracr.rasp import rasp
 from tracr.compiler import validating

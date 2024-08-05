@@ -11,8 +11,8 @@ import optax
 import haiku as hk
 import einops
 
-from decompile_tracr.compress.autoencoder import Residuals
-from decompile_tracr.compress import autoencoder
+from rasp_gen.compress.autoencoder import Residuals
+from rasp_gen.compress import autoencoder
 
 from tracr.transformer.model import CompiledTransformerModel
 from tracr.compiler.assemble import AssembledTransformerModel

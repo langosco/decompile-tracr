@@ -10,11 +10,11 @@ from typing import Optional
 import h5py
 import numpy as np
 
-from decompile_tracr.dataset import data_utils
-from decompile_tracr.dataset.dataloading import load_dataset
-from decompile_tracr.dataset import logger_config
-from decompile_tracr.dataset.tokenize_lib import tokenize_lib
-from decompile_tracr.dataset.config import DatasetConfig, load_config
+from rasp_gen.dataset import data_utils
+from rasp_gen.dataset.dataloading import load_dataset
+from rasp_gen.dataset import logger_config
+from rasp_gen.dataset.tokenize_lib import tokenize_lib
+from rasp_gen.dataset.config import DatasetConfig, load_config
 
 logger = logger_config.setup_logger(__name__)
 

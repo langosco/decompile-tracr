@@ -1,9 +1,9 @@
 from typing import Optional
 from pathlib import Path
 import chex
-from decompile_tracr.globals import on_cluster
-from decompile_tracr.globals import hpc_storage_dir
-from decompile_tracr.globals import module_path
+from rasp_gen.globals import on_cluster
+from rasp_gen.globals import hpc_storage_dir
+from rasp_gen.globals import module_path
 
 
 def default_base_data_dir() -> Path:

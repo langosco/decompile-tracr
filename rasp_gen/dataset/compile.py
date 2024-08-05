@@ -14,13 +14,13 @@ from tracr.rasp import rasp
 from tracr.compiler.basis_inference import InvalidValueSetError
 from tracr.compiler.craft_model_to_transformer import NoTokensError
 
-from decompile_tracr.tokenize import tokenizer
-from decompile_tracr.tokenize import vocab
-from decompile_tracr.dataset import data_utils
-from decompile_tracr.dataset.config import DatasetConfig, load_config
-from decompile_tracr.dataset.logger_config import setup_logger
-from decompile_tracr.compress.utils import AssembledModelInfo
-from decompile_tracr.dataset import Signals
+from rasp_gen.tokenize import tokenizer
+from rasp_gen.tokenize import vocab
+from rasp_gen.dataset import data_utils
+from rasp_gen.dataset.config import DatasetConfig, load_config
+from rasp_gen.dataset.logger_config import setup_logger
+from rasp_gen.compress.utils import AssembledModelInfo
+from rasp_gen.dataset import Signals
 
 
 logger = setup_logger(__name__)

@@ -14,9 +14,9 @@ import numpy as np
 import chex
 from jaxtyping import ArrayLike
 
-from decompile_tracr.tokenize import vocab
-from decompile_tracr.dataset.logger_config import setup_logger
-from decompile_tracr.dataset.config import DatasetConfig
+from rasp_gen.tokenize import vocab
+from rasp_gen.dataset.logger_config import setup_logger
+from rasp_gen.dataset.config import DatasetConfig
 
 
 logger = setup_logger(__name__)

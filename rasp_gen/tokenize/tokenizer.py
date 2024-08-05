@@ -3,8 +3,8 @@
 import numpy as np
 from tracr.rasp import rasp
 
-from decompile_tracr.tokenize import rasp_to_str, str_to_rasp
-import decompile_tracr.tokenize.vocab as voc
+from rasp_gen.tokenize import rasp_to_str, str_to_rasp
+import rasp_gen.tokenize.vocab as voc
 
 
 def encode_token(x: str) -> int:

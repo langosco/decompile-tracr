@@ -10,13 +10,13 @@ from jax.random import PRNGKey
 import numpy as np
 import h5py
 
-from decompile_tracr.dataset import data_utils
-from decompile_tracr.dataset import Signals
-from decompile_tracr.dataset.dataloading import load_dataset
-from decompile_tracr.dataset.config import DatasetConfig, load_config
-from decompile_tracr.dataset.logger_config import setup_logger
-from decompile_tracr.compress import compress
-from decompile_tracr.dataset.reconstruct import ModelFromParams
+from rasp_gen.dataset import data_utils
+from rasp_gen.dataset import Signals
+from rasp_gen.dataset.dataloading import load_dataset
+from rasp_gen.dataset.config import DatasetConfig, load_config
+from rasp_gen.dataset.logger_config import setup_logger
+from rasp_gen.compress import compress
+from rasp_gen.dataset.reconstruct import ModelFromParams
 
 
 logger = setup_logger(__name__)

@@ -19,13 +19,13 @@ import haiku as hk
 from tracr.compiler.assemble import AssembledTransformerModel
 from tracr.transformer.model import CompiledTransformerModel
 
-from decompile_tracr.tokenize import tokenizer
-from decompile_tracr.sample import sample
-from decompile_tracr.dataset import compile
-from decompile_tracr.compress import metrics
-from decompile_tracr.compress import autoencoder
-from decompile_tracr.compress.utils import AssembledModelInfo
-from decompile_tracr.dataset.reconstruct import ModelFromParams
+from rasp_gen.tokenize import tokenizer
+from rasp_gen.sample import sample
+from rasp_gen.dataset import compile
+from rasp_gen.compress import metrics
+from rasp_gen.compress import autoencoder
+from rasp_gen.compress.utils import AssembledModelInfo
+from rasp_gen.dataset.reconstruct import ModelFromParams
 
 
 from metamodels_for_rasp.train import Updater, TrainState

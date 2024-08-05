@@ -15,10 +15,10 @@ from tracr.compiler.basis_inference import InvalidValueSetError
 from tracr.compiler.craft_model_to_transformer import NoTokensError
 from tracr.transformer.model import Transformer, TransformerConfig
 
-from decompile_tracr.tokenize import tokenizer
-from decompile_tracr.dataset import data_utils
-from decompile_tracr.dataset.config import DatasetConfig, load_config
-from decompile_tracr.dataset.logger_config import setup_logger
+from rasp_gen.tokenize import tokenizer
+from rasp_gen.dataset import data_utils
+from rasp_gen.dataset.config import DatasetConfig, load_config
+from rasp_gen.dataset.logger_config import setup_logger
 
 
 def reconstruct_model_from_datapoint(x: dict):

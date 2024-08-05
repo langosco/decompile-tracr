@@ -5,14 +5,14 @@ import h5py
 import numpy as np
 import jax
 
-from decompile_tracr.tokenize import tokenizer
-from decompile_tracr.dataset.logger_config import setup_logger
-from decompile_tracr.dataset.config import DatasetConfig, load_config
-from decompile_tracr.dataset import lib
-from decompile_tracr.dataset.generate import to_filter
-from decompile_tracr.dataset.data_utils import save_json
-from decompile_tracr.dataset import data_utils
-from decompile_tracr.dataset.compile import compile_batch
+from rasp_gen.tokenize import tokenizer
+from rasp_gen.dataset.logger_config import setup_logger
+from rasp_gen.dataset.config import DatasetConfig, load_config
+from rasp_gen.dataset import lib
+from rasp_gen.dataset.generate import to_filter
+from rasp_gen.dataset.data_utils import save_json
+from rasp_gen.dataset import data_utils
+from rasp_gen.dataset.compile import compile_batch
 
 
 logger = setup_logger(__name__)

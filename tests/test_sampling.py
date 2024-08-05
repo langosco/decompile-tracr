@@ -10,13 +10,13 @@ import chex
 from tracr.rasp import rasp
 from tracr.compiler import validating
 
-from decompile_tracr.sample import rasp_utils
-from decompile_tracr.sample.rasp_utils import SamplingError
-from decompile_tracr.sample import sample
-from decompile_tracr.sample.validate import perform_checks
-from decompile_tracr.tokenize import tokenizer
-from decompile_tracr.tokenize import vocab
-from decompile_tracr.dataset import lib
+from rasp_gen.sample import rasp_utils
+from rasp_gen.sample.rasp_utils import SamplingError
+from rasp_gen.sample import sample
+from rasp_gen.sample.validate import perform_checks
+from rasp_gen.tokenize import tokenizer
+from rasp_gen.tokenize import vocab
+from rasp_gen.dataset import lib
 
 rng = np.random.default_rng(None)
 

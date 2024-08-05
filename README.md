@@ -10,18 +10,18 @@ Then pip install this repository:
 pip install -e .
 ```
 # Overview
-* `decompile_tracr/sample`: code for generating random RASP programs.
-* `decompile_tracr/tokenize`: code for mapping to and from a token representation for RASP programs.
-* `decompile_tracr/dataset`: code for generating a full dataset to train a meta-model.
+* `rasp_gen/sample`: code for generating random RASP programs.
+* `rasp_gen/tokenize`: code for mapping to and from a token representation for RASP programs.
+* `rasp_gen/dataset`: code for generating a full dataset to train a meta-model.
 
 To build a dataset of sampled programs + compiled weights, run
 ```bash
 N_DATAPOINTS=1000
-python -m decompile_tracr.dataset.make_dataset --ndata $N_DATAPOINTS --config range
+python -m rasp_gen.dataset.make_dataset --ndata $N_DATAPOINTS --config range
 ```
 
 The `--config` argument refers to one of the DatasetConfig presets
-in `decompile_tracr/dataset/config.py`.
+in `rasp_gen/dataset/config.py`.
 
 
 
@@ -30,7 +30,7 @@ in `decompile_tracr/dataset/config.py`.
 
 ```python
 import numpy as np
-from decompile_tracr.sample import sample, rasp_utils
+from rasp_gen.sample import sample, rasp_utils
 
 rng = np.random.default_rng()
 program = sample.sample(rng=rng, program_length=5)
@@ -47,7 +47,7 @@ rasp_utils.print_program(program, test_input=[1,2,3,4])
 
 ## Tokenize RASP Program
 ```python
-from decompile_tracr.tokenizing import tokenizer
+from rasp_gen.tokenizing import tokenizer
 
 tokens: list[int] = tokenizer.tokenize(program)
 decoded: list[str] = tokenizer.decode(tokens)
@@ -77,6 +77,9 @@ Note that not all RASP programs are not supported by Tracr.
 
 ## Status
 ### Enhancements
+- [x] add augmentation for compressed models
+- [x] ensure that despite augmentation there is no train/val/test overlap
+- [x] store deduped programs in hdf5 instead of json
 - [x] add tests for compiling
 - [x] remove SOps that are all (or mostly) None
 - [x] use multiple test inputs; 
@@ -97,7 +100,9 @@ Note that not all RASP programs are not supported by Tracr.
 - [ ] Do linear sequencemaps compile to the same model if we switch order of
         expressions and weights are equal? what about symmetric sequencemaps?
 - [ ] Test determinism under fixed rng seed
-- [ ] Investigate why different InvalidValueSet errors happen at tokenize time vs compile time
+- [x] Delete program json files after deduping
+- [ ] Should we allow >1 ops per layer in a compressed model?
+- [ ] Join {name} and {name}_compressed into single config
 
 
 Tests for sampled programs
@@ -105,6 +110,7 @@ Tests for sampled programs
 - [x] outputs are not constant in input
 - [x] program is not the identity
 - [x] outputs are within a reasonable range, eg [-1e6, 1e6]
+- [x] remove duplicate implementations between test_dataset and test_make_dataset
 - [ ] good distribution between SOp types and classes (see section 'Biasing the sampler')
 - [ ] variable names in tokenized program have same order as sop names
 - [ ] order in residual stream compiled model is the same as variable names

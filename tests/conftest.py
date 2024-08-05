@@ -4,9 +4,9 @@ import pytest
 import shutil
 import numpy as np
 
-from decompile_tracr.dataset import data_utils
-from decompile_tracr.dataset.make_dataset import make_dataset
-from decompile_tracr.dataset.config import load_config
+from rasp_gen.dataset import data_utils
+from rasp_gen.dataset.make_dataset import make_dataset
+from rasp_gen.dataset.config import load_config
 
 rng = np.random.default_rng()
 

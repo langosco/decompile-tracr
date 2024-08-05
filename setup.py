@@ -1,9 +1,9 @@
 import setuptools
 
-setuptools.setup(name='decompile-tracr',
+setuptools.setup(name='rasp-gen',
       version='0.0.1',
       description="Program Generator for RASP",
-      packages=['decompile_tracr'],
+      packages=['rasp_gen'],
       install_requires=[
             "chex",
             "flax",

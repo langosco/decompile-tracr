@@ -3,17 +3,17 @@ import numpy as np
 import h5py
 import chex
 
-from decompile_tracr.tokenize import tokenizer
-from decompile_tracr.tokenize import vocab
-from decompile_tracr.dataset.config import load_config, DatasetConfig
-from decompile_tracr.dataset import logger_config
-from decompile_tracr.dataset.dataloading import load_dataset
-from decompile_tracr.dataset.reconstruct import ModelFromParams
-from decompile_tracr.dataset.config import DatasetConfig
-from decompile_tracr.dataset.compile import compile_
-from decompile_tracr.compress.metrics import Embed, Unembed
-from decompile_tracr.compress.utils import AssembledModelInfo
-from decompile_tracr.dataset import data_utils
+from rasp_gen.tokenize import tokenizer
+from rasp_gen.tokenize import vocab
+from rasp_gen.dataset.config import load_config, DatasetConfig
+from rasp_gen.dataset import logger_config
+from rasp_gen.dataset.dataloading import load_dataset
+from rasp_gen.dataset.reconstruct import ModelFromParams
+from rasp_gen.dataset.config import DatasetConfig
+from rasp_gen.dataset.compile import compile_
+from rasp_gen.compress.metrics import Embed, Unembed
+from rasp_gen.compress.utils import AssembledModelInfo
+from rasp_gen.dataset import data_utils
 
 
 # Load from default dataset and do some sanity checks.

@@ -3,12 +3,12 @@ import jax
 import numpy as np
 import jax.numpy as jnp
 
-from decompile_tracr.tokenize import tokenizer
-from decompile_tracr.sample import sample
-from decompile_tracr.dataset import compile
-from decompile_tracr.compress import compress
-from decompile_tracr.compress.utils import AssembledModelInfo
-from decompile_tracr.dataset.reconstruct import ModelFromParams
+from rasp_gen.tokenize import tokenizer
+from rasp_gen.sample import sample
+from rasp_gen.dataset import compile
+from rasp_gen.compress import compress
+from rasp_gen.compress.utils import AssembledModelInfo
+from rasp_gen.dataset.reconstruct import ModelFromParams
 
 rng = np.random.default_rng(0)
 HIDDEN_SIZE = 15

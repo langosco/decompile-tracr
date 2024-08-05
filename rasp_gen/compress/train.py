@@ -4,12 +4,12 @@ os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 import jax
 import numpy as np
 
-from decompile_tracr.tokenize import tokenizer
-from decompile_tracr.sample import sample
-from decompile_tracr.dataset import compile
-from decompile_tracr.dataset.logger_config import setup_logger
-from decompile_tracr.compress import autoencoder
-from decompile_tracr.compress import transformer
+from rasp_gen.tokenize import tokenizer
+from rasp_gen.sample import sample
+from rasp_gen.dataset import compile
+from rasp_gen.dataset.logger_config import setup_logger
+from rasp_gen.compress import autoencoder
+from rasp_gen.compress import transformer
 
 if __name__ == "__main__":
     logger = setup_logger(__name__)

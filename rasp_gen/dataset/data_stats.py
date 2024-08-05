@@ -10,10 +10,10 @@ import matplotlib.pyplot as plt
 import jax.numpy as jnp
 import seaborn as sns
 
-from decompile_tracr.tokenize import vocab
-from decompile_tracr.tokenize import tokenizer
-from decompile_tracr.dataset import dataloading
-from decompile_tracr.dataset.config import load_config
+from rasp_gen.tokenize import vocab
+from rasp_gen.tokenize import tokenizer
+from rasp_gen.dataset import dataloading
+from rasp_gen.dataset.config import load_config
 
 
 def parse_args():

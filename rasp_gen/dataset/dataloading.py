@@ -7,7 +7,7 @@ import jax
 import jax.flatten_util
 from jax import numpy as jnp
 
-from decompile_tracr.dataset.config import DatasetConfig
+from rasp_gen.dataset.config import DatasetConfig
 
 
 default_config = DatasetConfig()

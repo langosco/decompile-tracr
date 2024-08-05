@@ -3,9 +3,9 @@
 
 from tracr.rasp import rasp
 
-from decompile_tracr.sample.map_primitives import FunctionWithRepr
-from decompile_tracr.tokenize import vocab
-from decompile_tracr.tokenize.rasp_to_str import validate_rasp_str
+from rasp_gen.sample.map_primitives import FunctionWithRepr
+from rasp_gen.tokenize import vocab
+from rasp_gen.tokenize.rasp_to_str import validate_rasp_str
 
 
 ENCODINGS = {

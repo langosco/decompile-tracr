@@ -13,9 +13,9 @@ from tracr.compiler import validating
 from tracr.compiler.basis_inference import InvalidValueSetError
 from tracr.compiler.craft_model_to_transformer import NoTokensError
 
-from decompile_tracr.sample import rasp_utils
-from decompile_tracr.sample import sample
-from decompile_tracr.tokenize import tokenizer
+from rasp_gen.sample import rasp_utils
+from rasp_gen.sample import sample
+from rasp_gen.tokenize import tokenizer
 
 rng = np.random.default_rng(None)
 

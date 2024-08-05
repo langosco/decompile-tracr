@@ -1,6 +1,6 @@
 import argparse
 import h5py
-from decompile_tracr.dataset.config import load_config
+from rasp_gen.dataset.config import load_config
 
 
 parser = argparse.ArgumentParser(description='Sample RASP programs.')

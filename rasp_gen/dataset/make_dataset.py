@@ -9,12 +9,12 @@ os.environ["JAX_PLATFORMS"]  = "cpu"
 import argparse
 import numpy as np
 
-from decompile_tracr.dataset import generate
-from decompile_tracr.dataset import dedupe
-from decompile_tracr.dataset.compile import compile_batches
-from decompile_tracr.dataset.compress import compress_batches
-from decompile_tracr.dataset import data_utils
-from decompile_tracr.dataset.config import DatasetConfig, load_config
+from rasp_gen.dataset import generate
+from rasp_gen.dataset import dedupe
+from rasp_gen.dataset.compile import compile_batches
+from rasp_gen.dataset.compress import compress_batches
+from rasp_gen.dataset import data_utils
+from rasp_gen.dataset.config import DatasetConfig, load_config
 
 
 def parse_args():

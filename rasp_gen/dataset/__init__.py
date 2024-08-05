@@ -1,5 +1,5 @@
 import signal
-from decompile_tracr.dataset.data_utils import logger
+from rasp_gen.dataset.data_utils import logger
 
 
 class Signals:
