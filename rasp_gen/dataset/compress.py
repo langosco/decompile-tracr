@@ -109,7 +109,7 @@ def unsafe_compress_datapoint(key: PRNGKey, x: dict, config: DatasetConfig
         h = int(model.d_model * 0.9)
         orth = jax.random.orthogonal(key, n=h)
         wenc, wdec, aux = compress.train_svd(model=model, hidden_size=h)
-        wenc, wdec = wenc @ orth, wdec @ orth.T
+        wenc, wdec = wenc @ orth, orth.T @ wdec
     else:
         raise ValueError(f"Invalid compression method: {config.compress}")
     params_compressed = compress.update_params(params, wenc, wdec)
