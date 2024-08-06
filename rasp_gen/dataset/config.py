@@ -55,7 +55,7 @@ class DatasetConfig:
                 raise ValueError("No source directory specified.")
 
         if self.compress is not None:
-            assert self.compress in ["svd", "autoencoder", "orthogonal"], (
+            assert self.compress in ["svd", "autoencoder", "orthogonal", "svd_orthogonal"], (
                 f"Unkown compression method: {self.compress}")
             assert self.n_augs is not None, (
                 "Number of augmentations must be set.")
@@ -140,7 +140,7 @@ _presets_list = [
         max_rasp_length=128,
         max_weights_length=32_768,
         compiling_batchsize=30,
-        compress="svd",
+        compress="svd_orthogonal",
         n_augs=20,
         source_data_dir=base_data_dir / "small",
         name="small_compressed_augs",

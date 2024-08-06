@@ -38,7 +38,7 @@ def compress_batches(
     for group in groups:
         for batch in data_utils.async_iter_h5(
             dataset=config.source_paths.dataset,
-            name=f"compress_idx_{group}",
+            name=f"compress_idx.{config.name}.{group}",
             batch_size=config.compiling_batchsize,
             group=group,
         ):

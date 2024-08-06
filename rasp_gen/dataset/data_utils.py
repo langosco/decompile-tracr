@@ -343,14 +343,14 @@ class DataError(Exception):
     pass
 
 
-def ndata(dataset: Path | str):
+def ndata(dataset: Path | str, group="train"):
     with h5py.File(dataset, "r", libver="latest") as f:
-        if "train" in f:
-            return f["train/tokens"].shape[0]
-        elif "tokens" in f:
+        if group is None:
             return f["tokens"].shape[0]
+        elif group in f:
+            return f[group]["tokens"].shape[0]
         else:
-            raise ValueError(f"Could not find key 'tokens' {dataset}. "
+            raise ValueError(f"Could not find key '{group or tokens}' in {dataset}. "
                              f"Available keys: {list(f.keys())}.")
 
 
@@ -359,15 +359,16 @@ def async_iter_h5(
     ) -> Generator[dict[str, np.ndarray], None, None]:
     """Iterate over an h5 dataset asynchronously.
     """
-    tracker = dataset.parent / name
-    lockfile = dataset.parent / f"{tracker}.lock"
+    tracker = dataset.parent / ".trackers" / name
+    os.makedirs(tracker.parent, exist_ok=True)
+    lockfile = str(tracker) + ".lock"
     with Lock(lockfile):
         if not tracker.exists():
             with open(tracker, "w") as f:
                 f.write("0")
 
     def _get_next_index():
-        n = ndata(dataset)
+        n = ndata(dataset, group=group)
         with Lock(lockfile):
             with open(tracker, "r") as f:
                 start = int(f.read())
