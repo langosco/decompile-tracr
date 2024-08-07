@@ -382,7 +382,8 @@ def async_iter_h5(
     while True:
         start, end = _get_next_index()
         if start == end:
-            logger.info(f"iter_h5: reached end of {dataset} at index {end}.")
+            assert end == ndata(dataset, group=group)
+            logger.info(f"iter_h5: reached end of {dataset} ({group}) at index {end}.")
             break
 
         with h5py.File(dataset, 'r') as f:
